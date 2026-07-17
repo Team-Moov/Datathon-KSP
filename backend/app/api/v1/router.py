@@ -1,0 +1,29 @@
+"""Top-level v1 API router — aggregates all endpoint modules."""
+
+from fastapi import APIRouter
+
+from app.api.v1.endpoints import (
+    auth,
+    cases,
+    chat,
+    documents,
+    financial,
+    network,
+    persons,
+    risk,
+    socio,
+    trends,
+)
+
+api_router = APIRouter()
+
+api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(cases.router, prefix="/cases", tags=["Cases"])
+api_router.include_router(persons.router, prefix="/persons", tags=["Persons"])
+api_router.include_router(documents.router, prefix="/documents", tags=["Documents & Ingestion"])
+api_router.include_router(network.router, prefix="/network", tags=["Network Analysis"])
+api_router.include_router(trends.router, prefix="/trends", tags=["Crime Patterns & Trends"])
+api_router.include_router(risk.router, prefix="/risk", tags=["Risk Profiling"])
+api_router.include_router(financial.router, prefix="/financial", tags=["Financial Crime"])
+api_router.include_router(socio.router, prefix="/socio", tags=["Sociological Insights"])
+api_router.include_router(chat.router, prefix="/chat", tags=["Conversational AI"])

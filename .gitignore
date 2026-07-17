@@ -1,0 +1,70 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.env
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ── Secrets & credentials — NEVER commit these ────────────────────────────────
+backend/keys/
+*.json.key
+sa-key*.json
+*service_account*.json
+
+# ── Environment files ─────────────────────────────────────────────────────────
+# .env.example IS committed (safe template); .env is NOT
+backend/.env
+
+# ── Alembic ───────────────────────────────────────────────────────────────────
+backend/alembic/versions/
+
+# ── Uploads / tmp ─────────────────────────────────────────────────────────────
+uploads/
+/tmp/
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
