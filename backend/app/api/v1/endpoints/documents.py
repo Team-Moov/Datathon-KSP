@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import log_audit_event
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import get_current_user, require_roles
-from app.models.enums import Role
+from app.core.permissions import Permission, require_permission
 from app.models.user import User
 from app.services.ingestion_service import IngestionService
 
@@ -34,7 +34,7 @@ class DocumentOut(BaseModel):
 async def upload_document(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.UPLOAD_DOCUMENT)),
 ):
     """
     Accepts any supported document format and runs the full ingestion pipeline.
@@ -63,6 +63,10 @@ async def upload_document(
         raw_file_ref=raw_ref,
         user_id=current_user.id,
     )
+    await log_audit_event(
+        db, action="document.uploaded", resource_type="document", resource_id=str(doc.id),
+        payload={"original_filename": file.filename, "staging_only": doc.staging_only},
+    )
     return DocumentOut.model_validate(doc)
 
 
@@ -70,7 +74,7 @@ async def upload_document(
 async def promote_staged_document(
     document_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.PROMOTE_DOCUMENT)),
 ):
     """
     Analyst explicitly promotes a staged news document to verified status.
@@ -90,4 +94,5 @@ async def promote_staged_document(
     doc.staging_only = False
     doc.human_verified = True
     await db.flush()
+    await log_audit_event(db, action="document.promoted", resource_type="document", resource_id=str(document_id))
     return {"status": "promoted", "document_id": str(document_id)}

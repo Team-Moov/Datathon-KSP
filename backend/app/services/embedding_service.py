@@ -1,15 +1,17 @@
 """
 Embedding service — generates and stores vector chunks for narrative text (§3.1 vector layer).
-Uses Google Vertex AI text-embedding-004 (768-dim) via langchain-google-vertexai.
-Authenticated via Application Default Credentials (ADC) — no API key needed when
-running on GCP; set GOOGLE_APPLICATION_CREDENTIALS for local dev with a SA key file.
+Uses a local sentence-transformers model (all-MiniLM-L6-v2, 384-dim) rather than a
+hosted embedding API — Groq doesn't serve an embedding endpoint, and running this
+locally means the only network-dependent LLM calls left in the system are the
+chat/narration ones (conversation_service, investigator_support).
 """
 
+import asyncio
 import uuid
 from typing import List, Optional
 
 import structlog
-from langchain_google_vertexai import VertexAIEmbeddings
+from sentence_transformers import SentenceTransformer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -33,17 +35,22 @@ _CHUNK_TYPE_MAP = {
     SourceType.HISTORY_SHEET: ChunkType.MO,
 }
 
+# Loaded once per process — sentence-transformers is a heavyweight sync model
+# load; every embed call runs it via asyncio.to_thread so it never blocks the
+# event loop.
+_model: Optional[SentenceTransformer] = None
+
+
+def _get_model() -> SentenceTransformer:
+    global _model
+    if _model is None:
+        model_name = settings.EMBEDDING_MODEL.removeprefix("sentence-transformers/")
+        _model = SentenceTransformer(model_name)
+        log.info("Local embedding model loaded", model=model_name, dim=settings.EMBEDDING_DIM)
+    return _model
+
 
 class EmbeddingService:
-    def __init__(self) -> None:
-        # VertexAIEmbeddings uses ADC automatically when running on GCP.
-        # Locally, export GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa-key.json
-        self._embedder = VertexAIEmbeddings(
-            model_name=settings.EMBEDDING_MODEL,   # text-embedding-004
-            project=settings.GCP_PROJECT,
-            location=settings.GCP_LOCATION,
-        )
-
     async def embed_and_store(
         self,
         text: str,
@@ -56,8 +63,7 @@ class EmbeddingService:
         repo = VectorRepository(db)
         stored_chunks = []
 
-        # VertexAIEmbeddings.aembed_documents handles batching internally
-        embeddings = await self._embedder.aembed_documents(chunks)
+        embeddings = await asyncio.to_thread(self._embed_texts, chunks)
 
         for idx, (chunk_text, embedding) in enumerate(zip(chunks, embeddings)):
             chunk = VectorChunk(
@@ -81,7 +87,14 @@ class EmbeddingService:
 
     async def embed_query(self, text: str) -> List[float]:
         """Embed a query string for similarity search — no storage."""
-        return await self._embedder.aembed_query(text)
+        embeddings = await asyncio.to_thread(self._embed_texts, [text])
+        return embeddings[0]
+
+    @staticmethod
+    def _embed_texts(texts: List[str]) -> List[List[float]]:
+        model = _get_model()
+        vectors = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+        return vectors.tolist()
 
     @staticmethod
     def _split_text(text: str) -> List[str]:

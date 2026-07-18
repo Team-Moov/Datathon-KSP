@@ -50,15 +50,12 @@ services:
       dockerfile: Dockerfile
     env_file: .env
     environment:
-      # Vertex AI / Gemini — override per-environment here if needed
-      GCP_PROJECT: ${GCP_PROJECT}
-      GCP_LOCATION: ${GCP_LOCATION:-us-central1}
-      LLM_MODEL: ${LLM_MODEL:-gemini-1.5-pro-002}
-      LLM_MODEL_FLASH: ${LLM_MODEL_FLASH:-gemini-1.5-flash-002}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-004}
-      EMBEDDING_DIM: "768"
-      # Mount SA key for local dev; on GCP use Workload Identity instead
-      GOOGLE_APPLICATION_CREDENTIALS: /secrets/sa-key.json
+      # Groq — override per-environment here if needed
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_LLM_MODEL: ${GROQ_LLM_MODEL:-llama-3.3-70b-versatile}
+      GROQ_LLM_MODEL_FAST: ${GROQ_LLM_MODEL_FAST:-llama-3.1-8b-instant}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      EMBEDDING_DIM: "384"
     ports:
       - "8000:8000"
     depends_on:
@@ -71,7 +68,6 @@ services:
     volumes:
       - ./:/app
       - uploads:/tmp/uploads
-      - ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}:/secrets/sa-key.json:ro
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # ── Celery worker ─────────────────────────────────────────────────────────
@@ -81,15 +77,12 @@ services:
       dockerfile: Dockerfile
     env_file: .env
     environment:
-      GCP_PROJECT: ${GCP_PROJECT}
-      GCP_LOCATION: ${GCP_LOCATION:-us-central1}
-      GOOGLE_APPLICATION_CREDENTIALS: /secrets/sa-key.json
+      GROQ_API_KEY: ${GROQ_API_KEY}
     depends_on:
       - redis
       - postgres
     volumes:
       - ./:/app
-      - ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}:/secrets/sa-key.json:ro
     command: >
       celery -A app.tasks.celery_app.celery_app worker
       --loglevel=info --concurrency=4

@@ -1,0 +1,100 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Manual dark-mode toggle via a `data-theme` attribute on <html>, rather than
+   only following prefers-color-scheme — the top header ships a toggle. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Desaturated indigo — deliberately not Tailwind's stock indigo-500/blue-500.
+     Used for primary actions, active nav state, focus rings. */
+  --color-accent-50: #f2f2f8;
+  --color-accent-100: #e4e4f1;
+  --color-accent-200: #c7c8e2;
+  --color-accent-300: #a3a5ce;
+  --color-accent-400: #7d80b6;
+  --color-accent-500: #5f6299;
+  --color-accent-600: #4c4f80;
+  --color-accent-700: #3d3f68;
+  --color-accent-800: #313352;
+  --color-accent-900: #282a42;
+
+  /* Status colors — also desaturated relative to Tailwind defaults, so a red
+     alert badge doesn't fight the muted palette around it. */
+  --color-caution-500: #b8863f;
+  --color-caution-600: #96702f;
+  --color-critical-500: #b1503f;
+  --color-critical-600: #953f30;
+  --color-affirm-500: #4c8a63;
+  --color-affirm-600: #3b6e4e;
+}
+
+:root {
+  --surface-glass-rgb: 255 255 255;
+  --surface-glass-alpha: 0.72;
+  --surface-flat-rgb: 255 255 255;
+  --surface-flat-alpha: 0.86;
+  --hairline-rgb: 228 228 231;
+  --glass-highlight-rgb: 255 255 255;
+}
+
+/* ThemeProvider always stamps an explicit data-theme="light"|"dark" onto
+   <html> — including for the "system" preference, resolved once on mount and
+   kept in sync with a matchMedia listener. That keeps this file as the single
+   source of truth Tailwind's dark: variant (below) also reads, rather than
+   half the app following prefers-color-scheme directly and half following the
+   attribute. */
+[data-theme="dark"] {
+  --surface-glass-rgb: 24 24 27;
+  --surface-glass-alpha: 0.66;
+  --surface-flat-rgb: 24 24 27;
+  --surface-flat-alpha: 0.55;
+  --hairline-rgb: 39 39 42;
+  --glass-highlight-rgb: 244 244 245;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    @apply bg-zinc-50 text-zinc-900 antialiased;
+  }
+  [data-theme="dark"] body {
+    @apply bg-zinc-950 text-zinc-100;
+  }
+}
+
+@layer components {
+  /* The one true "glass" surface — translucency plus a hairline border and a
+     faint inset top highlight to suggest depth. Reserved for panel chrome:
+     sidebar, top header, card headers, dialog frames. No backdrop-blur here —
+     see .glass-overlay for the (rare) cases that actually need it. */
+  .glass-surface {
+    background-color: rgb(var(--surface-glass-rgb) / var(--surface-glass-alpha));
+    border: 1px solid rgb(var(--hairline-rgb));
+    box-shadow: inset 0 1px 0 0 rgb(var(--glass-highlight-rgb) / 0.06);
+  }
+
+  /* Flat, translucent data surface — case tables, workspace body, lists. No
+     blur, tighter visual weight than .glass-surface so dense text stays sharp. */
+  .flat-surface {
+    background-color: rgb(var(--surface-flat-rgb) / var(--surface-flat-alpha));
+    border: 1px solid rgb(var(--hairline-rgb));
+  }
+
+  /* Genuinely floating content only: dropdown menus, popovers, the command
+     palette, modal chrome. This is the only place backdrop-blur is allowed. */
+  .glass-overlay {
+    background-color: rgb(var(--surface-glass-rgb) / 0.85);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgb(var(--hairline-rgb));
+  }
+
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-zinc-500;
+  }
+  [data-theme="dark"] .section-label {
+    @apply text-zinc-400;
+  }
+}

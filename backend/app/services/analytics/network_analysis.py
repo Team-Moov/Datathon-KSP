@@ -9,7 +9,7 @@ from uuid import UUID
 import networkx as nx
 import structlog
 
-from app.core.graph_db import graph_db
+from app.core.graph_db import cached_graph_query, graph_db
 from app.services.graph_sync_service import GraphSyncService
 
 log = structlog.get_logger(__name__)
@@ -24,6 +24,7 @@ class NetworkAnalysisService:
     def __init__(self) -> None:
         self.graph_sync = GraphSyncService()
 
+    @cached_graph_query("ego_network")
     async def get_ego_network(
         self, person_id: str, depth: int = 2
     ) -> Dict[str, Any]:
@@ -47,6 +48,7 @@ class NetworkAnalysisService:
             }
         return result
 
+    @cached_graph_query("communities")
     async def detect_communities(self) -> List[Dict[str, Any]]:
         """
         Run Louvain community detection via Neo4j GDS.
@@ -54,6 +56,7 @@ class NetworkAnalysisService:
         """
         return await self.graph_sync.run_community_detection(algorithm="louvain")
 
+    @cached_graph_query("cooffending_network")
     async def get_cooffending_network(
         self,
         district_id: Optional[int] = None,
@@ -88,6 +91,7 @@ class NetworkAnalysisService:
         results = await graph_db.execute_query(query, params)
         return {"edges": results, "type": "co_offending"}
 
+    @cached_graph_query("predicted_links")
     async def get_link_predictions(
         self, person_id: str, top_k: int = 10
     ) -> List[Dict[str, Any]]:
@@ -104,6 +108,7 @@ class NetworkAnalysisService:
         """
         return await graph_db.execute_query(query, {"person_id": person_id, "top_k": top_k})
 
+    @cached_graph_query("multi_jurisdiction_offenders")
     async def get_multi_jurisdiction_offenders(self) -> List[Dict[str, Any]]:
         """
         Persons whose cases span multiple police unit jurisdictions (§3.3 — organized crime signal).

@@ -9,7 +9,7 @@ from uuid import UUID
 
 import structlog
 
-from app.core.graph_db import graph_db
+from app.core.graph_db import graph_db, invalidate_graph_cache
 from app.models.document import Document
 
 log = structlog.get_logger(__name__)
@@ -37,6 +37,8 @@ class GraphSyncService:
                 if case_id:
                     role = person_data.get("role", "accused")
                     await self._create_person_case_edge(person_id, case_id, role)
+
+        await invalidate_graph_cache()
 
     async def upsert_predicted_link(
         self,
@@ -68,6 +70,7 @@ class GraphSyncService:
                 "source_tool": source_tool,
             },
         )
+        await invalidate_graph_cache()
         log.info(
             "Predicted link upserted",
             a=person_a_id,
@@ -97,6 +100,7 @@ class GraphSyncService:
                 "amount": amount,
             },
         )
+        await invalidate_graph_cache()
 
     async def get_person_network(
         self, person_id: str, depth: int = 2

@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 import structlog
-from langchain_google_vertexai import ChatVertexAI
+from langchain_groq import ChatGroq
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -33,12 +33,10 @@ class InvestigatorSupportService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        # Gemini 1.5 Flash — used for case-brief narration (cost-efficient).
-        # Vertex AI ADC handles authentication automatically on GCP.
-        self.llm = ChatVertexAI(
-            model_name=settings.LLM_MODEL_FLASH,    # gemini-1.5-flash-002
-            project=settings.GCP_PROJECT,
-            location=settings.GCP_LOCATION,
+        # Groq-hosted Llama 3.1 8B — used for case-brief narration (cost-efficient).
+        self.llm = ChatGroq(
+            model=settings.GROQ_LLM_MODEL_FAST,
+            api_key=settings.GROQ_API_KEY,
             temperature=0,
             streaming=True,
         )
