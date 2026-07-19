@@ -11,6 +11,7 @@ from app.core.audit import log_audit_event
 from app.core.database import get_db
 from app.core.masking import mask_address, mask_person_display_name
 from app.core.permissions import Permission, require_permission, role_has_permission
+from app.core.request_context import change_reason_ctx
 from app.core.security import get_current_user
 from app.models.user import User
 from app.repositories.person_repository import PersonRepository
@@ -81,6 +82,7 @@ async def verify_person(
     Optimistic-concurrency checked the same way as case edits — see cases.update_case.
     """
     repo = PersonRepository(db)
+    change_reason_ctx.set(payload.reason)
     updated = await repo.update_with_version(person_id, payload.version, {"human_verified": True})
     if updated is None:
         raise HTTPException(

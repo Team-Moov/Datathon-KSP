@@ -46,7 +46,9 @@ class FinancialCrimeService:
               AND transaction_date >= :cutoff
             GROUP BY to_account
         """)
-        result = await self.db.execute(stmt, {"acct": account, "cutoff": str(cutoff)})
+        # asyncpg binds DATE columns natively — it expects an actual date object
+        # and errors opaquely (missing .toordinal()) if handed a string instead.
+        result = await self.db.execute(stmt, {"acct": account, "cutoff": cutoff})
         rows = result.fetchall()
 
         alerts = []

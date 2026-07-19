@@ -12,6 +12,12 @@ co-offending edge between two accused on the same case, and a shared
 FinancialTransaction between them — nothing invented. Both are also pushed
 into Neo4j through the same GraphSyncService the ingestion pipeline uses, so
 the network explorer shows a real multi-node graph rather than isolated dots.
+
+Runs through the admin (table-owning) connection, not the RLS-restricted
+app_runtime role AsyncSessionFactory normally uses — seeding is a bootstrap
+operation with no logged-in user to derive app.current_role/district_id from,
+and the district-isolation RLS policies correctly deny every insert otherwise
+(confirmed by hitting exactly that failure while first testing this script).
 """
 
 import asyncio
@@ -20,8 +26,10 @@ from datetime import date
 
 import structlog
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.core.database import AsyncSessionFactory, init_db
+from app.core.config import settings
+from app.core.database import init_db
 from app.core.security import hash_password
 from app.models.case import (
     Act,
@@ -50,6 +58,7 @@ from app.models.offender import CriminalHistory, RiskScore
 from app.models.person import Person, PersonCaseRole
 from app.models.unit import District, State, Unit, UnitType
 from app.models.user import User
+from app.core.graph_db import graph_db
 from app.services.graph_sync_service import GraphSyncService
 
 log = structlog.get_logger(__name__)
@@ -83,8 +92,17 @@ async def _get_or_create(session, model, defaults=None, **lookup):
 
 async def seed() -> None:
     await init_db()
+    # init_db() only opens Postgres connections — this script runs standalone,
+    # outside the FastAPI app's lifespan, so the Neo4j pool graph_sync needs
+    # below has never been established either.
+    await graph_db.connect()
 
-    async with AsyncSessionFactory() as session:
+    admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, pool_pre_ping=True)
+    admin_session_factory = async_sessionmaker(
+        admin_engine, expire_on_commit=False, autocommit=False, autoflush=False
+    )
+
+    async with admin_session_factory() as session:
         state = await _get_or_create(session, State, name="Karnataka", defaults={"code": "KA"})
         bengaluru = await _get_or_create(
             session, District, name="Bengaluru Urban", state_id=state.id, defaults={"code": "BLR"}
@@ -129,6 +147,8 @@ async def seed() -> None:
 
         await _sync_to_graph(case, person_a, person_b, victim, document)
 
+    await admin_engine.dispose()
+    await graph_db.close()
     log.info("Demo seed data loaded", demo_password=DEMO_PASSWORD, users=[u[0] for u in _DEMO_USERS])
 
 

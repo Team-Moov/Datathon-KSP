@@ -18,6 +18,12 @@ current_user_id_ctx: ContextVar[Optional[UUID]] = ContextVar("current_user_id", 
 client_ip_ctx: ContextVar[Optional[str]] = ContextVar("client_ip", default=None)
 user_agent_ctx: ContextVar[Optional[str]] = ContextVar("user_agent", default=None)
 
+# Set by an edit endpoint just before the flush that triggers change_tracking's
+# before_flush listener — this is the "Why" in the immutable change history's
+# Old Value / New Value / Who / When / Why. Endpoints that don't set it (most
+# writes have no user-supplied reason) leave RecordChangeHistory.reason NULL.
+change_reason_ctx: ContextVar[Optional[str]] = ContextVar("change_reason", default=None)
+
 
 def _resolve_client_ip(request: Request) -> Optional[str]:
     forwarded = request.headers.get("x-forwarded-for")

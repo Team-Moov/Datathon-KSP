@@ -20,11 +20,6 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-# Import side effect: registers the before_flush change-tracking listener on
-# sqlalchemy.orm.Session (see app/core/change_tracking.py docstring for why this
-# has to be a plain import rather than a call site).
-import app.core.change_tracking  # noqa: F401
-
 engine = create_async_engine(
     settings.DATABASE_URL,
     pool_size=20,
@@ -132,6 +127,13 @@ async def init_db() -> None:
       3. The restricted app_runtime role + grants + RLS policies.
     """
     import app.models  # noqa: F401 — import side effect: registers every model with Base.metadata
+
+    # Deferred rather than a module-level import: change_tracking imports the
+    # model classes, which import Base from this module — a module-level import
+    # here would be a circular import (this module wouldn't have finished
+    # defining Base yet). By init_db() time this module is fully loaded, so the
+    # cycle doesn't exist.
+    import app.core.change_tracking  # noqa: F401
 
     admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, pool_pre_ping=True)
     try:

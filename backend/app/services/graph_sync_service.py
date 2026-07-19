@@ -189,6 +189,21 @@ class GraphSyncService:
         )
 
     @staticmethod
+    def _json_safe_properties(props: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Neo4j's driver returns its own temporal types (neo4j.time.DateTime, Date,
+        etc.) for any property set via a Cypher datetime()/date() call — these
+        aren't JSON-serializable and FastAPI's response encoder has no idea what
+        to do with them. Anything with an isoformat() (every neo4j.time.* type)
+        gets flattened to a plain string; everything else passes through as-is.
+        """
+        safe: Dict[str, Any] = {}
+        for key, value in props.items():
+            isoformat = getattr(value, "isoformat", None)
+            safe[key] = isoformat() if callable(isoformat) else value
+        return safe
+
+    @staticmethod
     def _serialize_graph(results: List[Dict]) -> Dict[str, Any]:
         nodes, edges = [], []
         seen_node_ids, seen_edge_ids = set(), set()
@@ -197,7 +212,11 @@ class GraphSyncService:
                 nid = node.get("id") or str(node.element_id)
                 if nid not in seen_node_ids:
                     seen_node_ids.add(nid)
-                    nodes.append({"id": nid, "labels": list(node.labels), "properties": dict(node)})
+                    nodes.append({
+                        "id": nid,
+                        "labels": list(node.labels),
+                        "properties": GraphSyncService._json_safe_properties(dict(node)),
+                    })
             for rel in record.get("rels", []):
                 rid = str(rel.element_id)
                 if rid not in seen_edge_ids:
@@ -207,6 +226,6 @@ class GraphSyncService:
                         "type": rel.type,
                         "from": str(rel.start_node.element_id),
                         "to": str(rel.end_node.element_id),
-                        "properties": dict(rel),
+                        "properties": GraphSyncService._json_safe_properties(dict(rel)),
                     })
         return {"nodes": nodes, "edges": edges}

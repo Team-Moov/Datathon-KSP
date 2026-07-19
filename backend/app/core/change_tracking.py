@@ -18,7 +18,7 @@ from typing import Any, Optional
 from sqlalchemy import event, inspect
 from sqlalchemy.orm import Session
 
-from app.core.request_context import current_user_id_ctx
+from app.core.request_context import change_reason_ctx, current_user_id_ctx
 from app.models.audit import RecordChangeHistory
 from app.models.case import CaseMaster
 from app.models.person import Person, PersonCaseRole
@@ -38,6 +38,7 @@ def _stringify(value: Any) -> Optional[str]:
 @event.listens_for(Session, "before_flush")
 def _record_field_changes(session: Session, flush_context, instances) -> None:
     changed_by = current_user_id_ctx.get()
+    reason = change_reason_ctx.get()
 
     for obj in session.dirty:
         if not isinstance(obj, TRACKED_MODELS):
@@ -70,5 +71,6 @@ def _record_field_changes(session: Session, flush_context, instances) -> None:
                     old_value=old_value,
                     new_value=new_value,
                     changed_by=changed_by,
+                    reason=reason,
                 )
             )

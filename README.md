@@ -96,7 +96,11 @@ Demo login for every rank — password `Demo@12345`:
 MFA is simulated — the login response includes the OTP code directly (`simulated_code`) and the
 frontend surfaces it inline on the verification screen.
 
-API docs: `http://localhost:8000/api/v1/docs`
+API docs: `http://localhost:8090/api/v1/docs`
+
+(Published on host port 8090, not 8000, in case something else on your machine
+already owns 8000 — the container's internal port is still 8000; only the
+`docker-compose.yml` host mapping changed.)
 
 A real `GROQ_API_KEY` (from [console.groq.com](https://console.groq.com)) is required for `/chat` and
 `/cases/{id}/brief` to produce real narration — every other endpoint works without one.
@@ -109,7 +113,7 @@ npm install
 npm run dev
 ```
 
-Runs on `http://localhost:5173`, proxying `/api` to the backend on `:8000` (see `vite.config.ts`).
+Runs on `http://localhost:5173`, proxying `/api` to the backend on `:8090` (see `vite.config.ts`).
 `npm run build` type-checks and produces a production bundle.
 
 ## Schema Evolution

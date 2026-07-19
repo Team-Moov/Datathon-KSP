@@ -4,10 +4,14 @@ services:
   # ── PostgreSQL + pgvector ──────────────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
+    env_file: .env
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: karnataka_crime
+      # Bootstrap credentials for the container's own initdb — driven by the
+      # same .env values the app connects with (POSTGRES_USER/PASSWORD), not a
+      # second hardcoded source of truth that can drift from it.
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-karnataka_crime}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -50,6 +54,15 @@ services:
       dockerfile: Dockerfile
     env_file: .env
     environment:
+      # Container-network hostnames — deliberately override whatever .env has,
+      # since .env's defaults (localhost) are for running the API outside
+      # Docker. `environment:` takes precedence over `env_file:` in Compose, so
+      # this is what actually wins regardless of .env's POSTGRES_HOST/etc.
+      POSTGRES_HOST: postgres
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
       # Groq — override per-environment here if needed
       GROQ_API_KEY: ${GROQ_API_KEY}
       GROQ_LLM_MODEL: ${GROQ_LLM_MODEL:-llama-3.3-70b-versatile}
@@ -57,7 +70,11 @@ services:
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
       EMBEDDING_DIM: "384"
     ports:
-      - "8000:8000"
+      # Host-side 8090, not 8000 — something else on this machine already owns
+      # 127.0.0.1:8000 (a separate WSL distro's service), and Windows resolves
+      # "localhost" to that more specific loopback binding ahead of Docker's
+      # own 0.0.0.0:8000 proxy. The container's internal port is still 8000.
+      - "8090:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -77,6 +94,11 @@ services:
       dockerfile: Dockerfile
     env_file: .env
     environment:
+      POSTGRES_HOST: postgres
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
       GROQ_API_KEY: ${GROQ_API_KEY}
     depends_on:
       - redis
@@ -93,6 +115,12 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
     depends_on:
       - redis
     volumes:

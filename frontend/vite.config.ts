@@ -12,8 +12,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // Backend published on host port 8090 (backend/docker-compose.yml) —
+      // not 8000, which may already be owned by another local service.
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://localhost:8090",
         changeOrigin: true,
       },
     },
