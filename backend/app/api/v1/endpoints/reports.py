@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_audit_event
-from app.core.database import get_db
+from app.core.database import get_admin_db, get_db
 from app.core.permissions import Permission, require_permission
 from app.core.security import verify_password
 from app.models.reports import ReportShareLink
@@ -83,12 +83,17 @@ async def export_case_report(
 async def download_shared_report(
     token: str,
     password: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_admin_db),
 ):
     """
     Unauthenticated by design — this is the link handed to someone outside the
     platform. Security comes from the token's entropy plus expiry/download-count/
-    optional-password enforcement below, not from a bearer token.
+    optional-password enforcement below, not from a bearer token — which is also
+    exactly why this can't use the ordinary RLS-bound get_db(): there's no
+    logged-in user here for the district-isolation session variables to be set
+    from, so the normal session would block the report's own data lookup
+    outright rather than merely under-scope it. The token check above is the
+    real authorization boundary for this route.
     """
     stmt = select(ReportShareLink).where(ReportShareLink.token == token)
     result = await db.execute(stmt)

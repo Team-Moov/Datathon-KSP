@@ -21,8 +21,9 @@ and the district-isolation RLS policies correctly deny every insert otherwise
 """
 
 import asyncio
+import os
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 import structlog
 from sqlalchemy import select
@@ -63,7 +64,13 @@ from app.services.graph_sync_service import GraphSyncService
 
 log = structlog.get_logger(__name__)
 
-DEMO_PASSWORD = "Demo@12345"
+# Overridable via env rather than baked in — a hackathon demo still shouldn't
+# ship with a password no one can change without editing source. The fallback
+# values only apply when the corresponding env var is unset, so a real
+# deployment can override every one of these without touching this file.
+DEMO_PASSWORD = os.environ.get("SEED_DEMO_PASSWORD", "Demo@12345")
+ADMIN_EMAIL = os.environ.get("SEED_ADMIN_EMAIL", "admin@ksp.demo")
+ADMIN_PASSWORD = os.environ.get("SEED_ADMIN_PASSWORD", DEMO_PASSWORD)
 
 _DEMO_USERS = [
     ("dgp@ksp.demo", "Rajendra Holla", Role.DGP, "DGP-0001"),
@@ -75,8 +82,22 @@ _DEMO_USERS = [
     ("policymaker@ksp.demo", "Anil Deshpande", Role.POLICY_MAKER, "PM-0002"),
 ]
 
+# A dedicated System Administrator account, distinct from the police-officer
+# demo personas above — DGP-tier permissions (the only rank with manage_users),
+# but seeded separately so "who can administer the platform" isn't tangled up
+# with "who plays the DGP character in the demo." Its own env-overridable
+# credentials, kept out of _DEMO_USERS so it's never confused with a rank login.
+ADMIN_USER = (ADMIN_EMAIL, "System Administrator", Role.DGP, "ADMIN-0001")
+
 # Ranks tied to a posting — mirrors CaseRepository._DISTRICT_UNRESTRICTED_ROLES.
 _DISTRICT_SCOPED_ROLES = {Role.CONSTABLE, Role.INSPECTOR}
+
+# Every seeded date is relative to today, not a fixed calendar date — the
+# financial-crime detection endpoints (detect_structuring et al.) only look
+# back a bounded window (default 30 days, max 90), so fixed historical dates
+# would silently stop demonstrating anything the moment enough real time
+# passed (caught exactly this way while first verifying this script live).
+_TODAY = date.today()
 
 
 async def _get_or_create(session, model, defaults=None, **lookup):
@@ -149,19 +170,26 @@ async def seed() -> None:
 
     await admin_engine.dispose()
     await graph_db.close()
-    log.info("Demo seed data loaded", demo_password=DEMO_PASSWORD, users=[u[0] for u in _DEMO_USERS])
+    log.info(
+        "Demo seed data loaded",
+        demo_password=DEMO_PASSWORD,
+        rank_demo_users=[u[0] for u in _DEMO_USERS],
+        admin_user=ADMIN_EMAIL,
+        admin_password=ADMIN_PASSWORD,
+    )
 
 
 async def _seed_users(session, bengaluru_district_id: int, blr_station_id: int) -> None:
-    for email, full_name, role, badge in _DEMO_USERS:
+    for email, full_name, role, badge in [*_DEMO_USERS, ADMIN_USER]:
         existing = await session.execute(select(User).where(User.email == email))
         if existing.scalar_one_or_none() is not None:
             continue
         is_district_scoped = role in _DISTRICT_SCOPED_ROLES
+        password = ADMIN_PASSWORD if email == ADMIN_EMAIL else DEMO_PASSWORD
         session.add(
             User(
                 email=email,
-                hashed_password=hash_password(DEMO_PASSWORD),
+                hashed_password=hash_password(password),
                 full_name=full_name,
                 role=role,
                 badge_number=badge,
@@ -210,8 +238,8 @@ async def _seed_primary_case(
         crime_no="THEFT-BLR-INDR-2025-0142",
         unit_id=unit_id,
         district_id=district_id,
-        incident_from_date=date(2025, 3, 4),
-        date_reported=date(2025, 3, 4),
+        incident_from_date=_TODAY - timedelta(days=14),
+        date_reported=_TODAY - timedelta(days=14),
         latitude=12.9716,
         longitude=77.6412,
         crime_head_id=crime_head_id,
@@ -228,12 +256,12 @@ async def _seed_primary_case(
     await session.flush()
 
     session.add(ActSectionAssociation(case_id=case.id, act_id=act_id, section_id=section_id))
-    session.add(CaseStageEvent(case_id=case.id, stage=CaseStage.REGISTERED, event_date=date(2025, 3, 4), confidence=1.0))
-    session.add(CaseStageEvent(case_id=case.id, stage=CaseStage.INVESTIGATION, event_date=date(2025, 3, 6), confidence=1.0))
+    session.add(CaseStageEvent(case_id=case.id, stage=CaseStage.REGISTERED, event_date=_TODAY - timedelta(days=14), confidence=1.0))
+    session.add(CaseStageEvent(case_id=case.id, stage=CaseStage.INVESTIGATION, event_date=_TODAY - timedelta(days=12), confidence=1.0))
 
     session.add(PersonCaseRole(
         person_id=person_a.id, case_id=case.id, role=PersonRole.ACCUSED,
-        arrested=True, arrest_date=date(2025, 3, 10), bail_granted=False,
+        arrested=True, arrest_date=_TODAY - timedelta(days=8), bail_granted=False,
     ))
     session.add(PersonCaseRole(person_id=person_b.id, case_id=case.id, role=PersonRole.ACCUSED, arrested=False))
     session.add(PersonCaseRole(person_id=victim.id, case_id=case.id, role=PersonRole.VICTIM))
@@ -245,22 +273,24 @@ async def _seed_primary_case(
     )
     session.add(document)
 
-    # Shared, structuring-shaped financial link between the two accused —
-    # exercises detect_structuring / the financial-crime graph on a fresh install.
-    session.add(FinancialTransaction(
-        from_account="ACCT-9931-2200-4821", to_account="ACCT-1187-5502-6634",
-        amount=95000, transaction_date=date(2025, 3, 8), transaction_type="UPI",
-        linked_person_id=person_a.id, linked_incident_id=case.id,
-        alert_type=FinancialAlertType.STRUCTURING, alert_confidence=0.71,
-        alert_details={"typology": "structuring", "threshold_inr": 1000000, "note": "seed demo data"},
-    ))
-    session.add(FinancialTransaction(
-        from_account="ACCT-1187-5502-6634", to_account="ACCT-9931-2200-4821",
-        amount=88000, transaction_date=date(2025, 3, 9), transaction_type="UPI",
-        linked_person_id=person_b.id, linked_incident_id=case.id,
-        alert_type=FinancialAlertType.STRUCTURING, alert_confidence=0.71,
-        alert_details={"typology": "structuring", "threshold_inr": 1000000, "note": "seed demo data"},
-    ))
+    # A real structuring pattern between the two accused — four transfers, each
+    # individually under India's real ₹10 lakh (1,000,000) cash-transaction
+    # reporting threshold, but summing to more than it once grouped by
+    # destination account (exactly what detect_structuring's SQL groups on).
+    # A single transaction (the original version of this seed data) can never
+    # trigger that query regardless of date — structuring is inherently a
+    # multi-transaction shape, not a property of any one row.
+    structuring_transfers = [
+        (280_000, 13), (260_000, 11), (290_000, 9), (240_000, 7),
+    ]
+    for amount, days_ago in structuring_transfers:
+        session.add(FinancialTransaction(
+            from_account="ACCT-9931-2200-4821", to_account="ACCT-1187-5502-6634",
+            amount=amount, transaction_date=_TODAY - timedelta(days=days_ago), transaction_type="UPI",
+            linked_person_id=person_a.id, linked_incident_id=case.id,
+            alert_type=FinancialAlertType.STRUCTURING, alert_confidence=0.71,
+            alert_details={"typology": "structuring", "threshold_inr": 1_000_000, "note": "seed demo data"},
+        ))
 
     criminal_history = CriminalHistory(
         person_id=person_a.id, prior_incident_ids=[],
@@ -293,8 +323,8 @@ async def _seed_secondary_case(session, unit_id, district_id, crime_head_id, cri
         crime_no="THEFT-MYS-DEVJ-2025-0057",
         unit_id=unit_id,
         district_id=district_id,
-        incident_from_date=date(2025, 4, 1),
-        date_reported=date(2025, 4, 1),
+        incident_from_date=_TODAY - timedelta(days=5),
+        date_reported=_TODAY - timedelta(days=5),
         crime_head_id=crime_head_id,
         crime_sub_head_id=crime_sub_head_id,
         gravity_offence_id=gravity_id,
@@ -304,7 +334,7 @@ async def _seed_secondary_case(session, unit_id, district_id, crime_head_id, cri
     )
     session.add(case)
     await session.flush()
-    session.add(CaseStageEvent(case_id=case.id, stage=CaseStage.REGISTERED, event_date=date(2025, 4, 1), confidence=1.0))
+    session.add(CaseStageEvent(case_id=case.id, stage=CaseStage.REGISTERED, event_date=_TODAY - timedelta(days=5), confidence=1.0))
 
 
 async def _sync_to_graph(case, person_a, person_b, victim, document) -> None:

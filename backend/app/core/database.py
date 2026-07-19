@@ -36,6 +36,26 @@ AsyncSessionFactory = async_sessionmaker(
     autoflush=False,
 )
 
+# A second, long-lived admin-connected session factory for the handful of
+# request paths whose authorization model isn't the logged-in user's RBAC
+# district scope at all — e.g. GET /reports/shared/{token}, which is
+# deliberately unauthenticated (the token itself is the authorization) and so
+# never runs get_current_user, meaning the RLS session variables never get
+# set. Using the ordinary get_db() session there doesn't "fail safe", it fails
+# *wrong*: RLS blocks the report's own already-authorized data lookup outright
+# (caught live — a valid share link 404'd because its case_master read
+# returned zero rows). This is intentionally narrow — only for read paths
+# whose authorization already happened via a mechanism other than the
+# session's RBAC context.
+_admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, pool_pre_ping=True)
+AdminSessionFactory = async_sessionmaker(
+    _admin_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
+
 
 class Base(DeclarativeBase):
     """Shared declarative base for all ORM models."""
@@ -153,6 +173,22 @@ async def get_db() -> AsyncSession:
     """FastAPI dependency — yields an AsyncSession per request, connected as the
     RLS-restricted app_runtime role."""
     async with AsyncSessionFactory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+
+async def get_admin_db() -> AsyncSession:
+    """
+    FastAPI dependency for the narrow set of routes whose authorization is a
+    token/link, not the caller's logged-in RBAC session — see the module
+    docstring on AdminSessionFactory above for why get_db() is actively wrong
+    there, not just stricter than needed.
+    """
+    async with AdminSessionFactory() as session:
         try:
             yield session
             await session.commit()

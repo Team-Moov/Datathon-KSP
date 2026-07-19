@@ -1,32 +1,31 @@
-# React + TypeScript + Vite
+# Frontend — Karnataka Crime Analytics Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Vite + React + TypeScript enterprise dashboard for the backend in [`../backend`](../backend). See the
+[repo root README](../README.md) for full setup instructions (both the one-command Docker path and
+local hot-reload dev).
 
-Currently, two official plugins are available:
+## Quick reference
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev      # local dev server, HMR, proxies /api to the backend (see vite.config.ts)
+npm run build    # type-check (tsc) + production bundle — same output the Docker image serves
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Backend proxy target defaults to `http://localhost:8090`; override via `VITE_API_PROXY_TARGET` in a
+local `.env` (see `.env.example`) if your backend runs somewhere else.
+
+## Structure
+
+- `src/app` — providers, router, theme
+- `src/layouts` — DashboardLayout, Sidebar, TopHeader, Breadcrumbs
+- `src/components/ui` — hand-built shadcn-style primitives on a restrained glass theme
+- `src/components/charts` — lazy-loaded chart/graph/map components
+- `src/components/data-states` — Loading/Empty/Error, used by every data view
+- `src/features/*` — one folder per domain (auth, cases, persons, network, risk, financial, socio,
+  trends, chat, admin), each owning its own `*Api.ts` fetch layer and `use*` hooks
+- `src/lib` — API client (axios + silent-refresh interceptor), permission matrix mirroring the
+  backend's RBAC, shared types
+
+See [`src/styles/globals.css`](src/styles/globals.css) for the glass-theme design tokens and the
+rationale for where blur is (and deliberately isn't) used.

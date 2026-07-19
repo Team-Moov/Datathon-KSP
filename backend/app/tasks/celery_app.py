@@ -11,8 +11,12 @@ celery_app = Celery(
     "karnataka_crime",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
+    # app.tasks.ingestion_tasks was referenced here but never actually existed
+    # in the codebase — the worker crashed on every startup trying to import
+    # it (ModuleNotFoundError), which is how this got caught. Document
+    # ingestion currently runs synchronously via IngestionService, not as a
+    # Celery task; add a real ingestion_tasks module here if that changes.
     include=[
-        "app.tasks.ingestion_tasks",
         "app.tasks.analytics_tasks",
     ],
 )

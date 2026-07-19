@@ -64,8 +64,12 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str = "karnataka_crime"
 
+    # No default — a hardcoded fallback password here would mean anyone who
+    # forgets to set this in .env silently ships with a publicly-known
+    # credential for the role that (per the RLS design above) is the one
+    # actually granted table access. Required, same as POSTGRES_PASSWORD.
     POSTGRES_APP_USER: str = "app_runtime"
-    POSTGRES_APP_PASSWORD: str = "change_me_app_runtime_password"
+    POSTGRES_APP_PASSWORD: str
 
     @property
     def DATABASE_URL(self) -> str:  # async — restricted role, RLS-enforced

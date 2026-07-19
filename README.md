@@ -59,53 +59,64 @@ for the full design record; it is the schema of record for the crime-domain data
   suspects/witnesses, notes, AI brief) at `/cases/:caseId` in the frontend, backed by
   `GET /workspace/cases/{case_id}`.
 
-## Quick Start (Backend)
+## Quick Start
+
+`backend/` and `frontend/` are each fully self-contained — their own `Dockerfile`, their own
+`.dockerignore`, their own env handling. The root [`docker-compose.yml`](docker-compose.yml) only
+composes the two together (via Compose's `include:`) so the whole stack comes up with one command:
 
 ```bash
-cd backend
-cp .env.example .env
-# Fill in: SECRET_KEY, POSTGRES_PASSWORD, POSTGRES_APP_PASSWORD, NEO4J_PASSWORD, GROQ_API_KEY
+cp backend/.env.example backend/.env
+# Fill in at minimum: SECRET_KEY, POSTGRES_PASSWORD, POSTGRES_APP_PASSWORD, NEO4J_PASSWORD, GROQ_API_KEY
+# None of these have insecure hardcoded fallbacks — the app refuses to start without them.
 docker compose up --build
 ```
 
-`init_db()` runs automatically on API startup: creates tables, runs any pending
+This starts Postgres, Neo4j, Redis, the API, Celery, and an nginx-served production build of the
+frontend. `init_db()` runs automatically on API startup: creates tables, runs any pending
 `schema_upgrades.py` steps, creates the restricted `app_runtime` Postgres role the API actually
-queries through (the RLS policies only apply to a non-owner role — see `app/core/database.py`), and
-sets up the RLS policies themselves.
+queries through (the RLS policies only apply to a non-owner role — see `backend/app/core/database.py`),
+and sets up the RLS policies themselves.
 
-Load demo data (reference lookups, one user per rank, two linked sample cases with a real
-co-offending + financial-transaction chain so the network explorer and financial-crime pages aren't
-empty):
+Load demo data (reference lookups, one user per rank, an admin account, and two linked sample cases —
+with dates relative to today, not a fixed calendar date, so the financial-crime detection endpoints
+actually have something in-window to find):
 
 ```bash
 docker compose exec api python -m scripts.seed_demo_data
 ```
 
-Demo login for every rank — password `Demo@12345`:
+| Email | Rank | Purpose |
+|---|---|---|
+| `admin@ksp.demo` | DGP-tier | **Platform administration** — user management, audit log monitoring. Seeded separately from the rank personas below so "who administers the platform" isn't tangled up with "who plays which officer in the demo." |
+| `dgp@ksp.demo` | DGP | Demo persona — Rajendra Holla |
+| `sp@ksp.demo` | SP | Demo persona — Meera Nayak |
+| `dsp@ksp.demo` | DSP | Demo persona — Arvind Kulkarni |
+| `inspector@ksp.demo` | Inspector | Bengaluru-scoped |
+| `constable@ksp.demo` | Constable | Bengaluru-scoped |
+| `analyst@ksp.demo` | Crime Analyst | |
+| `policymaker@ksp.demo` | Policy Maker | Aggregate-only access |
 
-| Email | Rank |
-|---|---|
-| `dgp@ksp.demo` | DGP |
-| `sp@ksp.demo` | SP |
-| `dsp@ksp.demo` | DSP |
-| `inspector@ksp.demo` | Inspector (Bengaluru-scoped) |
-| `constable@ksp.demo` | Constable (Bengaluru-scoped) |
-| `analyst@ksp.demo` | Crime Analyst |
-| `policymaker@ksp.demo` | Policy Maker |
+Password for every account is `Demo@12345` by default — **not hardcoded**, it's read from
+`SEED_DEMO_PASSWORD`/`SEED_ADMIN_PASSWORD`/`SEED_ADMIN_EMAIL` in `.env` if set, so change those before
+seeding anywhere the login list might be guessable. MFA is simulated — the login response includes the
+OTP code directly (`simulated_code`) and the frontend surfaces it inline on the verification screen.
 
-MFA is simulated — the login response includes the OTP code directly (`simulated_code`) and the
-frontend surfaces it inline on the verification screen.
+- Frontend (containerized production build): `http://localhost:4173`
+- API docs: `http://localhost:8090/api/v1/docs`
+- Prometheus metrics: `http://localhost:8090/metrics` — see **Monitoring** below
 
-API docs: `http://localhost:8090/api/v1/docs`
-
-(Published on host port 8090, not 8000, in case something else on your machine
-already owns 8000 — the container's internal port is still 8000; only the
-`docker-compose.yml` host mapping changed.)
+(API published on host port 8090, not 8000 — something else commonly owns 127.0.0.1:8000 on a dev
+machine. The frontend's production build is on 4173 — Vite's own conventional "preview build" port —
+deliberately different from both the dev server's 5173 and 8080, which tends to already be spoken for
+by other local tooling. Container-internal ports are unaffected — only the host-side mappings changed.)
 
 A real `GROQ_API_KEY` (from [console.groq.com](https://console.groq.com)) is required for `/chat` and
 `/cases/{id}/brief` to produce real narration — every other endpoint works without one.
 
-## Quick Start (Frontend)
+### Frontend-only local dev (hot reload)
+
+For active frontend development, run it outside Docker against the same backend for instant HMR:
 
 ```bash
 cd frontend
@@ -113,8 +124,20 @@ npm install
 npm run dev
 ```
 
-Runs on `http://localhost:5173`, proxying `/api` to the backend on `:8090` (see `vite.config.ts`).
-`npm run build` type-checks and produces a production bundle.
+Runs on `http://localhost:5173`, proxying `/api` to the backend on `:8090` (override via
+`VITE_API_PROXY_TARGET` in `frontend/.env` — see `frontend/.env.example` — if your backend runs
+somewhere else; never hardcoded past that one fallback). `npm run build` type-checks and produces the
+same production bundle the Docker image serves.
+
+## Monitoring
+
+- **Prometheus metrics** — `GET /metrics` (via `prometheus-fastapi-instrumentator`, already wired into
+  `backend/app/main.py`) exposes standard HTTP request-count/latency/in-flight metrics for scraping.
+- **Audit log** — `GET /admin/audit-log` (SP/DGP/Policy Maker), or the Audit Log page in the frontend —
+  every login/logout, case view, edit, export, and share, with user/IP/device/reason.
+- **User management** — `GET/POST /admin/users`, `PATCH /admin/users/{id}/role`,
+  `POST /admin/users/{id}/deactivate` (DGP-tier only, i.e. `manage_users`) — the `admin@ksp.demo` account
+  above is the intended login for this surface.
 
 ## Schema Evolution
 
