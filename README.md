@@ -1,3 +1,22 @@
+> ## 📌 This branch: `financial-crime-detection`
+>
+> Adds working financial crime detection (structuring, funnel/mule accounts,
+> layering, organized-cluster detection) on top of Ganesh's schema/stub and
+> Vishy's frontend + RLS/permissions rewrite. Rebased cleanly on `Vishy`'s tip,
+> zero frontend files touched, zero stale `Role`/`require_roles` references.
+>
+> **Full writeup — branch structure, what was already there vs. what was
+> fixed, the RLS bug found in the seeder, frontend-contract verification —
+> is in [`backend/scripts/FINANCIAL_CRIME_README.md`](backend/scripts/FINANCIAL_CRIME_README.md).**
+>
+> Quick status: code-complete, syntax-checked, logic-validated against
+> ground truth (precision 1.0 / recall strong on 2 of 3 typologies) —
+> **not yet run against a live Postgres/Neo4j instance**, since nobody on
+> the team has started `docker-compose up` yet. That's true repo-wide, not
+> specific to this branch.
+
+---
+
 # Karnataka Crime Analytics Platform
 
 **IBM Hackathon — Team Moov**

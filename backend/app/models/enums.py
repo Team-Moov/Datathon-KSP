@@ -100,6 +100,7 @@ class FinancialAlertType(str, enum.Enum):
     FUNNEL_ACCOUNT = "funnel_account"
     LAYERING = "layering"
     HIGH_VALUE = "high_value"
+    ORGANIZED_CLUSTER = "organized_cluster"
 
 
 class MLModelStatus(str, enum.Enum):
