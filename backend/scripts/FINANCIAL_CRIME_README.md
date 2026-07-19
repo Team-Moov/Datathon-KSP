@@ -8,6 +8,114 @@ the three detectors were looser than the real typologies, and community
 detection (named in design doc §9.3 alongside cycle detection and
 degree-ratio) had no implementation at all.
 
+## Detection features — what this actually catches, mechanically
+
+Three real money-laundering typologies (India-grounded, not invented),
+deliberately detected with rules + graph algorithms rather than ML — every
+flag has to trace back to specific transactions as evidence, not a
+black-box score (matches the platform's deterministic-agentic commitment,
+design doc §1.3/§11).
+
+### 1. Structuring / smurfing — `detect_structuring()`
+
+Splitting a large sum into deposits that individually stay under India's
+real ₹10 lakh Cash Transaction Report threshold (`CTR_THRESHOLD_INR`).
+
+- For every `(from_account, to_account)` pair that transacted, walk their
+  transactions in time order.
+- Slide a **7-day window** (`STRUCTURING_WINDOW_DAYS`) across them.
+- At each point: do the transactions currently in the window sum to
+  **≥ ₹10L**, while every individual transaction in that window stays
+  **< ₹10L**, with **at least 3 legs**? If yes, flag it.
+- Confidence: `min(0.99, 0.6 + 0.05 * leg_count)` — more legs in the
+  cluster, higher confidence.
+- Evidence returned: the exact transaction IDs in the flagged window, the
+  total amount, leg count.
+
+### 2. Funnel / mule accounts — `detect_funnel_account()`
+
+A dormant account suddenly receiving money from many sources, then
+emptying out almost immediately.
+
+- For a candidate account, find any burst of **≥ 5 distinct sources**
+  (`FUNNEL_MIN_SOURCES`) sending money in within a **2-day window**
+  (`FUNNEL_BURST_WINDOW_DAYS`).
+- **Dormancy check (the fix made on this branch):** before flagging,
+  require **zero transactions** on that account in the **60 days**
+  (`FUNNEL_DORMANCY_DAYS`) immediately before the burst. A normally-busy
+  account with lots of incoming payments does *not* count — this is what
+  makes "dormant" in the typology name actually mean something.
+- Then check: did **≥ 80%** (`FUNNEL_RATIO_MIN`) of the inflow leave again
+  within a **5-day withdrawal window** (`FUNNEL_WITHDRAWAL_WINDOW_DAYS`)?
+  If yes, flag it.
+- Confidence: `min(0.99, 0.5 + 0.03 * source_count)`.
+- Evidence returned: every inflow + outflow transaction ID in the burst.
+
+### 3. Layering — `detect_cycles_in_graph()`
+
+Money moved through a chain of intermediary accounts to obscure origin,
+often looping back toward its source.
+
+- Runs against the **account-level** `TRANSACTED_WITH` graph in Neo4j (see
+  the architecture note below for why account-level, not person-level).
+- Cypher cycle query: find any path of **2 to 6 hops** that starts and ends
+  at the same `Account` node, with path length **≥ 3**.
+- Confidence: fixed at `0.70` per cycle found (not currently scaled by
+  cycle length — flagged as a possible improvement).
+- Evidence returned: the account chain itself (`cycle_members`) and its
+  length.
+
+### 4. Organized clusters — `detect_organized_clusters()` (new on this branch)
+
+Groups individually-flagged accounts into probable rings, rather than
+reporting isolated hits — the third graph technique the design doc names
+(§9.3: "cycle detection, in/out-degree ratio, community detection") that
+had zero implementation before this branch.
+
+- Takes every account flagged by the three detectors above.
+- Pulls the subgraph of `TRANSACTED_WITH` edges connecting *only* those
+  already-flagged accounts.
+- Runs **Louvain community detection** (via `networkx`, not Neo4j GDS —
+  deliberately avoids depending on the GDS plugin being present in
+  whichever Neo4j image gets deployed) over that subgraph.
+- Any community with **≥ 2 accounts** is reported as a cluster.
+- Confidence: `min(0.95, 0.4 + 0.05 * cluster_size)`.
+
+### Output shape — every detector returns this, no exceptions
+
+Shaped like a real Suspicious Transaction Report, not an invented alert
+format (design doc §9.5):
+
+```json
+{
+  "typology": "structuring | funnel_account | layering | organized_cluster",
+  "accounts_involved": ["ACC-xxxx", "..."],
+  "evidence_trail": { "...typology-specific fields, always includes transaction_ids where applicable..." },
+  "confidence": 0.0,
+  "recommended_action": "Review and file STR with FIU-IND if confirmed",
+  "disclaimer": "This is a system-generated lead based on transaction patterns. Analyst review and sign-off required before any action."
+}
+```
+
+Confirmed to match the frontend's `SuspiciousTransactionAlert` TypeScript
+interface (`frontend/src/features/financial/financialApi.ts`) field-for-field
+— checked by reading the actual `.tsx` source, not assumed.
+
+### Validated accuracy (against the generator's own ground truth — see the honesty note below)
+
+| Typology | Precision | Recall |
+|---|---|---|
+| Structuring | 1.0 | 0.517 (known weak spot — window-reset logic misses some legs after the first flag) |
+| Funnel | 1.0 | 1.0 |
+| Layering | 1.0 | 0.941 |
+
+**Read this honestly:** this proves the detectors are wired correctly
+against the exact patterns they were designed to catch — it does **not**
+prove they'd generalize to real laundering patterns that don't match these
+exact shapes (structuring with irregular leg sizes, longer funnel
+withdrawal windows, branching layering chains, etc.). No adversarial/stress
+test exists yet — see "Not yet done" below.
+
 ## What's already applied on this branch
 
 | File | Change |
@@ -117,8 +225,12 @@ Postgres, and never shipped as part of the handoff schema.
 
 ## Not yet done / next if there's time
 
-- `HIGH_VALUE` is a placeholder alert type for organized clusters until the
-  `ORGANIZED_CLUSTER` enum member lands (see `enums_patch.md`).
 - No test coverage beyond the ground-truth precision/recall check — no
-  adversarial/stress-test variants yet (discussed separately: current
+  adversarial/stress-test variants yet (see the honesty note above: current
   numbers prove the pipeline is wired correctly, not that it generalizes).
+- `detect_cycles_in_graph`'s confidence is a fixed `0.70`, not scaled by
+  cycle length like the other three detectors are — minor inconsistency,
+  cheap to fix later.
+- Structuring recall (0.517) could likely be improved by not resetting the
+  sliding window entirely on first flag — currently misses legs that occur
+  after an initial match within the same cluster.
