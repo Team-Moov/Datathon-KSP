@@ -1,0 +1,10 @@
+{
+  "model_version": "node2vec_logreg_v1",
+  "holdout_auc": 0.7662721893491125,
+  "holdout_precision_at_k": 0.8,
+  "holdout_k": 20,
+  "holdout_cutoff_date": "2025-06-24",
+  "n_new_edges_in_holdout": 26,
+  "final_graph_nodes": 673,
+  "final_graph_edges": 38170
+}
