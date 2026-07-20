@@ -1,0 +1,21 @@
+{
+  "model_version": "risk_survival_rsf_v1",
+  "feature_cols": [
+    "severity_history",
+    "centrality",
+    "mo_consistency",
+    "associate_risk"
+  ],
+  "held_out_concordance_index": 0.7116721759945287,
+  "baseline_severity_only_concordance": 0.4963524450017098,
+  "feature_importance": {
+    "severity_history": 0.01925225122535055,
+    "centrality": 0.14605038185341393,
+    "mo_consistency": 0.008583152855351694,
+    "associate_risk": 0.0631938903453779
+  },
+  "feature_importance_method": "permutation",
+  "n_persons": 606,
+  "n_observed_events": 417,
+  "n_censored": 189
+}

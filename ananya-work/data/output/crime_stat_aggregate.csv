@@ -1,0 +1,470 @@
+district_id,year,crime_head,count
+davanagere,2025,Cheating,3
+belagavi,2024,Cheating,4
+bagalkot,2025,Cheating,3
+hassan,2024,Cheating,2
+vijayapura,2025,Cheating,6
+mandya,2024,Cheating,6
+tumakuru,2025,Cheating,7
+kalaburagi,2025,Hurt / Grievous Hurt,5
+kodagu,2024,Hurt / Grievous Hurt,5
+chikballapur,2024,Hurt / Grievous Hurt,1
+yadgir,2025,Hurt / Grievous Hurt,6
+dakshina_kannada,2024,Cheating,11
+bengaluru_urban,2024,Cheating,5
+bidar,2024,Theft,12
+mysuru,2024,Theft,10
+yadgir,2024,Theft,16
+chikballapur,2025,Theft,6
+dakshina_kannada,2024,Theft,7
+dharwad,2024,Burglary,2
+dharwad,2025,Burglary,7
+tumakuru,2024,Burglary,4
+koppal,2025,Robbery,2
+bengaluru_rural,2024,Robbery,1
+chikballapur,2024,Robbery,2
+bagalkot,2025,Robbery,4
+bidar,2024,Robbery,3
+vijayapura,2025,Burglary,3
+chikballapur,2024,Burglary,3
+gadag,2025,Burglary,3
+bidar,2025,Burglary,2
+dharwad,2024,Theft,8
+koppal,2025,Theft,9
+kolar,2025,Theft,8
+chikkamagaluru,2024,Burglary,3
+raichur,2024,Burglary,4
+chitradurga,2024,Burglary,2
+shivamogga,2025,Burglary,2
+hassan,2024,Burglary,3
+vijayanagara,2025,Burglary,5
+mandya,2024,Theft,9
+chikkamagaluru,2024,Theft,7
+hassan,2024,Theft,10
+chikkamagaluru,2024,Robbery,4
+shivamogga,2025,Robbery,3
+haveri,2025,Robbery,1
+ramanagara,2024,Robbery,2
+vijayapura,2025,Hurt / Grievous Hurt,3
+davanagere,2024,Hurt / Grievous Hurt,3
+bengaluru_urban,2024,Hurt / Grievous Hurt,2
+hassan,2024,Hurt / Grievous Hurt,4
+koppal,2024,Hurt / Grievous Hurt,2
+bagalkot,2025,Hurt / Grievous Hurt,2
+dharwad,2024,Hurt / Grievous Hurt,3
+shivamogga,2025,Theft,8
+ramanagara,2024,Theft,9
+chikkamagaluru,2025,Theft,13
+bengaluru_rural,2025,Theft,9
+udupi,2025,Burglary,6
+chamarajanagar,2025,Burglary,5
+bidar,2024,Burglary,4
+bagalkot,2024,Burglary,5
+bengaluru_rural,2024,Burglary,3
+uttara_kannada,2024,Burglary,3
+yadgir,2025,Burglary,5
+koppal,2024,Cheating,1
+vijayapura,2024,Cheating,9
+mysuru,2025,Burglary,5
+uttara_kannada,2025,Burglary,1
+belagavi,2024,Theft,11
+bengaluru_rural,2024,Theft,10
+kodagu,2025,Theft,12
+davanagere,2024,Theft,9
+udupi,2024,Cheating,2
+ballari,2025,Cheating,4
+kolar,2025,Cheating,6
+koppal,2025,Cheating,5
+kolar,2025,Hurt / Grievous Hurt,2
+tumakuru,2025,Burglary,2
+ballari,2025,Burglary,1
+uttara_kannada,2025,Theft,10
+koppal,2024,Theft,13
+tumakuru,2024,Theft,12
+davanagere,2025,Theft,13
+vijayanagara,2025,Theft,8
+tumakuru,2025,Theft,10
+ballari,2024,Burglary,4
+gadag,2024,Burglary,4
+bengaluru_rural,2025,Burglary,6
+bagalkot,2024,Theft,17
+chamarajanagar,2024,Theft,14
+udupi,2025,Theft,10
+belagavi,2025,Burglary,2
+kolar,2025,Burglary,6
+hassan,2025,Burglary,5
+mandya,2025,Cheating,9
+chikkamagaluru,2025,Cheating,5
+shivamogga,2024,Robbery,1
+raichur,2024,Robbery,1
+dharwad,2025,Robbery,2
+bidar,2025,Robbery,2
+ballari,2024,Theft,11
+bengaluru_urban,2025,Theft,5
+dakshina_kannada,2025,Theft,7
+bengaluru_urban,2025,Hurt / Grievous Hurt,2
+bagalkot,2024,Hurt / Grievous Hurt,3
+mandya,2025,Hurt / Grievous Hurt,4
+dharwad,2025,Hurt / Grievous Hurt,3
+koppal,2025,Hurt / Grievous Hurt,4
+haveri,2024,Hurt / Grievous Hurt,5
+ballari,2025,Hurt / Grievous Hurt,1
+tumakuru,2024,Cheating,4
+yadgir,2024,Cheating,5
+gadag,2024,Cheating,2
+mandya,2025,Burglary,6
+dakshina_kannada,2025,Burglary,1
+yadgir,2025,Robbery,4
+davanagere,2024,Robbery,2
+mysuru,2025,Robbery,3
+bengaluru_urban,2025,Robbery,1
+bengaluru_rural,2025,Robbery,2
+dakshina_kannada,2024,Hurt / Grievous Hurt,3
+bidar,2024,Hurt / Grievous Hurt,4
+vijayapura,2024,Hurt / Grievous Hurt,5
+dharwad,2024,Robbery,2
+haveri,2024,Theft,12
+bengaluru_urban,2024,Theft,17
+bagalkot,2025,Theft,15
+chikballapur,2025,Cheating,2
+hassan,2025,Hurt / Grievous Hurt,1
+udupi,2024,Burglary,2
+vijayapura,2024,Burglary,3
+ramanagara,2025,Hurt / Grievous Hurt,5
+raichur,2025,Hurt / Grievous Hurt,6
+mysuru,2024,Hurt / Grievous Hurt,3
+gadag,2024,Hurt / Grievous Hurt,2
+uttara_kannada,2024,Hurt / Grievous Hurt,3
+kalaburagi,2024,Cheating,7
+bidar,2025,Theft,8
+koppal,2024,Robbery,1
+bagalkot,2024,Robbery,1
+hassan,2024,Robbery,2
+tumakuru,2024,Robbery,1
+dharwad,2025,Cheating,4
+ramanagara,2024,Cheating,2
+mysuru,2024,Cheating,4
+chitradurga,2025,Cheating,4
+kodagu,2025,Robbery,2
+chamarajanagar,2024,Hurt / Grievous Hurt,5
+kalaburagi,2024,Theft,12
+dharwad,2025,Theft,11
+dakshina_kannada,2024,Robbery,3
+kolar,2024,Robbery,1
+mandya,2024,Robbery,2
+udupi,2024,Robbery,2
+vijayanagara,2025,Robbery,3
+raichur,2024,Theft,9
+haveri,2025,Theft,9
+ramanagara,2025,Theft,7
+hassan,2025,Theft,12
+shivamogga,2024,Theft,13
+yadgir,2025,Cheating,5
+shivamogga,2024,Cheating,2
+uttara_kannada,2025,Hurt / Grievous Hurt,3
+mysuru,2025,Hurt / Grievous Hurt,1
+chikkamagaluru,2025,Hurt / Grievous Hurt,3
+davanagere,2025,Hurt / Grievous Hurt,2
+davanagere,2025,Burglary,2
+ramanagara,2025,Burglary,5
+mandya,2025,Theft,10
+chitradurga,2024,Theft,10
+tumakuru,2025,Robbery,2
+bengaluru_rural,2025,Hurt / Grievous Hurt,3
+shivamogga,2024,Burglary,2
+davanagere,2025,Robbery,3
+chitradurga,2024,Robbery,1
+bidar,2025,Hurt / Grievous Hurt,2
+udupi,2024,Hurt / Grievous Hurt,4
+haveri,2025,Hurt / Grievous Hurt,2
+dakshina_kannada,2024,Burglary,4
+koppal,2024,Burglary,2
+udupi,2025,Hurt / Grievous Hurt,3
+ballari,2024,Hurt / Grievous Hurt,1
+kodagu,2024,Burglary,5
+gadag,2025,Robbery,1
+kalaburagi,2025,Robbery,1
+haveri,2025,Cheating,8
+yadgir,2024,Hurt / Grievous Hurt,1
+mandya,2024,Hurt / Grievous Hurt,3
+belagavi,2025,Hurt / Grievous Hurt,4
+vijayanagara,2024,Cheating,4
+raichur,2025,Cheating,2
+bengaluru_rural,2025,Cheating,4
+shivamogga,2025,Cheating,5
+raichur,2025,Burglary,3
+mandya,2024,Burglary,5
+bengaluru_rural,2024,Hurt / Grievous Hurt,1
+yadgir,2025,Theft,8
+mysuru,2025,Theft,5
+chamarajanagar,2025,Theft,5
+kolar,2025,Robbery,2
+bengaluru_urban,2024,Robbery,1
+haveri,2025,Burglary,2
+belagavi,2025,Theft,6
+raichur,2025,Robbery,4
+belagavi,2024,Robbery,2
+belagavi,2025,Robbery,1
+gadag,2024,Theft,7
+kolar,2024,Burglary,2
+chitradurga,2025,Burglary,2
+vijayanagara,2024,Robbery,2
+bagalkot,2024,Cheating,3
+bengaluru_urban,2025,Cheating,2
+davanagere,2024,Cheating,2
+chamarajanagar,2024,Cheating,1
+shivamogga,2024,Hurt / Grievous Hurt,2
+bengaluru_urban,2024,Burglary,5
+shivamogga,2025,Hurt / Grievous Hurt,2
+vijayanagara,2024,Hurt / Grievous Hurt,4
+kodagu,2024,Theft,9
+dharwad,2024,Cheating,1
+kodagu,2024,Cheating,5
+chitradurga,2024,Cheating,4
+uttara_kannada,2025,Cheating,2
+belagavi,2025,Cheating,2
+mysuru,2025,Cheating,6
+raichur,2024,Cheating,5
+gadag,2025,Cheating,1
+udupi,2025,Cheating,2
+hassan,2025,Robbery,1
+chamarajanagar,2025,Robbery,2
+chikballapur,2025,Robbery,1
+vijayanagara,2024,Theft,8
+uttara_kannada,2024,Theft,11
+chikkamagaluru,2025,Robbery,1
+uttara_kannada,2025,Robbery,1
+haveri,2024,Cheating,4
+bidar,2024,Cheating,4
+mysuru,2024,Robbery,1
+hassan,2025,Cheating,4
+chikballapur,2025,Hurt / Grievous Hurt,2
+gadag,2025,Hurt / Grievous Hurt,3
+kalaburagi,2024,Hurt / Grievous Hurt,2
+bengaluru_rural,2024,Cheating,4
+vijayanagara,2025,Hurt / Grievous Hurt,1
+tumakuru,2024,Hurt / Grievous Hurt,1
+raichur,2025,Rape,2
+kalaburagi,2024,Riots,2
+chitradurga,2025,Kidnapping and Abduction,4
+yadgir,2025,Rape,1
+dakshina_kannada,2025,Riots,1
+kalaburagi,2025,Rape,2
+uttara_kannada,2025,Kidnapping and Abduction,5
+davanagere,2024,Kidnapping and Abduction,2
+vijayapura,2025,Theft,6
+kalaburagi,2025,Theft,7
+bengaluru_rural,2025,Rape,1
+chikkamagaluru,2024,Cheating,2
+udupi,2024,Theft,6
+kolar,2025,Attempt to Murder,2
+mandya,2025,Kidnapping and Abduction,3
+chikkamagaluru,2024,Hurt / Grievous Hurt,1
+dakshina_kannada,2024,Murder,1
+hassan,2025,Criminal Breach of Trust,2
+vijayanagara,2024,Kidnapping and Abduction,2
+yadgir,2025,Kidnapping and Abduction,3
+gadag,2025,Theft,11
+kalaburagi,2024,Kidnapping and Abduction,2
+chitradurga,2025,Theft,5
+haveri,2024,Kidnapping and Abduction,3
+kodagu,2024,Rape,2
+vijayanagara,2024,Burglary,4
+chikkamagaluru,2025,Burglary,2
+haveri,2024,Riots,1
+uttara_kannada,2024,Criminal Breach of Trust,2
+kodagu,2025,Cheating,3
+raichur,2025,Riots,1
+bengaluru_rural,2025,Riots,1
+dharwad,2025,Criminal Breach of Trust,3
+chitradurga,2025,Hurt / Grievous Hurt,1
+chamarajanagar,2025,Cheating,6
+dharwad,2025,Murder,1
+belagavi,2024,Hurt / Grievous Hurt,1
+raichur,2024,Kidnapping and Abduction,1
+uttara_kannada,2024,Cheating,2
+ballari,2024,Cheating,4
+chitradurga,2024,Kidnapping and Abduction,2
+haveri,2025,Rape,1
+kolar,2024,Hurt / Grievous Hurt,3
+chikballapur,2024,Theft,1
+ramanagara,2024,Criminal Breach of Trust,1
+ramanagara,2025,Murder,1
+bidar,2024,Criminal Breach of Trust,2
+bengaluru_urban,2025,Riots,1
+bidar,2024,Kidnapping and Abduction,3
+chamarajanagar,2024,Burglary,2
+hassan,2025,Kidnapping and Abduction,1
+gadag,2024,Murder,1
+raichur,2025,Theft,9
+koppal,2024,Dowry Death,1
+kolar,2025,Riots,2
+kalaburagi,2025,Burglary,2
+kolar,2024,Attempt to Murder,2
+haveri,2025,Kidnapping and Abduction,3
+kodagu,2024,Kidnapping and Abduction,1
+chamarajanagar,2025,Hurt / Grievous Hurt,2
+bidar,2024,Attempt to Murder,1
+mysuru,2024,Burglary,3
+kalaburagi,2024,Robbery,1
+mandya,2025,Rape,1
+chikkamagaluru,2024,Riots,1
+ramanagara,2024,Dacoity,2
+belagavi,2024,Kidnapping and Abduction,2
+vijayanagara,2025,Attempt to Murder,2
+bengaluru_rural,2024,Kidnapping and Abduction,3
+kodagu,2024,Riots,1
+kalaburagi,2024,Burglary,1
+ramanagara,2024,Attempt to Murder,1
+vijayapura,2024,Murder,1
+chikkamagaluru,2025,Riots,1
+yadgir,2024,Arson,1
+haveri,2024,Rape,1
+chamarajanagar,2024,Kidnapping and Abduction,3
+chitradurga,2024,Attempt to Murder,1
+ballari,2025,Theft,5
+kolar,2024,Cheating,2
+yadgir,2024,Burglary,3
+yadgir,2024,Kidnapping and Abduction,2
+yadgir,2024,Attempt to Murder,1
+dharwad,2025,Kidnapping and Abduction,1
+kolar,2025,Criminal Breach of Trust,1
+bengaluru_rural,2025,Criminal Breach of Trust,1
+dharwad,2024,Criminal Breach of Trust,1
+hassan,2025,Riots,2
+koppal,2025,Kidnapping and Abduction,1
+ballari,2025,Arson,1
+dakshina_kannada,2025,Robbery,2
+bidar,2024,Riots,2
+chamarajanagar,2025,Attempt to Murder,1
+davanagere,2025,Attempt to Murder,1
+gadag,2025,Attempt to Murder,1
+kodagu,2025,Hurt / Grievous Hurt,3
+uttara_kannada,2025,Attempt to Murder,1
+chikballapur,2024,Cheating,2
+udupi,2025,Kidnapping and Abduction,3
+davanagere,2024,Attempt to Murder,2
+koppal,2024,Kidnapping and Abduction,1
+vijayanagara,2024,Rape,1
+dakshina_kannada,2025,Cheating,1
+bagalkot,2025,Burglary,2
+kolar,2024,Theft,10
+tumakuru,2025,Kidnapping and Abduction,1
+dakshina_kannada,2024,Kidnapping and Abduction,1
+mandya,2024,Kidnapping and Abduction,4
+ballari,2025,Rape,1
+vijayapura,2024,Theft,7
+uttara_kannada,2024,Riots,1
+davanagere,2025,Kidnapping and Abduction,2
+kolar,2024,Kidnapping and Abduction,2
+hassan,2024,Kidnapping and Abduction,1
+chikballapur,2025,Rape,1
+bengaluru_urban,2025,Burglary,2
+bengaluru_urban,2024,Criminal Breach of Trust,2
+vijayapura,2024,Rape,1
+koppal,2025,Arson,1
+ballari,2025,Dowry Death,1
+dharwad,2024,Arson,1
+bagalkot,2024,Rape,1
+tumakuru,2024,Dowry Death,2
+raichur,2025,Kidnapping and Abduction,2
+hassan,2025,Attempt to Murder,1
+chamarajanagar,2025,Murder,1
+bagalkot,2025,Kidnapping and Abduction,1
+tumakuru,2024,Arson,1
+ballari,2025,Murder,1
+ramanagara,2025,Rape,1
+udupi,2025,Criminal Breach of Trust,1
+chamarajanagar,2024,Criminal Breach of Trust,2
+udupi,2024,Riots,2
+bidar,2025,Cheating,2
+mandya,2024,Rape,1
+kalaburagi,2025,Cheating,2
+haveri,2025,Arson,1
+kodagu,2025,Rape,1
+kalaburagi,2024,Rape,1
+gadag,2025,Rape,1
+ballari,2025,Robbery,1
+koppal,2025,Burglary,3
+uttara_kannada,2024,Kidnapping and Abduction,1
+raichur,2025,Criminal Breach of Trust,1
+belagavi,2025,Kidnapping and Abduction,1
+mysuru,2024,Attempt to Murder,1
+shivamogga,2024,Rape,2
+chitradurga,2025,Rape,1
+ramanagara,2024,Burglary,3
+bagalkot,2024,Kidnapping and Abduction,1
+chikkamagaluru,2024,Kidnapping and Abduction,1
+chikballapur,2025,Burglary,1
+chikballapur,2024,Arson,1
+chamarajanagar,2024,Arson,1
+davanagere,2025,Arson,1
+yadgir,2025,Riots,1
+tumakuru,2024,Kidnapping and Abduction,3
+chamarajanagar,2025,Riots,1
+bengaluru_urban,2025,Criminal Breach of Trust,1
+bagalkot,2025,Dowry Death,1
+bagalkot,2025,Attempt to Murder,1
+mysuru,2025,Kidnapping and Abduction,2
+mysuru,2024,Dacoity,1
+gadag,2025,Kidnapping and Abduction,3
+ramanagara,2024,Kidnapping and Abduction,1
+koppal,2024,Murder,1
+davanagere,2024,Rape,1
+bengaluru_rural,2024,Rape,1
+chikballapur,2025,Kidnapping and Abduction,1
+vijayapura,2025,Riots,1
+ballari,2024,Murder,1
+bengaluru_urban,2025,Kidnapping and Abduction,1
+bengaluru_urban,2025,Murder,1
+shivamogga,2024,Kidnapping and Abduction,1
+bagalkot,2024,Attempt to Murder,1
+ballari,2024,Kidnapping and Abduction,1
+vijayapura,2024,Dowry Death,1
+kodagu,2025,Kidnapping and Abduction,1
+chikkamagaluru,2024,Attempt to Murder,1
+dakshina_kannada,2025,Criminal Breach of Trust,1
+bengaluru_rural,2025,Murder,1
+dakshina_kannada,2025,Kidnapping and Abduction,2
+chikkamagaluru,2024,Murder,1
+udupi,2024,Murder,1
+chikballapur,2024,Attempt to Murder,1
+yadgir,2024,Rape,1
+hassan,2024,Dowry Death,1
+bagalkot,2025,Murder,2
+bidar,2024,Dowry Death,1
+udupi,2024,Attempt to Murder,1
+vijayanagara,2024,Riots,1
+ramanagara,2025,Riots,1
+yadgir,2024,Criminal Breach of Trust,1
+dharwad,2024,Rape,1
+uttara_kannada,2024,Murder,1
+udupi,2025,Rape,1
+chamarajanagar,2024,Riots,1
+chamarajanagar,2024,Rape,1
+bengaluru_urban,2025,Dowry Death,1
+kolar,2025,Rape,1
+dharwad,2024,Kidnapping and Abduction,1
+shivamogga,2024,Dowry Death,1
+bidar,2025,Attempt to Murder,1
+yadgir,2024,Dacoity,1
+hassan,2024,Murder,1
+chikballapur,2024,Kidnapping and Abduction,1
+hassan,2025,Rape,1
+belagavi,2024,Burglary,1
+bengaluru_urban,2024,Rape,1
+bidar,2024,Murder,1
+bengaluru_urban,2024,Attempt to Murder,1
+udupi,2024,Kidnapping and Abduction,1
+tumakuru,2024,Riots,1
+chitradurga,2024,Dowry Death,1
+bengaluru_rural,2025,Arson,1
+shivamogga,2025,Kidnapping and Abduction,1
+chikkamagaluru,2025,Criminal Breach of Trust,2
+belagavi,2025,Attempt to Murder,1
+tumakuru,2024,Criminal Breach of Trust,1
+ballari,2025,Kidnapping and Abduction,1
+bagalkot,2024,Riots,1
+koppal,2024,Criminal Breach of Trust,1
+ramanagara,2024,Murder,1
+dharwad,2025,Attempt to Murder,1
