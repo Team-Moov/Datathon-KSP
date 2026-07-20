@@ -1,9 +1,12 @@
 """
 JWT-based authentication helpers.
-Roles: ADMIN, ANALYST, INVESTIGATOR, VIEWER
-Sensitive columns (ReligionID, CasteID) are access-controlled at the service layer.
+Roles: CONSTABLE, INSPECTOR, DSP, SP, DGP, CRIME_ANALYST, POLICY_MAKER — see
+app/core/permissions.py for the capability matrix these grant.
+Sensitive columns (PersonCaseRole.religion_id, PersonCaseRole.caste_id) are
+access-controlled at the service layer (app/core/masking.py).
 """
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -12,11 +15,13 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.user import Role, User
+from app.core.request_context import current_user_id_ctx
+from app.models.user import User
 from app.repositories.user_repository import UserRepository
 
 log = structlog.get_logger(__name__)
@@ -51,6 +56,16 @@ def create_refresh_token(subject: str) -> str:
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
+def hash_token(token: str) -> str:
+    """
+    SHA-256 for refresh-token storage lookups — unlike a user password, a JWT
+    refresh token is already high-entropy, so a fast deterministic hash (indexed
+    equality lookup in RefreshTokenRecord) is the right tool; bcrypt is reserved
+    for low-entropy user-supplied secrets.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 # ── FastAPI dependencies ───────────────────────────────────────────────────────
 
 async def get_current_user(
@@ -76,18 +91,22 @@ async def get_current_user(
     user = await repo.get_by_id(user_id)
     if user is None or not user.is_active:
         raise credentials_exc
+
+    current_user_id_ctx.set(user.id)
+    await _apply_rls_session_context(db, user)
     return user
 
 
-def require_roles(*roles: Role):
-    """Role-based access dependency factory."""
-
-    async def _check(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role not in roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Requires one of roles: {[r.value for r in roles]}",
-            )
-        return current_user
-
-    return _check
+async def _apply_rls_session_context(db: AsyncSession, user: User) -> None:
+    """
+    Sets the two Postgres session variables the RLS district-isolation policies
+    read (app/core/database.py's _setup_runtime_role_and_rls). set_config(...,
+    true) is the parameterized equivalent of SET LOCAL — scoped to this request's
+    transaction — and, unlike a raw `SET LOCAL x = value` string, takes its value
+    as a normal bound parameter rather than needing to be interpolated into SQL.
+    """
+    await db.execute(text("SELECT set_config('app.current_role', :role, true)"), {"role": user.role.value})
+    await db.execute(
+        text("SELECT set_config('app.current_district_id', :district_id, true)"),
+        {"district_id": str(user.district_id) if user.district_id is not None else ""},
+    )

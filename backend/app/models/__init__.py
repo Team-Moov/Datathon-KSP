@@ -3,7 +3,7 @@ ORM Models — re-exported from submodules for convenience.
 Import this package to register all models with SQLAlchemy's metadata.
 """
 
-from app.models.audit import AuditLog
+from app.models.audit import AuditLog, RecordChangeHistory
 from app.models.case import (
     Act,
     ActSectionAssociation,
@@ -21,13 +21,17 @@ from app.models.financial import FinancialTransaction
 from app.models.location import Location
 from app.models.offender import CriminalHistory, MOLinkageCluster, RiskScore
 from app.models.person import CasteMaster, OccupationMaster, Person, PersonCaseRole, ReligionMaster
+from app.models.reports import ReportShareLink
+from app.models.security import OtpChallenge, RefreshTokenRecord
 from app.models.socio import CrimeStatAggregate, DistrictCompositeIndex, SocioEconomicIndicator
 from app.models.unit import Court, District, State, Unit, UnitType
 from app.models.user import User
 from app.models.vector import VectorChunk
+from app.models.workspace import CaseNote
 
 __all__ = [
     "AuditLog",
+    "RecordChangeHistory",
     "Act",
     "ActSectionAssociation",
     "CaseMaster",
@@ -49,6 +53,9 @@ __all__ = [
     "Person",
     "PersonCaseRole",
     "ReligionMaster",
+    "OtpChallenge",
+    "RefreshTokenRecord",
+    "ReportShareLink",
     "CrimeStatAggregate",
     "DistrictCompositeIndex",
     "SocioEconomicIndicator",
@@ -59,4 +66,5 @@ __all__ = [
     "UnitType",
     "User",
     "VectorChunk",
+    "CaseNote",
 ]

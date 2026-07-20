@@ -92,51 +92,42 @@ class CsvExtractor(BaseExtractor):
 
 class AudioExtractor(BaseExtractor):
     """
-    Google Cloud Speech-to-Text v2 — supports Kannada (kn-IN) and English (en-IN).
-    Replaces Whisper with a service that has first-class Indian language support.
+    Groq-hosted Whisper large-v3 — supports Kannada and English in the same
+    model, called via the Groq API rather than a GCP-specific speech service.
+    Runs the (sync) Groq SDK call in a worker thread so it never blocks the
+    event loop.
     """
 
     method = ExtractionMethod.TRANSCRIPTION
 
     async def extract(self, file_path: Path) -> Dict[str, Any]:
+        import asyncio
+
         try:
-            from google.cloud import speech as google_speech
-
-            client = google_speech.SpeechAsyncClient()
-
-            audio_bytes = file_path.read_bytes()
-            audio = google_speech.RecognitionAudio(content=audio_bytes)
-
-            config = google_speech.RecognitionConfig(
-                encoding=google_speech.RecognitionConfig.AudioEncoding.LINEAR16,
-                sample_rate_hertz=16000,
-                # Try Kannada first, fall back to English (India)
-                language_code="kn-IN",
-                alternative_language_codes=["en-IN", "en-US"],
-                enable_automatic_punctuation=True,
-                model="latest_long",
-            )
-
-            response = await client.recognize(config=config, audio=audio)
-
-            transcript = " ".join(
-                result.alternatives[0].transcript
-                for result in response.results
-                if result.alternatives
-            )
-            detected_language = (
-                response.results[0].language_code
-                if response.results
-                else "kn-IN"
-            )
-
-            return {
-                "confidence": 0.85,
-                "narrative_text": transcript,
-                "language": detected_language,
-            }
+            return await asyncio.to_thread(self._transcribe_sync, file_path)
         except Exception as exc:
             return {"confidence": 0.0, "extraction_error": str(exc)}
+
+    @staticmethod
+    def _transcribe_sync(file_path: Path) -> Dict[str, Any]:
+        from groq import Groq
+
+        from app.core.config import settings
+
+        client = Groq(api_key=settings.GROQ_API_KEY)
+        with open(file_path, "rb") as audio_file:
+            response = client.audio.transcriptions.create(
+                file=(file_path.name, audio_file.read()),
+                model=settings.GROQ_WHISPER_MODEL,
+                language="kn",  # Whisper auto-detects within the language if this misses
+                response_format="verbose_json",
+            )
+
+        return {
+            "confidence": 0.85,
+            "narrative_text": response.text,
+            "language": getattr(response, "language", "kn"),
+        }
 
 
 class NewsHtmlExtractor(BaseExtractor):

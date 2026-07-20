@@ -2,7 +2,8 @@
 Conversational AI Service — LangGraph-based planner (§10).
 The LLM selects which deterministic tool to call; tools compute; LLM narrates.
 Claim validation runs before every response (§1.3, §11).
-Backbone: Google Gemini 1.5 Pro (tool-calling) + Gemini 1.5 Flash (narration) via Vertex AI.
+Backbone: Groq-hosted Llama models — llama-3.3-70b-versatile for tool-calling,
+llama-3.1-8b-instant for the cheaper narration/claim-validation pass.
 """
 
 import json
@@ -12,10 +13,11 @@ from uuid import UUID
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
-from langchain_google_vertexai import ChatVertexAI
+from langchain_groq import ChatGroq
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.groq_client import AiUnavailableError, resilient_groq_call
 from app.services.analytics.network_analysis import NetworkAnalysisService
 from app.services.analytics.hawkes_forecast import HawkesETASService
 from app.services.analytics.risk_profiling import RiskProfilingService
@@ -47,22 +49,18 @@ class ConversationService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        # Gemini 1.5 Pro via Vertex AI — function-calling for tool dispatch.
-        # ADC is used automatically on GCP; for local dev set
-        # GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa-key.json
-        self.llm = ChatVertexAI(
-            model_name=settings.LLM_MODEL,          # gemini-1.5-pro-002
-            project=settings.GCP_PROJECT,
-            location=settings.GCP_LOCATION,
+        # Groq-hosted Llama 3.3 70B — function-calling for tool dispatch.
+        self.llm = ChatGroq(
+            model=settings.GROQ_LLM_MODEL,
+            api_key=settings.GROQ_API_KEY,
             temperature=0,
             streaming=True,
         ).bind_tools(self._build_tool_schemas())
 
-        # Gemini Flash for cheaper claim-validation narration pass
-        self._narration_llm = ChatVertexAI(
-            model_name=settings.LLM_MODEL_FLASH,    # gemini-1.5-flash-002
-            project=settings.GCP_PROJECT,
-            location=settings.GCP_LOCATION,
+        # Groq-hosted Llama 3.1 8B for the cheaper claim-validation narration pass
+        self._narration_llm = ChatGroq(
+            model=settings.GROQ_LLM_MODEL_FAST,
+            api_key=settings.GROQ_API_KEY,
             temperature=0,
         )
 
@@ -91,14 +89,28 @@ class ConversationService:
             lc_messages.append(HumanMessage(content=msg["content"]) if msg["role"] == "user" else SystemMessage(content=msg["content"]))
 
         # ── LLM planning turn ─────────────────────────────────────────────────
+        # A streamed call can't be transparently retried mid-flight without
+        # duplicating tokens already sent to the client, so a failure here just
+        # ends the planning stage — there are no tool_calls to dispatch without
+        # a planner, so this is a genuine "AI unavailable" turn, not a partial one.
         tool_calls = []
         content_buffer = ""
-        async for chunk in self.llm.astream(lc_messages):
-            if chunk.tool_calls:
-                tool_calls.extend(chunk.tool_calls)
-            if chunk.content:
-                content_buffer += chunk.content
-                yield json.dumps({"type": "token", "content": chunk.content}) + "\n"
+        try:
+            async for chunk in self.llm.astream(lc_messages):
+                if chunk.tool_calls:
+                    tool_calls.extend(chunk.tool_calls)
+                if chunk.content:
+                    content_buffer += chunk.content
+                    yield json.dumps({"type": "token", "content": chunk.content}) + "\n"
+        except Exception as exc:
+            log.error("Groq planning stream failed", error=str(exc))
+            yield json.dumps({
+                "type": "error",
+                "error": "ai_unavailable",
+                "message": "AI assistance is temporarily unavailable. Please retry shortly.",
+            }) + "\n"
+            yield json.dumps({"type": "done"}) + "\n"
+            return
 
         # ── Execute tool calls ────────────────────────────────────────────────
         tool_results = {}
@@ -119,11 +131,21 @@ class ConversationService:
             yield json.dumps({"type": "tool_result", "tool": tool_name, "data": result}) + "\n"
 
         # ── Claim validation (§1.3, §11) ──────────────────────────────────────
+        # Tool results (already yielded above) stand on their own even if this
+        # narration pass fails — the deterministic/LLM split this codebase
+        # already has means a narration outage never hides computed data.
         if tool_results:
-            validated_narration = await self._validate_and_narrate(
-                content_buffer, tool_results, lc_messages
-            )
-            yield json.dumps({"type": "token", "content": validated_narration}) + "\n"
+            try:
+                validated_narration = await self._validate_and_narrate(
+                    content_buffer, tool_results, lc_messages
+                )
+                yield json.dumps({"type": "token", "content": validated_narration}) + "\n"
+            except AiUnavailableError:
+                yield json.dumps({
+                    "type": "error",
+                    "error": "ai_unavailable",
+                    "message": "AI narration is temporarily unavailable — the tool results above are still valid.",
+                }) + "\n"
 
         yield json.dumps({"type": "done"}) + "\n"
 
@@ -180,7 +202,9 @@ Produce a concise, accurate narration. Rules:
 - If a value is missing or the tool returned an error, say so explicitly.
 - End with 2–3 suggested follow-up actions from the available tools.
 """
-        response = await self._narration_llm.ainvoke(messages + [HumanMessage(content=validation_prompt)])
+        response = await resilient_groq_call(
+            self._narration_llm.ainvoke, messages + [HumanMessage(content=validation_prompt)]
+        )
         return response.content
 
     @staticmethod

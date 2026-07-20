@@ -7,8 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_roles
-from app.models.enums import Role
+from app.core.permissions import Permission, require_permission
 from app.models.user import User
 from app.services.analytics.risk_profiling import RiskProfilingService
 
@@ -19,7 +18,7 @@ router = APIRouter()
 async def compute_risk_score(
     person_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.COMPUTE_RISK_SCORE)),
 ):
     """
     Compute a new versioned risk score.
@@ -61,7 +60,7 @@ async def mark_score_reviewed(
     person_id: UUID,
     score_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.REVIEW_RISK_SCORE)),
 ):
     """Human analyst signs off on the computed risk score."""
     from app.models.offender import RiskScore

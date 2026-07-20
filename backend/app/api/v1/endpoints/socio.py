@@ -12,8 +12,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import require_roles
-from app.models.enums import Role
+from app.core.permissions import Permission, require_permission
 from app.models.user import User
 from app.models.socio import CrimeStatAggregate, DistrictCompositeIndex, SocioEconomicIndicator
 
@@ -26,7 +25,7 @@ async def get_socio_indicators(
     year_from: Optional[int] = Query(None),
     year_to: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_AGGREGATE_ANALYTICS)),
 ):
     """
     Socio-economic time series for a district.
@@ -61,7 +60,7 @@ async def get_crime_stats(
     year: Optional[int] = Query(None),
     crime_head_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_AGGREGATE_ANALYTICS)),
 ):
     """Aggregate crime counts by district-year-crime_head (§6 — CHI-weighted available)."""
     filters = [CrimeStatAggregate.district_id == district_id]
@@ -89,7 +88,7 @@ async def get_crime_stats(
 async def get_gwr_outputs(
     district_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_AGGREGATE_ANALYTICS)),
 ):
     """
     Latest GWR coefficient outputs for choropleth widget.

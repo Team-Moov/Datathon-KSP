@@ -7,8 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_roles
-from app.models.enums import Role
+from app.core.permissions import Permission, require_permission
 from app.models.user import User
 from app.services.analytics.network_analysis import NetworkAnalysisService
 
@@ -19,7 +18,7 @@ router = APIRouter()
 async def get_ego_network(
     person_id: str,
     depth: int = Query(2, ge=1, le=4),
-    current_user: User = Depends(require_roles(Role.INVESTIGATOR, Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_NETWORK_BASIC)),
 ):
     """Force-directed graph data for a person's ego network."""
     svc = NetworkAnalysisService()
@@ -31,7 +30,7 @@ async def get_cooffending_network(
     district_id: Optional[int] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
-    current_user: User = Depends(require_roles(Role.INVESTIGATOR, Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_NETWORK_BASIC)),
 ):
     """Bipartite accused↔incident projection — person-person co-offending graph."""
     svc = NetworkAnalysisService()
@@ -40,7 +39,7 @@ async def get_cooffending_network(
 
 @router.get("/communities", response_model=List[Dict[str, Any]])
 async def detect_communities(
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_NETWORK_ADVANCED)),
 ):
     """Run Louvain community detection — surfaces criminal cells/sub-groups."""
     svc = NetworkAnalysisService()
@@ -51,7 +50,7 @@ async def detect_communities(
 async def get_predicted_links(
     person_id: str,
     top_k: int = Query(10, le=50),
-    current_user: User = Depends(require_roles(Role.INVESTIGATOR, Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_NETWORK_BASIC)),
 ):
     """
     Plausible-but-unconfirmed connections (GCN link prediction).
@@ -63,7 +62,7 @@ async def get_predicted_links(
 
 @router.get("/multi-jurisdiction", response_model=List[Dict[str, Any]])
 async def get_multi_jurisdiction_offenders(
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_NETWORK_ADVANCED)),
 ):
     """Persons whose cases span multiple police station jurisdictions (organized-crime signal)."""
     svc = NetworkAnalysisService()

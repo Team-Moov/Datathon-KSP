@@ -15,6 +15,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.enums import PersonRole
 from app.models.offender import CriminalHistory, RiskScore
 from app.repositories.person_repository import PersonRepository
 
@@ -130,9 +131,17 @@ class RiskProfilingService:
             JOIN case_master cm ON cm.id = pcr.case_id
             LEFT JOIN gravity_offence go ON go.id = cm.gravity_offence_id
             WHERE pcr.person_id = :person_id
-              AND pcr.role = 'accused'
+              AND pcr.role = :accused_role
         """)
-        result = await self.db.execute(stmt, {"person_id": str(person_id)})
+        # SQLAlchemy's Enum column stores the Python member *name* ("ACCUSED"),
+        # not PersonRole.ACCUSED.value ("accused") — the real Postgres enum
+        # type only ever contains "ACCUSED"/"VICTIM"/etc. A raw 'accused'
+        # literal here isn't just a non-match, it's an invalid enum literal
+        # Postgres rejects outright (InvalidTextRepresentationError), which is
+        # exactly what this call raised as a 500 the first time it ran live.
+        result = await self.db.execute(
+            stmt, {"person_id": str(person_id), "accused_role": PersonRole.ACCUSED.name}
+        )
         rows = result.fetchall()
 
         today = date.today()

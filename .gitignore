@@ -62,6 +62,12 @@ Thumbs.db
 htmlcov/
 .mypy_cache/
 
+# ── Node / frontend ───────────────────────────────────────────────────────────
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
 # ── Docker ────────────────────────────────────────────────────────────────────
 docker-compose.override.yml
 

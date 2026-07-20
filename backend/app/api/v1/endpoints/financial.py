@@ -6,8 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import require_roles
-from app.models.enums import Role
+from app.core.permissions import Permission, require_permission
 from app.models.user import User
 from app.services.analytics.financial_crime import FinancialCrimeService
 
@@ -19,7 +18,7 @@ async def detect_structuring(
     account: str,
     window_days: int = Query(30, ge=7, le=90),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_FINANCIAL_RAW)),
 ):
     """Detect smurfing/structuring below ₹10 lakh CTR threshold."""
     svc = FinancialCrimeService(db)
@@ -30,7 +29,7 @@ async def detect_structuring(
 async def detect_funnel(
     account: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_FINANCIAL_RAW)),
 ):
     """Detect mule/funnel account pattern."""
     svc = FinancialCrimeService(db)
@@ -40,7 +39,7 @@ async def detect_funnel(
 @router.get("/cycles", response_model=List[Dict[str, Any]])
 async def detect_cycles(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_FINANCIAL_RAW)),
 ):
     """Detect layering cycles in the TRANSACTED_WITH transaction graph."""
     svc = FinancialCrimeService(db)

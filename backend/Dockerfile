@@ -14,8 +14,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download spaCy English model
-RUN python -m spacy download en_core_web_sm
+# Download spaCy English model — installed as a direct wheel URL rather than
+# `spacy download`, whose compatibility-version lookup was returning a
+# malformed (unversioned) release URL in this environment and 404'ing.
+RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 
 COPY . .
 

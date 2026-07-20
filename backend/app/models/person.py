@@ -81,6 +81,9 @@ class Person(Base):
     source_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("document.id"))
     human_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    """Optimistic-concurrency token — see CaseMaster.version."""
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -1,0 +1,33 @@
+# Root-level orchestration — brings up the full stack (Postgres/Neo4j/Redis/API/
+# Celery from backend/docker-compose.yml, plus the frontend) with one command:
+#   docker compose up --build
+#
+# backend/ and frontend/ each stay fully self-contained (their own Dockerfile,
+# their own .dockerignore, their own env handling) — this file only composes
+# them together, via `include:`, rather than duplicating either one's config.
+#
+# Pinned project name: without this, Compose derives the project name from
+# whichever directory `docker compose` happens to be invoked from, so running
+# it from backend/ directly (still supported — see backend/docker-compose.yml)
+# versus from here would silently create two unrelated sets of containers and
+# volumes for the same stack. One fixed name means both entry points always
+# resolve to the same project.
+name: karnataka-crime-platform
+
+include:
+  - backend/docker-compose.yml
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      # 4173 (Vite's own conventional "preview build" port) — not 5173, which
+      # is the *dev server* port `npm run dev` uses for local hot-reload work,
+      # and not 8080, which conflicts with other tooling commonly already
+      # running on a dev machine (this environment already has something on
+      # it). This is the containerized production build, nginx-served.
+      - "4173:80"
+    depends_on:
+      - api

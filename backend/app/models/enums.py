@@ -72,10 +72,20 @@ class ChunkType(str, enum.Enum):
 
 
 class Role(str, enum.Enum):
-    ADMIN = "ADMIN"
-    ANALYST = "ANALYST"
-    INVESTIGATOR = "INVESTIGATOR"
-    VIEWER = "VIEWER"
+    """
+    Karnataka Police rank hierarchy plus two specialist tracks.
+    CRIME_ANALYST and POLICY_MAKER sit outside the command chain — see
+    app/core/permissions.py for the capability matrix that governs access
+    (a linear rank order can't express those two tracks correctly).
+    """
+
+    CONSTABLE = "CONSTABLE"
+    INSPECTOR = "INSPECTOR"
+    DSP = "DSP"
+    SP = "SP"
+    DGP = "DGP"
+    CRIME_ANALYST = "CRIME_ANALYST"
+    POLICY_MAKER = "POLICY_MAKER"
 
 
 class Sex(str, enum.Enum):

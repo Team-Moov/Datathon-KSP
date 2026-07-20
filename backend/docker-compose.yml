@@ -1,13 +1,20 @@
-version: "3.9"
+# Same fixed project name as ../docker-compose.yml — see that file's comment.
+# Running `docker compose up` from here (backend-only, no frontend container)
+# and from the repo root both then resolve to the same containers/volumes.
+name: karnataka-crime-platform
 
 services:
   # ── PostgreSQL + pgvector ──────────────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
+    env_file: .env
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: karnataka_crime
+      # Bootstrap credentials for the container's own initdb — driven by the
+      # same .env values the app connects with (POSTGRES_USER/PASSWORD), not a
+      # second hardcoded source of truth that can drift from it.
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-karnataka_crime}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -22,7 +29,11 @@ services:
   neo4j:
     image: neo4j:5.20
     environment:
-      NEO4J_AUTH: neo4j/neo4j_password
+      # NEO4J_AUTH takes the combined "user/password" form the image expects —
+      # driven by .env's NEO4J_USER/NEO4J_PASSWORD (resolved at `docker compose`
+      # parse time) rather than a second hardcoded credential pair that could
+      # silently drift from what the app actually connects with.
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD}
       NEO4J_PLUGINS: '["graph-data-science"]'
     volumes:
       - neo4j_data:/data
@@ -30,7 +41,7 @@ services:
       - "7474:7474"   # browser
       - "7687:7687"   # bolt
     healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "neo4j_password", "RETURN 1"]
+      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USER:-neo4j} -p '${NEO4J_PASSWORD}' 'RETURN 1'"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -50,17 +61,27 @@ services:
       dockerfile: Dockerfile
     env_file: .env
     environment:
-      # Vertex AI / Gemini — override per-environment here if needed
-      GCP_PROJECT: ${GCP_PROJECT}
-      GCP_LOCATION: ${GCP_LOCATION:-us-central1}
-      LLM_MODEL: ${LLM_MODEL:-gemini-1.5-pro-002}
-      LLM_MODEL_FLASH: ${LLM_MODEL_FLASH:-gemini-1.5-flash-002}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-004}
-      EMBEDDING_DIM: "768"
-      # Mount SA key for local dev; on GCP use Workload Identity instead
-      GOOGLE_APPLICATION_CREDENTIALS: /secrets/sa-key.json
+      # Container-network hostnames — deliberately override whatever .env has,
+      # since .env's defaults (localhost) are for running the API outside
+      # Docker. `environment:` takes precedence over `env_file:` in Compose, so
+      # this is what actually wins regardless of .env's POSTGRES_HOST/etc.
+      POSTGRES_HOST: postgres
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      # Groq — override per-environment here if needed
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_LLM_MODEL: ${GROQ_LLM_MODEL:-llama-3.3-70b-versatile}
+      GROQ_LLM_MODEL_FAST: ${GROQ_LLM_MODEL_FAST:-llama-3.1-8b-instant}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      EMBEDDING_DIM: "384"
     ports:
-      - "8000:8000"
+      # Host-side 8090, not 8000 — something else on this machine already owns
+      # 127.0.0.1:8000 (a separate WSL distro's service), and Windows resolves
+      # "localhost" to that more specific loopback binding ahead of Docker's
+      # own 0.0.0.0:8000 proxy. The container's internal port is still 8000.
+      - "8090:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,7 +92,6 @@ services:
     volumes:
       - ./:/app
       - uploads:/tmp/uploads
-      - ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}:/secrets/sa-key.json:ro
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # ── Celery worker ─────────────────────────────────────────────────────────
@@ -81,15 +101,17 @@ services:
       dockerfile: Dockerfile
     env_file: .env
     environment:
-      GCP_PROJECT: ${GCP_PROJECT}
-      GCP_LOCATION: ${GCP_LOCATION:-us-central1}
-      GOOGLE_APPLICATION_CREDENTIALS: /secrets/sa-key.json
+      POSTGRES_HOST: postgres
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      GROQ_API_KEY: ${GROQ_API_KEY}
     depends_on:
       - redis
       - postgres
     volumes:
       - ./:/app
-      - ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}:/secrets/sa-key.json:ro
     command: >
       celery -A app.tasks.celery_app.celery_app worker
       --loglevel=info --concurrency=4
@@ -100,6 +122,12 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
     depends_on:
       - redis
     volumes:

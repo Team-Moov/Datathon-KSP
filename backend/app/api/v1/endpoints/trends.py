@@ -8,8 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import require_roles
-from app.models.enums import Role
+from app.core.permissions import Permission, require_permission
 from app.models.user import User
 from app.services.analytics.hawkes_forecast import HawkesETASService
 
@@ -23,7 +22,7 @@ async def forecast_hotspots(
     target_date: date = Query(...),
     stress_index: Optional[float] = Query(None, description="District composite stress index covariate"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.ANALYST, Role.INVESTIGATOR, Role.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.VIEW_TRENDS_HOTSPOTS)),
 ):
     """
     Hawkes/ETAS spatio-temporal forecast.

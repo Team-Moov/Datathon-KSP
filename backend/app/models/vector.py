@@ -17,7 +17,7 @@ class VectorChunk(Base):
     """
     One record per narrative chunk stored in the vector store.
     Embedding dimension matches settings.EMBEDDING_DIM
-    (default 768 for Vertex AI text-embedding-004).
+    (default 384 for the local all-MiniLM-L6-v2 sentence-transformers model).
     """
 
     __tablename__ = "vector_chunk"

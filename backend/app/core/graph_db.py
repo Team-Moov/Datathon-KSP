@@ -3,8 +3,12 @@ Neo4j async driver wrapper.
 Exposes a singleton graph_db used across the application.
 """
 
-from typing import Any, Dict, List, Optional
+import hashlib
+import json
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional
 
+import redis.asyncio as aioredis
 import structlog
 from neo4j import AsyncGraphDatabase
 
@@ -64,3 +68,69 @@ class GraphDatabase:
 
 # Module-level singleton — imported everywhere
 graph_db = GraphDatabase()
+
+
+# ── Graph query caching (§7a — performance layer, not a correctness change) ────
+#
+# Ego-network/community/link-prediction reads hit Neo4j on every call, and the
+# network explorer page is exactly the kind of view a user re-opens or
+# re-filters repeatedly. This caches a service method's JSON-serializable
+# result verbatim in Redis (already provisioned for Celery) with a short TTL as
+# a safety net, plus explicit invalidation on graph writes — see
+# invalidate_graph_cache(), called from graph_sync_service.py after any
+# node/edge mutation.
+
+_CACHE_TTL_SECONDS = 60
+_CACHE_KEY_PREFIX = "graph_cache"
+_redis_client: Optional[aioredis.Redis] = None
+
+
+def _get_redis() -> aioredis.Redis:
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    return _redis_client
+
+
+def _build_cache_key(name: str, args: tuple, kwargs: dict) -> str:
+    payload = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True, default=str)
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return f"{_CACHE_KEY_PREFIX}:{name}:{digest}"
+
+
+def cached_graph_query(name: str, ttl_seconds: int = _CACHE_TTL_SECONDS) -> Callable:
+    """
+    Decorator for a read-only NetworkAnalysisService method. Caches the exact
+    return value — including each predicted link's confidence/source_tool — so
+    a cache hit is indistinguishable from a fresh read; this never changes what
+    the underlying Cypher query would have returned, only how often it runs.
+    """
+
+    def decorator(fn: Callable) -> Callable:
+        @wraps(fn)
+        async def wrapper(self, *args, **kwargs):
+            redis = _get_redis()
+            key = _build_cache_key(name, args, kwargs)
+            cached = await redis.get(key)
+            if cached is not None:
+                return json.loads(cached)
+
+            result = await fn(self, *args, **kwargs)
+            await redis.set(key, json.dumps(result, default=str), ex=ttl_seconds)
+            return result
+
+        return wrapper
+
+    return decorator
+
+
+async def invalidate_graph_cache() -> None:
+    """
+    Clears every cached graph query rather than tracking per-key dependencies —
+    graph writes (new evidence landing) are infrequent relative to reads, so a
+    full clear is cheap and guarantees no stale result survives a write.
+    """
+    redis = _get_redis()
+    keys = [key async for key in redis.scan_iter(match=f"{_CACHE_KEY_PREFIX}:*")]
+    if keys:
+        await redis.delete(*keys)

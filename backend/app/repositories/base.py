@@ -45,6 +45,27 @@ class BaseRepository(Generic[ModelType]):
         await self.db.refresh(obj)
         return obj
 
+    async def update_with_version(
+        self, id: Any, expected_version: int, data: Dict[str, Any]
+    ) -> Optional[ModelType]:
+        """
+        Optimistic-concurrency update for models carrying a `version` column.
+        `with_for_update` row-locks for the length of this transaction, so the
+        read-check-write sequence can't race with a concurrent editor — they
+        block until this transaction commits, then correctly see the bumped
+        version and get None back. Returns None on a stale/missing row; the
+        endpoint turns that into a 409 Conflict.
+        """
+        obj = await self.db.get(self.model, id, with_for_update=True)
+        if obj is None or getattr(obj, "version", None) != expected_version:
+            return None
+        for key, value in data.items():
+            setattr(obj, key, value)
+        obj.version = expected_version + 1
+        await self.db.flush()
+        await self.db.refresh(obj)
+        return obj
+
     async def delete(self, obj: ModelType) -> None:
         await self.db.delete(obj)
         await self.db.flush()
