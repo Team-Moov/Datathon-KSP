@@ -222,9 +222,15 @@ async def _do_link_prediction(top_n: int = 100) -> dict:
         candidates = random.sample(candidates, 2000)
 
     # Filter to persons that have embeddings (i.e. were in the training graph)
-    candidates = [(u, v) for u, v in candidates if u in embeddings and v in embeddings]
-    if not candidates:
-        return {"status": "ok", "links_written": 0}
+    mapped = [(u, v) for u, v in candidates if u in embeddings and v in embeddings]
+    overlap = len({p for c in candidates for p in c} & set(embeddings))
+    if not mapped:
+        log.warning("link_prediction: zero embedding overlap with backend persons",
+                    backend_persons=G.number_of_nodes(), embedding_persons=len(embeddings), overlap=overlap)
+        return {"status": "degraded", "reason": "no_id_overlap",
+                "links_written": 0, "overlap": overlap}
+
+    candidates = mapped
 
     X = np.stack([embeddings[u] * embeddings[v] for u, v in candidates])
     scores = clf.predict_proba(X)[:, 1]

@@ -68,11 +68,37 @@ class HistorySheetExtractor(BaseExtractor):
     method = ExtractionMethod.NER_RELATION
 
     async def extract(self, file_path: Path) -> Dict[str, Any]:
-        # Placeholder — real impl calls spaCy NER pipeline
-        return {
-            "confidence": 0.6,
-            "narrative_text": file_path.read_text(errors="replace") if file_path.suffix in (".txt",) else "",
-        }
+        import asyncio
+        from groq import Groq
+        from app.core.config import settings
+        import json
+
+        text_content = file_path.read_text(errors="replace") if file_path.suffix in (".txt", ".md") else ""
+        if not text_content or not settings.GROQ_API_KEY:
+            return {"confidence": 0.6, "narrative_text": text_content, "entities": {}}
+
+        def _call_groq() -> Dict[str, Any]:
+            client = Groq(api_key=settings.GROQ_API_KEY)
+            prompt = f"Extract all person names, locations, and organizations from the following text as JSON with keys 'persons', 'locations', 'organizations':\\n\\n{text_content}"
+            resp = client.chat.completions.create(
+                model=settings.GROQ_LLM_MODEL_FAST,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
+            try:
+                return json.loads(resp.choices[0].message.content)
+            except Exception:
+                return {}
+
+        try:
+            entities = await asyncio.to_thread(_call_groq)
+            return {
+                "confidence": 0.85,
+                "narrative_text": text_content,
+                "entities": entities
+            }
+        except Exception as exc:
+            return {"confidence": 0.4, "narrative_text": text_content, "extraction_error": str(exc)}
 
 
 class CsvExtractor(BaseExtractor):

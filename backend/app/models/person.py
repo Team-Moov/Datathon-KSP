@@ -79,6 +79,7 @@ class Person(Base):
 
     # Provenance — which source record seeded this entity
     source_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("document.id"))
+    source_person_id: Mapped[Optional[str]] = mapped_column(String(200), index=True)
     human_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

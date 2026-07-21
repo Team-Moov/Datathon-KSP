@@ -1,4 +1,4 @@
-﻿-- ============================================================================
+-- ============================================================================
 -- Crime portal poly-store: relational layer
 -- ============================================================================
 -- This is the "boring gray boxes" layer from the pipeline design: Incident,
@@ -58,32 +58,33 @@ CREATE TABLE crime_stat_aggregate (
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE person (
-    person_id             TEXT PRIMARY KEY,
-    canonical_person_id   TEXT REFERENCES person(person_id),  -- entity-resolution merge target; NULL = this row IS canonical
-    name                  TEXT NOT NULL,
-    age                   INT,
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    canonical_person_id   UUID REFERENCES person(id),  -- entity-resolution merge target; NULL = this row IS canonical
+    full_name             TEXT NOT NULL,
+    age_at_registration   INT,
     sex                   TEXT,
     district_id           TEXT REFERENCES district(district_id),
-    address_text          TEXT,
+    present_address       TEXT,
+    source_person_id      TEXT,
     created_at            TIMESTAMP DEFAULT now()
 );
 
 -- entity-resolution candidate merges live here, reviewed before they affect canonical_person_id
 CREATE TABLE person_match_candidate (
-    id              SERIAL PRIMARY KEY,
-    person_id_a     TEXT REFERENCES person(person_id),
-    person_id_b     TEXT REFERENCES person(person_id),
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    person_a_id     UUID REFERENCES person(id),
+    person_b_id     UUID REFERENCES person(id),
     match_score     NUMERIC,
     match_method    TEXT,            -- e.g. 'fuzzy_name_address_v1'
     status          TEXT DEFAULT 'pending' CHECK (status IN ('pending','confirmed','rejected')),
-    reviewed_by     TEXT,
+    reviewed_by     UUID,
     reviewed_at     TIMESTAMP,
     created_at      TIMESTAMP DEFAULT now()
 );
 
-CREATE TABLE incident (
-    incident_id     TEXT PRIMARY KEY,
-    fir_number      TEXT,
+CREATE TABLE case_master (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    crime_no        TEXT,
     district_id     TEXT REFERENCES district(district_id),
     date_occurred   DATE NOT NULL,
     date_reported   DATE,
@@ -91,9 +92,9 @@ CREATE TABLE incident (
     source_type     TEXT DEFAULT 'synthetic'
 );
 
-CREATE TABLE offense (
-    offense_id        TEXT PRIMARY KEY,
-    incident_id       TEXT REFERENCES incident(incident_id),
+CREATE TABLE act_section_association (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    case_id           UUID REFERENCES case_master(id),
     crime_head        TEXT NOT NULL,
     mo_text           TEXT,
     mo_signature      TEXT,
@@ -101,20 +102,20 @@ CREATE TABLE offense (
     weapon_used       TEXT
 );
 
-CREATE TABLE case_person_role (
-    incident_id   TEXT REFERENCES incident(incident_id),
-    person_id     TEXT REFERENCES person(person_id),
-    role          TEXT NOT NULL,       -- accused | victim | witness | complainant
-    PRIMARY KEY (incident_id, person_id, role)
+CREATE TABLE person_case_role (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    case_id       UUID REFERENCES case_master(id),
+    person_id     UUID REFERENCES person(id),
+    role          TEXT NOT NULL       -- accused | victim | witness | complainant
 );
 
 CREATE TABLE financial_transaction (
-    transaction_id      TEXT PRIMARY KEY,
+    transaction_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     from_account         TEXT,
     to_account            TEXT,
     amount                NUMERIC,
     tx_date               DATE,
-    linked_person_id      TEXT REFERENCES person(person_id),
+    linked_person_id      UUID REFERENCES person(id),
     synthetic_pattern     TEXT          -- demo-only ground-truth tag; drop this column on real data
 );
 

@@ -13,7 +13,19 @@ from app.core.config import settings
 
 
 def resolve_country(ip_address: Optional[str]) -> Optional[str]:
-    """Placeholder — always returns None (unknown) until a geo-IP source exists."""
+    """Resolves country code using ip-api.com as a fallback implementation."""
+    if not ip_address or ip_address in ("127.0.0.1", "::1", "localhost"):
+        return None
+    try:
+        import httpx
+        # Synchronous lookup (acceptable for auth flow if timeout is low)
+        resp = httpx.get(f"http://ip-api.com/json/{ip_address}", timeout=2.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("status") == "success":
+                return data.get("countryCode")
+    except Exception:
+        pass
     return None
 
 

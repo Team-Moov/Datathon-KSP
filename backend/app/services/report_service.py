@@ -174,6 +174,46 @@ async def build_case_report_pdf(
     return buffer.getvalue()
 
 
+async def build_chat_report_pdf(
+    messages: List[Dict[str, str]],
+    session_id: str,
+    issued_to: User,
+) -> bytes:
+    buffer = io.BytesIO()
+    width, height = A4
+    watermark_text = (
+        f"CONFIDENTIAL — issued to {issued_to.full_name} — "
+        f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}"
+    )
+    report = _ReportCanvas(canvas.Canvas(buffer, pagesize=A4), width, height, watermark_text)
+
+    report.c.setFont("Helvetica-Bold", 16)
+    report.c.drawString(2 * cm, report.y, f"Conversation Transcript — {session_id}")
+    report.y -= 1 * cm
+    report.c.setFont("Helvetica", 10)
+
+    report.heading("Transcript")
+    for msg in messages:
+        role = "Investigator" if msg["role"] == "user" else "AI Assistant"
+        report.c.setFont("Helvetica-Bold", 10)
+        report._ensure_space(1.0 * cm)
+        report.c.drawString(2 * cm, report.y, f"{role}:")
+        report.y -= 0.5 * cm
+        report.c.setFont("Helvetica", 10)
+        
+        # Simple text wrapping for the report
+        lines = msg["content"].split("\n")
+        for line in lines:
+            wrapped = [line[i:i+90] for i in range(0, max(1, len(line)), 90)]
+            for w in wrapped:
+                report.line(w, indent=2.5 * cm)
+
+    report.finish()
+    report.c.save()
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 def apply_password_protection(pdf_bytes: bytes, password: str) -> bytes:
     reader = PdfReader(io.BytesIO(pdf_bytes))
     writer = PdfWriter()

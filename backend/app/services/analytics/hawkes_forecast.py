@@ -117,9 +117,20 @@ class HawkesETASService:
         MO-based crime linkage via Jaccard similarity over structured MO features (§5).
         Returns candidate series clusters — labeled as plausible, not confirmed.
         """
-        # Placeholder — real impl loads MOLinkageCluster table and runs
-        # hierarchical clustering on vectorized MO features
-        return []
+        stmt = text("""
+            SELECT c.cluster_id, count(c.id) as case_count, avg(c.similarity_score) as avg_similarity
+            FROM mo_linkage_cluster c
+            JOIN case_master cm ON cm.id = c.case_id
+            WHERE cm.crime_head_id = :crime_head_id
+              AND c.similarity_score >= :min_similarity
+            GROUP BY c.cluster_id
+            ORDER BY case_count DESC
+        """)
+        result = await self.db.execute(
+            stmt, 
+            {"crime_head_id": crime_head_id, "min_similarity": min_similarity}
+        )
+        return [dict(row._mapping) for row in result.fetchall()]
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
