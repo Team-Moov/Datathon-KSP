@@ -91,7 +91,7 @@ services:
         condition: service_started
     volumes:
       - ./:/app
-      - uploads:/tmp/uploads
+      - uploads:/uploads
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # ── Celery worker ─────────────────────────────────────────────────────────
@@ -112,6 +112,10 @@ services:
       - postgres
     volumes:
       - ./:/app
+      - uploads:/uploads
+      # DEBT-03 fix: workers need access to uploaded files (e.g. document
+      # ingestion tasks read from UPLOAD_DIR). Without this mount the named
+      # volume only existed on the api container and workers saw empty /uploads.
     command: >
       celery -A app.tasks.celery_app.celery_app worker
       --loglevel=info --concurrency=4

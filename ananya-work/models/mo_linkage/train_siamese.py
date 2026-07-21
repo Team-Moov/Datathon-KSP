@@ -1,4 +1,4 @@
-"""
+﻿"""
 train_siamese.py
 =================
 Trains a contrastive projection head that maps MO narrative text into an

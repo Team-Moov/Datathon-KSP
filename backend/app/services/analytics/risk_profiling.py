@@ -171,8 +171,40 @@ class RiskProfilingService:
         return 0.0
 
     async def _get_mo_escalation(self, person_id: UUID) -> float:
-        """Placeholder — real impl computes trend in CHI weight across clusters."""
-        return 0.0
+        """
+        Compute trend in CHI weight across a person's MO-linked cases.
+        Provides a signal if their clustered offenses are increasing in severity.
+        """
+        from sqlalchemy import text
+
+        stmt = text("""
+            SELECT cm.incident_from_date, COALESCE(go.chi_weight, 5.0) as chi_weight
+            FROM person_case_role pcr
+            JOIN case_master cm ON cm.id = pcr.case_id
+            JOIN mo_linkage_cluster mlc ON mlc.case_id = cm.id
+            LEFT JOIN gravity_offence go ON go.id = cm.gravity_offence_id
+            WHERE pcr.person_id = :person_id
+              AND pcr.role = :accused_role
+            ORDER BY cm.incident_from_date ASC NULLS FIRST
+        """)
+        
+        result = await self.db.execute(
+            stmt, {"person_id": str(person_id), "accused_role": PersonRole.ACCUSED.name}
+        )
+        rows = result.fetchall()
+        
+        if len(rows) < 2:
+            return 0.0
+            
+        chi_weights = [float(r.chi_weight) for r in rows]
+        
+        # Simple escalation: compare average of recent half to early half
+        half = len(chi_weights) // 2
+        early_avg = sum(chi_weights[:half]) / half
+        recent_avg = sum(chi_weights[half:]) / (len(chi_weights) - half)
+        
+        escalation = recent_avg - early_avg
+        return max(0.0, round(escalation, 4))
 
     async def _get_associate_risk_avg(self, person_id: UUID) -> float:
         """Average risk score of direct graph neighbors (§7.4)."""

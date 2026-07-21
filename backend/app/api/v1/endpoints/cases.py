@@ -137,6 +137,15 @@ async def get_case_stages(
     current_user: User = Depends(get_current_user),
 ):
     repo = CaseRepository(db)
+    # Verify the caller can see this case at all before returning its stage events.
+    # CaseStageEvent has no RLS policy of its own, so we guard at the service layer.
+    from sqlalchemy import select as _select
+    from app.models.case import CaseMaster
+    scoped_check = repo.scope_to_user(_select(CaseMaster.id).where(CaseMaster.id == case_id), current_user)
+    check_result = await db.execute(scoped_check)
+    if check_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
     events = await repo.get_stage_events(case_id)
     return [StageEventOut.model_validate(e) for e in events]
 

@@ -1,4 +1,4 @@
-"""
+﻿"""
 _launch.py <sqlite_path> <target_script.py> [args for target script...]
 Installs sqlite_shim in this fresh subprocess, then runs the target
 script exactly as if it had been invoked directly -- same __file__,

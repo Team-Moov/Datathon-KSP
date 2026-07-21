@@ -1,5 +1,6 @@
 """Persons endpoints."""
 
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -95,3 +96,68 @@ async def verify_person(
         reason=payload.reason,
     )
     return PersonOut.model_validate(updated)
+
+
+class PersonMatchCandidateOut(BaseModel):
+    id: UUID
+    person_a_id: UUID
+    person_b_id: UUID
+    match_score: float
+    match_method: str
+    status: str
+    reviewed_at: Optional[datetime]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PersonMatchResolveRequest(BaseModel):
+    status: str  # 'confirmed' or 'rejected'
+    reason: Optional[str] = None
+
+
+@router.get("/candidates/pending", response_model=List[PersonMatchCandidateOut])
+async def get_pending_candidates(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.VERIFY_PERSON)),
+):
+    from sqlalchemy import select
+    from app.models.person import PersonMatchCandidate
+
+    stmt = select(PersonMatchCandidate).where(PersonMatchCandidate.status == "pending")
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+@router.post("/candidates/{candidate_id}/resolve", response_model=PersonMatchCandidateOut)
+async def resolve_candidate(
+    candidate_id: UUID,
+    payload: PersonMatchResolveRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.VERIFY_PERSON)),
+):
+    from sqlalchemy import select
+    from app.models.person import PersonMatchCandidate
+
+    if payload.status not in ["confirmed", "rejected"]:
+        raise HTTPException(status_code=400, detail="Status must be confirmed or rejected")
+
+    stmt = select(PersonMatchCandidate).where(PersonMatchCandidate.id == candidate_id)
+    result = await db.execute(stmt)
+    candidate = result.scalar_one_or_none()
+
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    candidate.status = payload.status
+    candidate.reviewed_by = current_user.id
+    candidate.reviewed_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(candidate)
+
+    await log_audit_event(
+        db, action=f"person_match.{payload.status}", resource_type="person_match_candidate",
+        resource_id=str(candidate_id), reason=payload.reason
+    )
+    return candidate

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Loads generate_synthetic_data.py's CSV output into the Postgres schema
 defined in schema.sql. Respects foreign-key order (districts and persons
 before incidents, incidents before offenses, etc.).

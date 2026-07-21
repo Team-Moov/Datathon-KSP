@@ -1,4 +1,4 @@
-"""
+﻿"""
 infer.py
 ========
 Loads the trained survival model and scores every person in the dataset,

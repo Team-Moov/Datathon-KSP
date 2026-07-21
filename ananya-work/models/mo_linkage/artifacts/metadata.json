@@ -1,4 +1,4 @@
-{
+﻿{
   "model_version": "mo_linkage_tfidf_contrastive_v1",
   "in_dim": 296,
   "hidden_dim": 256,

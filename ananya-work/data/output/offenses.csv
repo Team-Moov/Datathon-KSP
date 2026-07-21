@@ -1,4 +1,4 @@
-offense_id,incident_id,crime_head,mo_text,mo_signature,severity_weight
+﻿offense_id,incident_id,crime_head,mo_text,mo_signature,severity_weight
 OFF000002,INC000001,Cheating,"Accused posed as a insurance agent and convinced the victim to transfer funds via a fraudulent link, then became unreachable.",channel:a fraudulent link,20
 OFF000003,INC000002,Cheating,"Accused posed as a government officer and convinced the victim to transfer funds via a fraudulent link, then became unreachable.",channel:a fraudulent link,20
 OFF000004,INC000003,Cheating,"Accused posed as a delivery agent and convinced the victim to transfer funds via UPI, then became unreachable.",channel:UPI,20

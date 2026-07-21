@@ -1,4 +1,4 @@
-"""
+﻿"""
 infer.py
 ========
 Applies the trained MO-linkage projection head to every offense (not just

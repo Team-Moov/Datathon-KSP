@@ -58,6 +58,12 @@ async def list_case_notes(
 ):
     from sqlalchemy import select
 
+    # Guard: same visibility check as build_case_workspace — without this a
+    # district-A investigator could enumerate district-B notes by UUID.
+    workspace = await workspace_service.build_case_workspace(db, case_id, current_user)
+    if workspace is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+
     stmt = select(CaseNote).where(CaseNote.case_id == case_id).order_by(CaseNote.pinned.desc(), CaseNote.updated_at.desc())
     result = await db.execute(stmt)
     return [workspace_service.serialize_note(n) for n in result.scalars().all()]

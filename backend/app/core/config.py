@@ -113,7 +113,10 @@ class Settings(BaseSettings):
     EMBEDDING_DIM: int = 384
 
     # ── File storage ──────────────────────────────────────────────────────────
-    UPLOAD_DIR: str = "/tmp/uploads"
+    # /uploads maps to the named Docker volume (backend/docker-compose.yml:
+    # uploads:/uploads). Using /tmp/uploads would be ephemeral — files would
+    # be lost on container restart (DEBT-03 fix).
+    UPLOAD_DIR: str = "/uploads"
     MAX_UPLOAD_SIZE_MB: int = 50
 
     # ── Sentry ────────────────────────────────────────────────────────────────

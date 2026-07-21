@@ -4,12 +4,13 @@ Authentication endpoints — password + simulated MFA, token issuance/refresh/lo
 """
 
 from datetime import datetime, timedelta, timezone
+import re
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_audit_event
@@ -32,6 +33,28 @@ from app.repositories.user_repository import UserRepository
 from app.services import mfa_service
 
 router = APIRouter()
+
+
+# ── Password complexity ────────────────────────────────────────────────────────
+
+_PASSWORD_RE = re.compile(
+    r"^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=\[\]{};':""\\|,.<>\/?]).{10,}$"
+)
+
+
+def _validate_password_complexity(v: str) -> str:
+    """
+    Shared password-complexity rule used by RegisterRequest and admin user
+    creation. Requirements: \u226510 chars, ≥1 uppercase letter, ≥1 digit, ≥1
+    special character. Enforced here (Pydantic layer) so the error is a
+    clean 422 with a readable message rather than a bcrypt-truncation surprise.
+    """
+    if not _PASSWORD_RE.match(v):
+        raise ValueError(
+            "Password must be at least 10 characters and contain at least one "
+            "uppercase letter, one digit, and one special character"
+        )
+    return v
 
 
 class TokenResponse(BaseModel):
@@ -66,7 +89,13 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str
     badge_number: str | None = None
-    role: Role = Role.CONSTABLE
+    # Role is NOT accepted from the caller — all self-registrations default to
+    # CONSTABLE. Elevated roles must be granted by an admin via PATCH /admin/users/{id}/role.
+
+    @field_validator("password")
+    @classmethod
+    def _password_complexity(cls, v: str) -> str:
+        return _validate_password_complexity(v)
 
 
 class MfaVerifyRequest(BaseModel):
@@ -167,11 +196,31 @@ async def verify_mfa(payload: MfaVerifyRequest, db: AsyncSession = Depends(get_d
 
 @router.post("/mfa/resend", response_model=MfaRequiredResponse)
 async def resend_mfa(payload: MfaResendRequest, db: AsyncSession = Depends(get_db)):
+    from datetime import timedelta
+
     from app.models.security import OtpChallenge
 
     previous = await db.get(OtpChallenge, payload.challenge_id)
     if previous is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown challenge")
+
+    # BUG-06 fix: enforce a 60-second cooldown between resend requests.
+    # Without this an attacker (or impatient user) could loop: resend → try 5
+    # codes → resend → repeat, effectively bypassing the per-challenge attempt
+    # limit. This also prevents SMS/email flooding when real delivery is wired in.
+    _RESEND_COOLDOWN_SECONDS = 60
+    resend_eligible_after = previous.created_at.replace(tzinfo=timezone.utc) + timedelta(
+        seconds=_RESEND_COOLDOWN_SECONDS
+    )
+    now = datetime.now(timezone.utc)
+    if now < resend_eligible_after:
+        wait_seconds = int((resend_eligible_after - now).total_seconds()) + 1
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Please wait {wait_seconds}s before requesting a new code",
+            headers={"Retry-After": str(wait_seconds)},
+        )
+
     if previous.consumed_at is None:
         previous.consumed_at = datetime.now(timezone.utc)  # invalidate — a resend supersedes it
 
@@ -186,6 +235,10 @@ async def resend_mfa(payload: MfaResendRequest, db: AsyncSession = Depends(get_d
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="No real OTP delivery provider is configured",
         ) from exc
+
+    await log_audit_event(
+        db, action="auth.mfa_code_resent", resource_type="user", resource_id=str(user.id), user_id=user.id,
+    )
     return MfaRequiredResponse(
         challenge_id=challenge.id,
         expires_in_minutes=settings.OTP_EXPIRE_MINUTES,
@@ -260,7 +313,7 @@ async def register(
         hashed_password=hash_password(payload.password),
         full_name=payload.full_name,
         badge_number=payload.badge_number,
-        role=payload.role,
+        role=Role.CONSTABLE,  # always — see RegisterRequest
     )
     db.add(user)
     await db.flush()

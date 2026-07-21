@@ -94,8 +94,16 @@ async def download_shared_report(
     from, so the normal session would block the report's own data lookup
     outright rather than merely under-scope it. The token check above is the
     real authorization boundary for this route.
+
+    BUG-04 fix: the share link row is locked with with_for_update() before the
+    download_count check so that concurrent downloaders queue up behind each
+    other's transaction. Without this, two simultaneous requests could both read
+    download_count=4 against max_downloads=5, both pass the check, and both
+    serve the file, silently exceeding the intended limit.
     """
-    stmt = select(ReportShareLink).where(ReportShareLink.token == token)
+    # Lock the row immediately — any concurrent request for the same token will
+    # block here until this transaction commits (after the count increment+flush).
+    stmt = select(ReportShareLink).where(ReportShareLink.token == token).with_for_update()
     result = await db.execute(stmt)
     link = result.scalar_one_or_none()
     if link is None or link.revoked:
@@ -107,6 +115,11 @@ async def download_shared_report(
     if link.password_hash and not (password and verify_password(password, link.password_hash)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
 
+    # Increment before building the PDF so the count is committed even if the
+    # PDF generation fails (the download attempt still counts as consumed).
+    link.download_count += 1
+    await db.flush()
+
     creator = await db.get(User, link.created_by)
     try:
         pdf_bytes = await report_service.build_case_report_pdf(db, link.case_id, issued_to=creator)
@@ -115,8 +128,6 @@ async def download_shared_report(
     if link.password_hash:
         pdf_bytes = report_service.apply_password_protection(pdf_bytes, password)
 
-    link.download_count += 1
-    await db.flush()
     await log_audit_event(
         db, action="report.shared_link_downloaded", resource_type="case_master",
         resource_id=str(link.case_id), payload={"download_count": link.download_count},
