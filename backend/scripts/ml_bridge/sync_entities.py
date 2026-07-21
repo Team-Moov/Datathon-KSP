@@ -24,8 +24,11 @@ async def build_district_lookup(session: AsyncSession, ml_conn) -> dict:
 
     lookup = {}
     for slug, name in slug_to_name.items():
-        result = await session.execute(select(District).where(District.name.ilike(name)))
+        result = await session.execute(select(District).where(District.code == slug))
         district = result.scalar_one_or_none()
+        if district is None:
+            result = await session.execute(select(District).where(District.name.ilike(name)))
+            district = result.scalar_one_or_none()
         if district is not None:
             lookup[slug] = district.id
     return lookup

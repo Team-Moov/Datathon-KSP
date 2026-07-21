@@ -48,97 +48,13 @@ def _run_async(coro):
 @celery_app.task(name="tasks.compute_centrality_scores", bind=True, max_retries=2)
 def compute_centrality_scores(self) -> dict:
     """
-    Compute PageRank + betweenness centrality over the co-offending graph
-    and write results to Neo4j Person node properties (p.pagerank, p.betweenness,
-    p.community_id).
+    Disabled in favor of Ananya's ML sync pipeline which writes these properties.
     """
-    try:
-        return _run_async(_do_compute_centrality())
-    except Exception as exc:
-        log.error("compute_centrality_scores failed", error=str(exc))
-        raise self.retry(exc=exc, countdown=60)
+    log.info("compute_centrality_scores disabled; relying on ML sync script.")
+    return {"status": "skipped", "reason": "disabled"}
 
 
-async def _do_compute_centrality() -> dict:
-    import networkx as nx
-    from sqlalchemy import text
-    from app.core.database import async_engine
-    from app.core.graph_db import graph_db
 
-    log.info("compute_centrality_scores: building co-offending graph")
-
-    # Build co-offending graph from Postgres (person_case_role + case_master)
-    async with async_engine.connect() as conn:
-        result = await conn.execute(text("""
-            SELECT pcr.case_id::text, pcr.person_id::text
-            FROM person_case_role pcr
-            WHERE pcr.role = 'ACCUSED'
-        """))
-        rows = result.fetchall()
-
-    by_case: Dict[str, List[str]] = {}
-    for case_id, person_id in rows:
-        by_case.setdefault(case_id, []).append(person_id)
-
-    G = nx.Graph()
-    for people in by_case.values():
-        uniq = sorted(set(people))
-        for i in range(len(uniq)):
-            for j in range(i + 1, len(uniq)):
-                a, b = uniq[i], uniq[j]
-                if G.has_edge(a, b):
-                    G[a][b]["weight"] += 1.0
-                else:
-                    G.add_edge(a, b, weight=1.0)
-
-    if G.number_of_nodes() == 0:
-        log.warning("compute_centrality_scores: empty graph — skipping")
-        return {"status": "skipped", "reason": "empty_graph"}
-
-    log.info("Graph built", nodes=G.number_of_nodes(), edges=G.number_of_edges())
-
-    # PageRank
-    pagerank = nx.pagerank(G, weight="weight")
-
-    # Betweenness — invert weight to distance (see Ananya's graph_features.py docstring)
-    G_dist = G.copy()
-    for u, v, data in G_dist.edges(data=True):
-        data["distance"] = 1.0 / max(data["weight"], 1e-9)
-    betweenness = nx.betweenness_centrality(G_dist, weight="distance", normalized=True)
-
-    # Louvain community detection
-    communities_list = nx.community.louvain_communities(G, weight="weight", seed=42)
-    community_map: Dict[str, str] = {}
-    for i, community in enumerate(communities_list):
-        for person_id in community:
-            community_map[person_id] = f"C{i:03d}"
-
-    # Write results to Neo4j Person node properties
-    n_written = 0
-    for person_id in G.nodes():
-        await graph_db.execute_query(
-            """
-            MERGE (p:Person {id: $person_id})
-            SET p.pagerank      = $pagerank,
-                p.betweenness   = $betweenness,
-                p.community_id  = $community_id,
-                p.centrality_updated_at = datetime()
-            """,
-            {
-                "person_id": person_id,
-                "pagerank": round(pagerank.get(person_id, 0.0), 6),
-                "betweenness": round(betweenness.get(person_id, 0.0), 6),
-                "community_id": community_map.get(person_id, ""),
-            },
-        )
-        n_written += 1
-
-    log.info("Centrality written to Neo4j", n=n_written)
-    return {
-        "status": "ok",
-        "nodes_scored": n_written,
-        "communities": len(set(community_map.values())),
-    }
 
 
 # ── Task 2: Link prediction ───────────────────────────────────────────────────
@@ -146,115 +62,13 @@ async def _do_compute_centrality() -> dict:
 @celery_app.task(name="tasks.run_link_prediction", bind=True, max_retries=2)
 def run_link_prediction(self, top_n: int = 100) -> dict:
     """
-    Run node2vec + logistic regression link prediction and write PREDICTED_LINK
-    edges to Neo4j via GraphSyncService.upsert_predicted_link().
+    Disabled in favor of Ananya's ML sync pipeline which writes these properties.
     """
-    try:
-        return _run_async(_do_link_prediction(top_n=top_n))
-    except Exception as exc:
-        log.error("run_link_prediction failed", error=str(exc))
-        raise self.retry(exc=exc, countdown=120)
+    log.info("run_link_prediction disabled; relying on ML sync script.")
+    return {"status": "skipped", "reason": "disabled"}
 
 
-async def _do_link_prediction(top_n: int = 100) -> dict:
-    import os, json, random
-    import numpy as np
-    import joblib
-    import networkx as nx
-    from sqlalchemy import text
-    from app.core.config import settings
-    from app.core.database import async_engine
-    from app.services.graph_sync_service import GraphSyncService
 
-    artifacts_dir = getattr(settings, "LEAD_REC_ARTIFACTS_DIR", "/artifacts/lead_rec")
-    metadata_path = os.path.join(artifacts_dir, "lead_rec_metadata.json")
-
-    if not os.path.exists(metadata_path):
-        log.warning("run_link_prediction: artifacts not found, skipping", path=metadata_path)
-        return {"status": "skipped", "reason": "artifacts_not_found"}
-
-    with open(metadata_path) as f:
-        metadata = json.load(f)
-    model_version = metadata["model_version"]
-    clf = joblib.load(os.path.join(artifacts_dir, "logreg.joblib"))
-    node_ids = np.load(os.path.join(artifacts_dir, "node_ids.npy"), allow_pickle=True)
-    embeddings_arr = np.load(os.path.join(artifacts_dir, "embeddings.npy"))
-    embeddings: Dict[str, np.ndarray] = {nid: embeddings_arr[i] for i, nid in enumerate(node_ids)}
-
-    # Rebuild co-offending graph for candidate generation
-    async with async_engine.connect() as conn:
-        result = await conn.execute(text("""
-            SELECT pcr.case_id::text, pcr.person_id::text
-            FROM person_case_role pcr
-            WHERE pcr.role = 'ACCUSED'
-        """))
-        rows = result.fetchall()
-
-    by_case: Dict[str, List[str]] = {}
-    for case_id, person_id in rows:
-        by_case.setdefault(case_id, []).append(person_id)
-
-    G = nx.Graph()
-    for people in by_case.values():
-        uniq = sorted(set(people))
-        for i in range(len(uniq)):
-            for j in range(i + 1, len(uniq)):
-                if G.has_edge(uniq[i], uniq[j]):
-                    G[uniq[i]][uniq[j]]["weight"] += 1.0
-                else:
-                    G.add_edge(uniq[i], uniq[j], weight=1.0)
-
-    # 2-hop candidates not directly connected
-    candidates = []
-    for node in G.nodes():
-        neighbors = set(G.neighbors(node))
-        two_hop = set()
-        for nb in neighbors:
-            two_hop |= set(G.neighbors(nb))
-        two_hop -= neighbors
-        two_hop.discard(node)
-        for other in two_hop:
-            if node < other:
-                candidates.append((node, other))
-
-    if len(candidates) > 2000:
-        random.seed(42)
-        candidates = random.sample(candidates, 2000)
-
-    # Filter to persons that have embeddings (i.e. were in the training graph)
-    mapped = [(u, v) for u, v in candidates if u in embeddings and v in embeddings]
-    overlap = len({p for c in candidates for p in c} & set(embeddings))
-    if not mapped:
-        log.warning("link_prediction: zero embedding overlap with backend persons",
-                    backend_persons=G.number_of_nodes(), embedding_persons=len(embeddings), overlap=overlap)
-        return {"status": "degraded", "reason": "no_id_overlap",
-                "links_written": 0, "overlap": overlap}
-
-    candidates = mapped
-
-    X = np.stack([embeddings[u] * embeddings[v] for u, v in candidates])
-    scores = clf.predict_proba(X)[:, 1]
-    order = np.argsort(-scores)[:top_n]
-
-    sync_svc = GraphSyncService()
-    n_written = 0
-    for i in order:
-        u, v = candidates[i]
-        confidence = float(scores[i])
-        # Build evidence string from shared neighbors
-        common = set(G.neighbors(u)) & set(G.neighbors(v))
-        evidence = f"{len(common)} shared associate(s)" if common else "indirect network proximity"
-        await sync_svc.upsert_predicted_link(
-            person_a_id=str(u),
-            person_b_id=str(v),
-            confidence=confidence,
-            model_version=model_version,
-            source_tool="node2vec_logreg",
-        )
-        n_written += 1
-
-    log.info("Link prediction written to Neo4j", n=n_written, model_version=model_version)
-    return {"status": "ok", "links_written": n_written, "model_version": model_version}
 
 
 # ── Task 3: Batch risk rescoring ─────────────────────────────────────────────
@@ -262,56 +76,13 @@ async def _do_link_prediction(top_n: int = 100) -> dict:
 @celery_app.task(name="tasks.recompute_risk_scores_for_district", bind=True, max_retries=3)
 def recompute_risk_scores_for_district(self, district_id: int) -> dict:
     """
-    Batch risk re-scoring for all accused persons with cases in a district.
-    Each creates a new RiskScore row — never overwrites (§7.4).
+    Disabled in favor of Ananya's ML sync pipeline which syncs all scores.
     """
-    try:
-        return _run_async(_do_batch_risk_rescore(district_id))
-    except Exception as exc:
-        log.error("recompute_risk_scores_for_district failed", error=str(exc), district_id=district_id)
-        raise self.retry(exc=exc, countdown=120)
+    log.info("recompute_risk_scores_for_district disabled; relying on ML sync script.")
+    return {"status": "skipped", "reason": "disabled"}
 
 
-async def _do_batch_risk_rescore(district_id: int) -> dict:
-    from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import AsyncSession
-    from app.core.database import async_engine, AsyncSessionLocal
-    from app.services.analytics.risk_profiling import RiskProfilingService
 
-    log.info("Batch risk rescoring", district_id=district_id)
-
-    async with AsyncSessionLocal() as db:
-        # Get all accused persons in this district
-        result = await db.execute(text("""
-            SELECT DISTINCT pcr.person_id
-            FROM person_case_role pcr
-            JOIN case_master cm ON cm.id = pcr.case_id
-            WHERE cm.district_id = :district_id
-              AND pcr.role = 'ACCUSED'
-        """), {"district_id": district_id})
-        person_ids = [row[0] for row in result.fetchall()]
-
-    log.info("Persons to rescore", count=len(person_ids), district_id=district_id)
-
-    n_scored = 0
-    n_skipped = 0
-    async with AsyncSessionLocal() as db:
-        svc = RiskProfilingService(db)
-        for person_id in person_ids:
-            try:
-                risk_row = await svc.compute_risk_score(person_id, requesting_user_role="SYSTEM")
-                if risk_row is not None:
-                    db.add(risk_row)
-                    n_scored += 1
-                else:
-                    n_skipped += 1
-            except Exception as exc:
-                log.warning("Risk score failed for person", person_id=str(person_id), error=str(exc))
-                n_skipped += 1
-        await db.commit()
-
-    log.info("Batch rescore done", scored=n_scored, skipped=n_skipped)
-    return {"status": "ok", "scored": n_scored, "skipped": n_skipped, "district_id": district_id}
 
 
 # ── Task 4: District composite stress index ───────────────────────────────────

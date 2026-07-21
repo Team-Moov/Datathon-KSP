@@ -151,8 +151,8 @@ class ActSectionAssociation(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("case_master.id"), nullable=False)
-    act_id: Mapped[int] = mapped_column(ForeignKey("act.id"), nullable=False)
-    section_id: Mapped[int] = mapped_column(ForeignKey("section.id"), nullable=False)
+    act_id: Mapped[Optional[int]] = mapped_column(ForeignKey("act.id"), nullable=True)
+    section_id: Mapped[Optional[int]] = mapped_column(ForeignKey("section.id"), nullable=True)
 
     case: Mapped["CaseMaster"] = relationship(back_populates="act_section_associations")
     act: Mapped["Act"] = relationship()
