@@ -1,9 +1,3 @@
-"""
-Graph Sync Service — writes entities and relationships to Neo4j after relational load.
-Maintains the multiplex graph: co-offending, financial, address, alias edges (§4).
-All edge types are explicitly labeled — predicted links are never merged with confirmed edges.
-"""
-
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -16,10 +10,6 @@ log = structlog.get_logger(__name__)
 
 
 class GraphSyncService:
-    """
-    Writes/merges nodes and edges into Neo4j based on ingested data.
-    Uses MERGE to avoid duplicates — idempotent on re-ingest.
-    """
 
     async def sync_document(
         self, extracted: Dict[str, Any], doc: Document
@@ -47,17 +37,16 @@ class GraphSyncService:
         confidence: float,
         model_version: str,
         source_tool: str,
+        evidence: Optional[str] = None,
     ) -> None:
-        """
-        Predicted (unconfirmed) link — stored as a PREDICTED_LINK edge,
-        NEVER merged with confirmed ACCUSED_IN or ASSOCIATED_WITH edges (§4).
-        """
         query = """
-        MATCH (a:Person {id: $a_id}), (b:Person {id: $b_id})
+        MERGE (a:Person {id: $a_id})
+        MERGE (b:Person {id: $b_id})
         MERGE (a)-[r:PREDICTED_LINK]-(b)
         SET r.confidence = $confidence,
             r.model_version = $model_version,
             r.source_tool = $source_tool,
+            r.evidence = $evidence,
             r.updated_at = datetime()
         """
         await graph_db.execute_query(
@@ -68,6 +57,7 @@ class GraphSyncService:
                 "confidence": confidence,
                 "model_version": model_version,
                 "source_tool": source_tool,
+                "evidence": evidence,
             },
         )
         await invalidate_graph_cache()
@@ -85,7 +75,6 @@ class GraphSyncService:
         transaction_id: str,
         amount: float,
     ) -> None:
-        """TRANSACTED_WITH edge — confirmed financial evidence (§9.4)."""
         query = """
         MATCH (a:Person {id: $from_id}), (b:Person {id: $to_id})
         MERGE (a)-[r:TRANSACTED_WITH {transaction_id: $txn_id}]->(b)
@@ -105,10 +94,6 @@ class GraphSyncService:
     async def get_person_network(
         self, person_id: str, depth: int = 2
     ) -> Dict[str, Any]:
-        """
-        Return nodes and edges for a person's ego network up to `depth` hops.
-        Used by the force-directed graph widget (§10.2).
-        """
         query = """
         MATCH path = (p:Person {id: $person_id})-[*1..{depth}]-(n)
         RETURN nodes(path) as nodes, relationships(path) as rels
@@ -118,11 +103,6 @@ class GraphSyncService:
         return self._serialize_graph(results)
 
     async def run_community_detection(self, algorithm: str = "louvain") -> List[Dict[str, Any]]:
-        """
-        Trigger Neo4j GDS community detection.
-        Returns list of {person_id, community_id, centrality_score}.
-        """
-        # Write projection
         await graph_db.execute_query(
             """
             CALL gds.graph.project(
@@ -132,7 +112,6 @@ class GraphSyncService:
             )
             """
         )
-        # Run Louvain
         results = await graph_db.execute_query(
             """
             CALL gds.louvain.stream('co_offending')
@@ -142,8 +121,6 @@ class GraphSyncService:
             """
         )
         return results
-
-    # ── Private helpers ───────────────────────────────────────────────────────
 
     async def _upsert_incident_node(self, case_id: str, data: Dict[str, Any]) -> None:
         await graph_db.execute_query(
@@ -190,13 +167,6 @@ class GraphSyncService:
 
     @staticmethod
     def _json_safe_properties(props: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Neo4j's driver returns its own temporal types (neo4j.time.DateTime, Date,
-        etc.) for any property set via a Cypher datetime()/date() call — these
-        aren't JSON-serializable and FastAPI's response encoder has no idea what
-        to do with them. Anything with an isoformat() (every neo4j.time.* type)
-        gets flattened to a plain string; everything else passes through as-is.
-        """
         safe: Dict[str, Any] = {}
         for key, value in props.items():
             isoformat = getattr(value, "isoformat", None)
