@@ -51,10 +51,30 @@ class NetworkAnalysisService:
     @cached_graph_query("communities")
     async def detect_communities(self) -> List[Dict[str, Any]]:
         """
-        Run Louvain community detection via Neo4j GDS.
+        Louvain community detection over the co-offending network.
+
+        Computed in networkx from the co-offending edges rather than Neo4j GDS:
+        GDS isn't available on every Neo4j tier (e.g. Aura Free) and its projection
+        was brittle when an edge type had zero instances. networkx.louvain runs
+        anywhere and needs only the co-offending edges we already derive.
         Returns [{person_id, community_id}].
         """
-        return await self.graph_sync.run_community_detection(algorithm="louvain")
+        from networkx.algorithms.community import louvain_communities
+
+        cooffending = await self.get_cooffending_network()
+        graph = nx.Graph()
+        for edge in cooffending.get("edges", []):
+            graph.add_edge(edge["person_a"], edge["person_b"], weight=edge.get("shared_incidents", 1))
+
+        if graph.number_of_nodes() == 0:
+            return []
+
+        communities = louvain_communities(graph, weight="weight", seed=42)
+        return [
+            {"person_id": person_id, "community_id": community_id}
+            for community_id, members in enumerate(communities)
+            for person_id in members
+        ]
 
     @cached_graph_query("cooffending_network")
     async def get_cooffending_network(

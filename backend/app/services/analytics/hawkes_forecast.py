@@ -138,6 +138,9 @@ class HawkesETASService:
         self, district_id: int, crime_head_id: int, before_date: date
     ) -> List[Dict[str, Any]]:
         """Load geo-timestamped incidents for fitting."""
+        # Coerce a string date (some call paths pass ISO strings) so asyncpg can bind it.
+        if isinstance(before_date, str):
+            before_date = date.fromisoformat(before_date)
         stmt = text("""
             SELECT id, latitude, longitude, date_reported
             FROM case_master
@@ -153,10 +156,17 @@ class HawkesETASService:
             {
                 "district_id": district_id,
                 "crime_head_id": crime_head_id,
-                "before_date": str(before_date),
+                "before_date": before_date,
             },
         )
-        return [dict(row._mapping) for row in result.fetchall()]
+        incidents = []
+        for row in result.fetchall():
+            m = dict(row._mapping)
+            # Postgres Numeric → Decimal; numpy trig (radians) can't consume Decimal.
+            m["latitude"] = float(m["latitude"]) if m["latitude"] is not None else None
+            m["longitude"] = float(m["longitude"]) if m["longitude"] is not None else None
+            incidents.append(m)
+        return incidents
 
     def _fit_etas(self, incidents: List[Dict]) -> HawkesParameters:
         """

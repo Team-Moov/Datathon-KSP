@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { streamChatTurn, type ChatMessage } from "./chatApi"
+import { streamChatTurn, exportConversationPdf, type ChatMessage } from "./chatApi"
 
 export interface ToolActivityEntry {
   tool: string
@@ -111,5 +111,11 @@ export function useChatSession() {
     abortControllerRef.current?.abort()
   }
 
-  return { turns, isAwaitingResponse, submitUserMessage, cancelActiveStream }
+  async function exportConversation() {
+    const messages: ChatMessage[] = turns.map((turn) => ({ role: turn.role, content: turn.content }))
+    if (messages.length === 0) return
+    await exportConversationPdf(sessionIdRef.current, messages)
+  }
+
+  return { turns, isAwaitingResponse, submitUserMessage, cancelActiveStream, exportConversation }
 }

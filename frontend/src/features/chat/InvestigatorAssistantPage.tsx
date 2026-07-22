@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2, MessagesSquare, SendHorizontal, WifiOff } from "lucide-react"
+import { Download, Loader2, MessagesSquare, SendHorizontal, WifiOff } from "lucide-react"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { Button } from "@/components/ui/button"
@@ -64,9 +64,19 @@ function ConversationBubble({ turn }: { turn: ConversationTurn }) {
 }
 
 function InvestigatorAssistantPage() {
-  const { turns, isAwaitingResponse, submitUserMessage } = useChatSession()
+  const { turns, isAwaitingResponse, submitUserMessage, exportConversation } = useChatSession()
   const [draftMessage, setDraftMessage] = React.useState("")
+  const [isExporting, setIsExporting] = React.useState(false)
   const scrollAnchorRef = React.useRef<HTMLDivElement>(null)
+
+  async function handleExport() {
+    setIsExporting(true)
+    try {
+      await exportConversation()
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   React.useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -81,12 +91,25 @@ function InvestigatorAssistantPage() {
 
   return (
     <div className="flex h-[calc(100vh-7.5rem)] flex-col">
-      <div className="mb-3">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Investigator Assistant</h1>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Plans which deterministic tool to run and narrates the result — every number comes from a tool output, never
-          free recall.
-        </p>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Investigator Assistant</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Plans which deterministic tool to run and narrates the result — every number comes from a tool output, never
+            free recall.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleExport}
+          disabled={turns.length === 0 || isExporting}
+          className="shrink-0 gap-1.5"
+          title="Save this conversation as a PDF"
+        >
+          {isExporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+          Export PDF
+        </Button>
       </div>
 
       <div className="flat-surface flex-1 space-y-4 overflow-y-auto rounded-lg p-4">

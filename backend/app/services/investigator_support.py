@@ -93,12 +93,24 @@ class InvestigatorSupportService:
             query_embedding, top_k=5
         )
 
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from app.models.case import CaseMaster
+
         similar_cases = []
         seen_incident_ids = set()
         for chunk in similar_chunks:
             if chunk.incident_id and chunk.incident_id not in seen_incident_ids:
                 seen_incident_ids.add(chunk.incident_id)
-                related_case = await self.case_repo.get_by_id(chunk.incident_id)
+                # Eager-load chargesheet — a bare lazy access fails under async
+                # (MissingGreenlet), which only surfaces once the vector store has data.
+                related_case = (
+                    await self.db.execute(
+                        select(CaseMaster)
+                        .options(selectinload(CaseMaster.chargesheet))
+                        .where(CaseMaster.id == chunk.incident_id)
+                    )
+                ).scalar_one_or_none()
                 if related_case and str(related_case.id) != str(case_id):
                     # Get chargesheet disposition (§8.2 — honest status, not conviction)
                     disposition = None
