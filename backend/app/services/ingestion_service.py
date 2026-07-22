@@ -14,6 +14,8 @@ from typing import Any, Dict
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.nlp import get_nlp_provider
+from app.core.ocr import get_ocr_provider
 from app.models.document import Document
 from app.models.enums import DocumentFormat, ExtractionMethod, SourceType
 from app.services.extraction.classifier import DocumentClassifier
@@ -82,8 +84,27 @@ class IngestionService:
         if source_type in (SourceType.FIR, SourceType.CHARGESHEET, SourceType.JUDGMENT):
             await self._load_case_data(extracted, doc)
 
-        # ── Step 4b: embed narrative text into vector store ───────────────────
+        # ── Step 3.5: OCR fallback — scanned images/PDFs have no extractable text ──
         narrative_text = extracted.get("narrative_text") or extracted.get("brief_facts", "")
+        if not narrative_text and file_format in (DocumentFormat.JPG, DocumentFormat.PNG, DocumentFormat.PDF):
+            try:
+                ocr = await get_ocr_provider().extract_text(file_path.read_bytes(), original_filename)
+                if ocr.get("text"):
+                    narrative_text = ocr["text"]
+                    extracted["narrative_text"] = narrative_text
+                    log.info("OCR text extracted", provider=ocr.get("provider"), chars=len(narrative_text))
+            except Exception as exc:  # noqa: BLE001 — OCR is best-effort, never fail ingestion
+                log.warning("OCR failed", error=str(exc))
+
+        # ── Step 4: NER on the narrative (entities held for entity resolution) ──
+        if narrative_text:
+            try:
+                extracted["entities"] = await get_nlp_provider().extract_entities(narrative_text)
+                log.info("NER extracted", count=len(extracted["entities"]))
+            except Exception as exc:  # noqa: BLE001 — NER is best-effort
+                log.warning("NER failed", error=str(exc))
+
+        # ── Step 4b: embed narrative text into vector store ───────────────────
         if narrative_text:
             await self.embedding_svc.embed_and_store(
                 text=narrative_text,

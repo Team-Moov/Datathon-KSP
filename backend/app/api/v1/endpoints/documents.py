@@ -11,12 +11,49 @@ from app.core.audit import log_audit_event
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.permissions import Permission, require_permission
+from app.core.nlp import get_nlp_provider
+from app.core.ocr import get_ocr_provider
 from app.core.storage import get_storage_provider
 from app.models.user import User
 from app.services.ingestion_service import IngestionService
 
 router = APIRouter()
 MAX_BYTES = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+
+@router.post("/ocr")
+async def ocr_document(
+    file: UploadFile = File(...),
+    language: str | None = None,
+    current_user: User = Depends(require_permission(Permission.UPLOAD_DOCUMENT)),
+):
+    """
+    OCR a scanned image / PDF to text via the configured provider (local digital-PDF
+    text, or Catalyst Zia OCR for real image/handwriting recognition). Ingestion
+    step 3 — the extracted text then flows into the normal embed → pgvector path.
+    """
+    content = await file.read()
+    if len(content) > MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit",
+        )
+    result = await get_ocr_provider().extract_text(content, file.filename, language)
+    return result
+
+
+class NerRequest(BaseModel):
+    text: str
+
+
+@router.post("/ner")
+async def ner_text(
+    payload: NerRequest,
+    current_user: User = Depends(require_permission(Permission.UPLOAD_DOCUMENT)),
+):
+    """Extract named entities from text via the configured provider (spaCy or Zia)."""
+    entities = await get_nlp_provider().extract_entities(payload.text)
+    return {"entities": entities, "count": len(entities)}
 
 
 class DocumentOut(BaseModel):

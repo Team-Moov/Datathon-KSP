@@ -148,6 +148,14 @@ class Settings(BaseSettings):
     PDF_PROVIDER: str = "local"
     SMARTBROWZ_PDF_URL: str = ""  # override the default …/baas/v1/project/{id}/pdf
 
+    # ── OCR renderer ──────────────────────────────────────────────────────────
+    # "local" (digital-PDF text only) or "zia" (Catalyst Zia OCR — real image OCR).
+    OCR_PROVIDER: str = "local"
+
+    # ── NER provider ──────────────────────────────────────────────────────────
+    # "local" (spaCy) or "zia" (Catalyst Zia text-analytics NER).
+    NLP_PROVIDER: str = "local"
+
     # ── Sentry ────────────────────────────────────────────────────────────────
     SENTRY_DSN: str = ""
 
