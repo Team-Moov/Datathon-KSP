@@ -1,4 +1,4 @@
-﻿incident_id,fir_number,district_id,date_occurred,date_reported,status
+incident_id,fir_number,district_id,date_occurred,date_reported,status
 INC000001,DAV/2025/00002,davanagere,2025-02-14,2025-02-16,chargesheet_filed
 INC000002,BEL/2024/00003,belagavi,2024-01-23,2024-01-23,closed
 INC000003,BAG/2025/00004,bagalkot,2025-05-23,2025-05-24,chargesheet_filed

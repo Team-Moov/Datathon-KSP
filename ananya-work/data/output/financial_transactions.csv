@@ -1,4 +1,4 @@
-﻿transaction_id,from_account,to_account,amount,date,linked_person_id,synthetic_pattern
+transaction_id,from_account,to_account,amount,date,linked_person_id,synthetic_pattern
 TXN00001,ACC00242,ACC00373,82673.54,2025-03-14,P00242,none
 TXN00002,ACC00035,ACC00346,179935.34,2024-08-21,P00035,none
 TXN00003,ACC00723,ACC00254,89119.3,2025-03-11,P00723,none

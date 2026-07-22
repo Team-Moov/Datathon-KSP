@@ -8,10 +8,10 @@ import json
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional
 
-import redis.asyncio as aioredis
 import structlog
 from neo4j import AsyncGraphDatabase
 
+from app.core.cache import get_cache_provider
 from app.core.config import settings
 
 log = structlog.get_logger(__name__)
@@ -81,21 +81,13 @@ graph_db = GraphDatabase()
 # node/edge mutation.
 
 _CACHE_TTL_SECONDS = 60
-_CACHE_KEY_PREFIX = "graph_cache"
-_redis_client: Optional[aioredis.Redis] = None
-
-
-def _get_redis() -> aioredis.Redis:
-    global _redis_client
-    if _redis_client is None:
-        _redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-    return _redis_client
+_CACHE_NAMESPACE = "graph_cache"
 
 
 def _build_cache_key(name: str, args: tuple, kwargs: dict) -> str:
     payload = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True, default=str)
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-    return f"{_CACHE_KEY_PREFIX}:{name}:{digest}"
+    return f"{name}_{digest}"
 
 
 def cached_graph_query(name: str, ttl_seconds: int = _CACHE_TTL_SECONDS) -> Callable:
@@ -104,19 +96,22 @@ def cached_graph_query(name: str, ttl_seconds: int = _CACHE_TTL_SECONDS) -> Call
     return value — including each predicted link's confidence/source_tool — so
     a cache hit is indistinguishable from a fresh read; this never changes what
     the underlying Cypher query would have returned, only how often it runs.
+
+    Backed by the configured CacheProvider (Redis or Catalyst Cache) — swap via
+    settings.CACHE_PROVIDER, no change here.
     """
 
     def decorator(fn: Callable) -> Callable:
         @wraps(fn)
         async def wrapper(self, *args, **kwargs):
-            redis = _get_redis()
+            cache = get_cache_provider()
             key = _build_cache_key(name, args, kwargs)
-            cached = await redis.get(key)
+            cached = await cache.get(_CACHE_NAMESPACE, key)
             if cached is not None:
                 return json.loads(cached)
 
             result = await fn(self, *args, **kwargs)
-            await redis.set(key, json.dumps(result, default=str), ex=ttl_seconds)
+            await cache.set(_CACHE_NAMESPACE, key, json.dumps(result, default=str), ttl_seconds)
             return result
 
         return wrapper
@@ -126,11 +121,9 @@ def cached_graph_query(name: str, ttl_seconds: int = _CACHE_TTL_SECONDS) -> Call
 
 async def invalidate_graph_cache() -> None:
     """
-    Clears every cached graph query rather than tracking per-key dependencies —
-    graph writes (new evidence landing) are infrequent relative to reads, so a
-    full clear is cheap and guarantees no stale result survives a write.
+    Invalidates every cached graph query in one O(1) namespace bump rather than
+    tracking per-key dependencies — graph writes (new evidence landing) are
+    infrequent relative to reads, so this guarantees no stale result survives a
+    write, on either cache backend.
     """
-    redis = _get_redis()
-    keys = [key async for key in redis.scan_iter(match=f"{_CACHE_KEY_PREFIX}:*")]
-    if keys:
-        await redis.delete(*keys)
+    await get_cache_provider().invalidate_namespace(_CACHE_NAMESPACE)

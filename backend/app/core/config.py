@@ -119,6 +119,35 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "/uploads"
     MAX_UPLOAD_SIZE_MB: int = 50
 
+    # ── Object storage provider ───────────────────────────────────────────────
+    # "local" (filesystem volume) by default; "catalyst_stratus" or "gcs" bind the
+    # respective managed backends without touching call sites. See app/core/storage.
+    STORAGE_PROVIDER: str = "local"
+    STRATUS_BUCKET: str = ""
+    STRATUS_BASE_URL: str = ""  # bucket domain, e.g. https://crime-development.zohostratus.in
+
+    # ── Catalyst (Stratus / future services) admin credentials ────────────────
+    # Data center is "in" for this account (accounts.zoho.in / api.catalyst.zoho.in).
+    # Client id/secret from a Self Client at api-console.zoho.in; refresh token minted
+    # with the Stratus scopes. Only needed when STORAGE_PROVIDER=catalyst_stratus.
+    CATALYST_DC: str = "in"
+    CATALYST_API_BASE: str = ""  # override host if the default api.catalyst.zoho.<dc> differs
+    CATALYST_PROJECT_ID: str = ""
+    CATALYST_CLIENT_ID: str = ""
+    CATALYST_CLIENT_SECRET: str = ""
+    CATALYST_REFRESH_TOKEN: str = ""
+
+    # ── Cache provider ────────────────────────────────────────────────────────
+    # "redis" (default) or "catalyst" (Catalyst Cache). Segment auto-discovered
+    # if CATALYST_CACHE_SEGMENT is left blank.
+    CACHE_PROVIDER: str = "redis"
+    CATALYST_CACHE_SEGMENT: str = ""
+
+    # ── PDF renderer ──────────────────────────────────────────────────────────
+    # "local" (xhtml2pdf) or "smartbrowz" (Catalyst SmartBrowz, headless Chromium).
+    PDF_PROVIDER: str = "local"
+    SMARTBROWZ_PDF_URL: str = ""  # override the default …/baas/v1/project/{id}/pdf
+
     # ── Sentry ────────────────────────────────────────────────────────────────
     SENTRY_DSN: str = ""
 

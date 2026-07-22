@@ -1,4 +1,4 @@
-﻿series_id,incident_id,offense_id,true_offender_person_id
+series_id,incident_id,offense_id,true_offender_person_id
 SERIES0001,INC000001,OFF000002,P00688
 SERIES0001,INC000002,OFF000003,P00688
 SERIES0002,INC000003,OFF000004,P00649

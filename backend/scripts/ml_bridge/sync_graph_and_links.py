@@ -1,7 +1,7 @@
 import argparse
 import asyncio
 
-import psycopg2
+from scripts.ml_bridge.ml_conn import open_ml_conn
 
 from app.core.graph_db import graph_db
 from app.services.graph_sync_service import GraphSyncService
@@ -17,9 +17,10 @@ async def sync_person_graph_metrics(ml_conn, graph_version=None):
         )
     else:
         cur.execute("""
-            SELECT DISTINCT ON (person_id) person_id, pagerank, betweenness, community_id
-            FROM person_graph_metric
-            ORDER BY person_id, computed_at DESC
+            SELECT pgm.person_id, pgm.pagerank, pgm.betweenness, pgm.community_id
+            FROM person_graph_metric pgm
+            JOIN (SELECT person_id, MAX(computed_at) AS mc FROM person_graph_metric GROUP BY person_id) latest
+              ON latest.person_id = pgm.person_id AND latest.mc = pgm.computed_at
         """)
     rows = cur.fetchall()
     for person_id, pagerank, betweenness, community_id in rows:
@@ -65,11 +66,17 @@ async def sync_predicted_links(ml_conn):
 
 
 async def run(ml_dsn, graph_version=None):
-    ml_conn = psycopg2.connect(ml_dsn)
-    n_metrics = await sync_person_graph_metrics(ml_conn, graph_version)
-    n_links = await sync_predicted_links(ml_conn)
-    ml_conn.close()
-    print(f"Synced {n_metrics} person_graph_metric rows and {n_links} predicted_link rows to Neo4j")
+    # Standalone script — the Neo4j pool is normally opened by the FastAPI
+    # lifespan, so establish (and close) it here as seed_demo_data does.
+    await graph_db.connect()
+    try:
+        ml_conn = open_ml_conn(ml_dsn)
+        n_metrics = await sync_person_graph_metrics(ml_conn, graph_version)
+        n_links = await sync_predicted_links(ml_conn)
+        ml_conn.close()
+        print(f"Synced {n_metrics} person_graph_metric rows and {n_links} predicted_link rows to Neo4j")
+    finally:
+        await graph_db.close()
 
 
 if __name__ == "__main__":

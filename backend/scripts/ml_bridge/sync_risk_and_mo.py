@@ -1,13 +1,14 @@
 import argparse
 import asyncio
 
-import psycopg2
+from scripts.ml_bridge.ml_conn import open_ml_conn
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AdminSessionFactory
 from app.models.offender import CriminalHistory, RiskScore, MOLinkageCluster
 from scripts.ml_bridge.id_map import to_uuid
+from scripts.ml_bridge.ml_conn import as_dt
 from scripts.ml_bridge.watermark import ensure_watermark_table, get_watermark, set_watermark
 
 
@@ -41,6 +42,7 @@ async def sync_risk_scores(session: AsyncSession, ml_conn):
 
     latest = since
     for (person_id, model_version, score, sev, cen, mo, assoc, computed_at) in rows:
+        computed_at = as_dt(computed_at)
         target_person_id = to_uuid(person_id)
         history_id = await get_or_create_history_id(session, target_person_id)
         session.add(RiskScore(
@@ -86,6 +88,7 @@ async def sync_mo_clusters(session: AsyncSession, ml_conn):
 
     latest = since
     for incident_id, cluster_id, similarity_score, model_version, computed_at in rows:
+        computed_at = as_dt(computed_at)
         case_id = to_uuid(incident_id)
         session.add(MOLinkageCluster(
             case_id=case_id,
@@ -105,7 +108,7 @@ async def sync_mo_clusters(session: AsyncSession, ml_conn):
 
 
 async def run(ml_dsn):
-    ml_conn = psycopg2.connect(ml_dsn)
+    ml_conn = open_ml_conn(ml_dsn)
     async with AdminSessionFactory() as session:
         await ensure_watermark_table(session)
         n_risk = await sync_risk_scores(session, ml_conn)

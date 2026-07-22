@@ -1,15 +1,15 @@
-﻿{
+{
   "model_version": "mo_linkage_tfidf_contrastive_v1",
   "in_dim": 296,
   "hidden_dim": 256,
   "out_dim": 64,
   "baseline_recall_at_k": {
-    "1": 0.4942528735632184,
-    "3": 0.8275862068965517
+    "1": 0.5172413793103449,
+    "3": 0.8390804597701149
   },
   "trained_recall_at_k": {
-    "1": 0.5517241379310345,
-    "3": 0.8850574712643678
+    "1": 0.6206896551724138,
+    "3": 0.8620689655172413
   },
   "cluster_distance_threshold": 0.06,
   "cluster_threshold_ari": 0.6088073656412818,

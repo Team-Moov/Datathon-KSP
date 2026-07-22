@@ -1,7 +1,7 @@
 import argparse
 import asyncio
 
-import psycopg2
+from scripts.ml_bridge.ml_conn import open_ml_conn
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from app.models.financial import FinancialTransaction
 from app.models.unit import District
 from app.models.enums import SourceType, PersonRole
 from scripts.ml_bridge.id_map import to_uuid
+from scripts.ml_bridge.ml_conn import as_date
 
 HEINOUS_THRESHOLD = 50
 
@@ -120,8 +121,8 @@ async def sync_cases_and_offenses(session: AsyncSession, ml_conn, district_looku
                 id=target_id,
                 crime_no=fir_number,
                 district_id=district_lookup.get(district_id),
-                incident_from_date=date_occurred,
-                date_reported=date_reported,
+                incident_from_date=as_date(date_occurred),
+                date_reported=as_date(date_reported),
                 source_type=SourceType.FIR,
             ))
     await session.flush()
@@ -182,7 +183,7 @@ async def sync_financial_transactions(session: AsyncSession, ml_conn):
             from_account=from_account,
             to_account=to_account,
             amount=amount,
-            transaction_date=tx_date,
+            transaction_date=as_date(tx_date),
             linked_person_id=to_uuid(linked_person_id) if linked_person_id else None,
         ))
     await session.flush()
@@ -190,7 +191,7 @@ async def sync_financial_transactions(session: AsyncSession, ml_conn):
 
 
 async def run(ml_dsn):
-    ml_conn = psycopg2.connect(ml_dsn)
+    ml_conn = open_ml_conn(ml_dsn)
     async with AdminSessionFactory() as session:
         district_lookup = await build_district_lookup(session, ml_conn)
         crime_head_lookup = await build_crime_head_lookup(session, ml_conn)

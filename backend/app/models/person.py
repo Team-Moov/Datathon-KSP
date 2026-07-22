@@ -148,7 +148,7 @@ class PersonMatchCandidate(Base):
     match_method: Mapped[str] = mapped_column(String(100), nullable=False)
     
     status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, confirmed, rejected
-    reviewed_by: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
+    reviewed_by: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("user.id"))
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
