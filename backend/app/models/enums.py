@@ -108,3 +108,25 @@ class MLModelStatus(str, enum.Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class AlertType(str, enum.Enum):
+    """Early-warning categories (capability #8: 'repeat crimes, gang activity, or
+    organized crime'). Each maps to a deterministic detector in EarlyWarningService."""
+
+    REPEAT_OFFENDER = "repeat_offender"          # multi-jurisdiction repeat activity
+    ORGANIZED_GROUP = "organized_group"          # dense co-offending community
+    EMERGING_HOTSPOT = "emerging_hotspot"        # Hawkes near-repeat spike (extension)
+    FINANCIAL = "financial"                      # persisted STR-shaped typology hit (extension)
+
+
+class AlertSeverity(str, enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class AlertStatus(str, enum.Enum):
+    NEW = "new"
+    ACKNOWLEDGED = "acknowledged"
+    DISMISSED = "dismissed"

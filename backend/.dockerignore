@@ -4,8 +4,10 @@
 !.env.example
 *.pem
 *.key
+secrets/
 sa-key*.json
 *service_account*.json
+*service-account*.json
 
 # VCS / editor / OS noise
 .git

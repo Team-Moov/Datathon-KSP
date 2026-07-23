@@ -40,6 +40,7 @@ class Permission(str, enum.Enum):
     VIEW_AUDIT_LOG = "view_audit_log"
     MANAGE_USERS = "manage_users"
     MANAGE_CASE_NOTES = "manage_case_notes"              # delete/moderate notes authored by someone else
+    MANAGE_ANALYTICS_JOBS = "manage_analytics_jobs"      # trigger GWR recompute / embedding backfill batch jobs
 
 
 _CONSTABLE_TIER: FrozenSet[Permission] = frozenset(
@@ -70,15 +71,14 @@ _DSP_TIER: FrozenSet[Permission] = _INSPECTOR_TIER | {
 
 _SP_TIER: FrozenSet[Permission] = _DSP_TIER | {Permission.VIEW_AUDIT_LOG}
 
-_DGP_TIER: FrozenSet[Permission] = _SP_TIER | {Permission.MANAGE_USERS}
+_DGP_TIER: FrozenSet[Permission] = _SP_TIER | {Permission.MANAGE_USERS, Permission.MANAGE_ANALYTICS_JOBS}
 
 # CRIME_ANALYST mirrors the data-steward capabilities of DSP-tier (they did this work
 # under the old ANALYST role) without the command-only actions (SHARE_CASE — a
 # supervisory sign-off — and MANAGE_CASE_NOTES moderation).
-_CRIME_ANALYST_TIER: FrozenSet[Permission] = _DSP_TIER - {
-    Permission.SHARE_CASE,
-    Permission.MANAGE_CASE_NOTES,
-}
+_CRIME_ANALYST_TIER: FrozenSet[Permission] = (
+    _DSP_TIER - {Permission.SHARE_CASE, Permission.MANAGE_CASE_NOTES}
+) | {Permission.MANAGE_ANALYTICS_JOBS}
 
 # POLICY_MAKER is deliberately aggregate-only — no case PII, no network graph, no
 # case editing. This is the design doc §6.1 ecological-fallacy/individual-data wall,

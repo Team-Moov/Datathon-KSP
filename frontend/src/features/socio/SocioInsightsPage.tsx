@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
-import { UsersRound } from "lucide-react"
+import { Map, UsersRound } from "lucide-react"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { ErrorState } from "@/components/data-states/ErrorState"
@@ -9,9 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { extractApiErrorMessage } from "@/lib/api/httpClient"
-import { fetchSocioIndicators } from "./socioApi"
+import { fetchGwrMap, fetchGwrOutputs, fetchSocioIndicators } from "./socioApi"
 
 const TrendLineChart = React.lazy(() => import("@/components/charts/TrendLineChart").then((m) => ({ default: m.TrendLineChart })))
+const GwrCoefficientsList = React.lazy(() =>
+  import("@/components/charts/GwrCoefficientsList").then((m) => ({ default: m.GwrCoefficientsList })),
+)
+const GwrCentroidMap = React.lazy(() => import("@/components/charts/GwrCentroidMap").then((m) => ({ default: m.GwrCentroidMap })))
 
 function SocioInsightsPage() {
   const [districtId, setDistrictId] = React.useState("1")
@@ -20,6 +24,17 @@ function SocioInsightsPage() {
     queryKey: ["socio-indicators", districtId],
     queryFn: () => fetchSocioIndicators(Number(districtId)),
     enabled: districtId.trim().length > 0,
+  })
+
+  const gwrQuery = useQuery({
+    queryKey: ["gwr-outputs", districtId],
+    queryFn: () => fetchGwrOutputs(Number(districtId)),
+    enabled: districtId.trim().length > 0,
+  })
+
+  const gwrMapQuery = useQuery({
+    queryKey: ["gwr-map"],
+    queryFn: fetchGwrMap,
   })
 
   return (
@@ -56,6 +71,44 @@ function SocioInsightsPage() {
                   { key: "composite_stress_index", label: "Composite stress index", color: "#b8863f" },
                 ]}
               />
+            </React.Suspense>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>GWR — this district's local coefficients</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {gwrQuery.isLoading ? (
+            <LoadingSkeleton variant="card" rows={1} />
+          ) : gwrQuery.isError ? (
+            <ErrorState message={extractApiErrorMessage(gwrQuery.error)} onRetry={() => void gwrQuery.refetch()} />
+          ) : !gwrQuery.data || gwrQuery.data.length === 0 ? (
+            <EmptyState title="No GWR runs yet" description="Run scripts.compute_district_gwr to populate this." />
+          ) : (
+            <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
+              <GwrCoefficientsList runs={gwrQuery.data} />
+            </React.Suspense>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>GWR — statewide</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {gwrMapQuery.isLoading ? (
+            <LoadingSkeleton variant="card" rows={1} />
+          ) : gwrMapQuery.isError ? (
+            <ErrorState message={extractApiErrorMessage(gwrMapQuery.error)} onRetry={() => void gwrMapQuery.refetch()} />
+          ) : !gwrMapQuery.data || gwrMapQuery.data.length === 0 ? (
+            <EmptyState icon={Map} title="No GWR runs yet" description="Run scripts.compute_district_gwr to populate this." />
+          ) : (
+            <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
+              <GwrCentroidMap points={gwrMapQuery.data} />
             </React.Suspense>
           )}
         </CardContent>

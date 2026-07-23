@@ -130,8 +130,13 @@ export interface ApiErrorPayload {
   message?: string
 }
 
+export interface ChatSuggestion {
+  label: string
+  query: string
+}
+
 export interface ChatStreamEvent {
-  type: "token" | "tool_call" | "tool_result" | "widget" | "error" | "done"
+  type: "token" | "tool_call" | "tool_result" | "widget" | "error" | "done" | "suggestions"
   content?: string
   tool?: string
   status?: string
@@ -139,4 +144,5 @@ export interface ChatStreamEvent {
   widget_type?: string
   error?: string
   message?: string
+  items?: ChatSuggestion[]
 }

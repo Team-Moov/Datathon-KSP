@@ -3,6 +3,7 @@ ORM Models — re-exported from submodules for convenience.
 Import this package to register all models with SQLAlchemy's metadata.
 """
 
+from app.models.alert import Alert
 from app.models.audit import AuditLog, RecordChangeHistory
 from app.models.case import (
     Act,
@@ -30,6 +31,7 @@ from app.models.vector import VectorChunk
 from app.models.workspace import CaseNote
 
 __all__ = [
+    "Alert",
     "AuditLog",
     "RecordChangeHistory",
     "Act",

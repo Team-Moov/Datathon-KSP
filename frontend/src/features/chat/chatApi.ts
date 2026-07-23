@@ -7,15 +7,21 @@ export interface ChatMessage {
   content: string
 }
 
+export type ChatLanguage = "en" | "kn"
+
 /**
  * Export the conversation transcript to a watermarked PDF (backend /chat/export,
  * rendered via the configured PdfRenderer) and trigger a browser download.
  * Satisfies the PS requirement to save conversation history locally as PDF.
  */
-export async function exportConversationPdf(sessionId: string, messages: ChatMessage[]): Promise<void> {
+export async function exportConversationPdf(
+  sessionId: string,
+  messages: ChatMessage[],
+  language: ChatLanguage = "en",
+): Promise<void> {
   const response = await httpClient.post(
     "/chat/export",
-    { session_id: sessionId, messages, language: "en" },
+    { session_id: sessionId, messages, language },
     { responseType: "blob" },
   )
   const url = URL.createObjectURL(response.data as Blob)
@@ -37,6 +43,7 @@ export async function* streamChatTurn(
   sessionId: string,
   messages: ChatMessage[],
   signal: AbortSignal,
+  language: ChatLanguage = "en",
 ): AsyncGenerator<ChatStreamEvent> {
   const response = await fetch("/api/v1/chat/", {
     method: "POST",
@@ -44,7 +51,7 @@ export async function* streamChatTurn(
       "Content-Type": "application/json",
       Authorization: `Bearer ${getAccessToken() ?? ""}`,
     },
-    body: JSON.stringify({ session_id: sessionId, messages, language: "en" }),
+    body: JSON.stringify({ session_id: sessionId, messages, language }),
     signal,
   })
 

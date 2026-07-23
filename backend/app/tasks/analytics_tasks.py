@@ -85,68 +85,94 @@ def recompute_risk_scores_for_district(self, district_id: int) -> dict:
 
 
 
-# ── Task 4: District composite stress index ───────────────────────────────────
+# ── Task 4: District GWR / composite index ────────────────────────────────────
 
 @celery_app.task(name="tasks.recompute_district_stress_index", bind=True, max_retries=3)
-def recompute_district_stress_index(self, district_id: int) -> dict:
+def recompute_district_stress_index(self) -> dict:
     """
-    Recompute PCA-based composite stress index for a district (§6.2).
-    Stores result in DistrictCompositeIndex as a versioned artifact.
-    Replicates the percentile-rank + PCA logic from ananya-work/sociological/composite_index.py.
+    Recompute GWR coefficients (socio factors → CHI-weighted crime harm) across
+    all districts (§6.2), writing versioned DistrictCompositeIndex rows via
+    app.services.analytics.gwr.compute_all_districts_gwr.
+
+    Not per-district: GWR is fit once over every qualifying district (each
+    district's local coefficient depends on every other district's
+    observation via the spatial kernel), unlike the other three tasks in this
+    module, so this task takes no district_id argument.
+
+    Previously this task's body referenced DistrictCompositeIndex fields
+    (year, method, composite_value) that don't exist on the model — it would
+    have raised a TypeError on every run, meaning the GWR gap this closes was
+    never actually being filled by this task despite it being scheduled.
     """
     try:
-        return _run_async(_do_recompute_stress_index(district_id))
+        return _run_async(_do_recompute_district_gwr())
     except Exception as exc:
-        log.error("recompute_district_stress_index failed", error=str(exc), district_id=district_id)
+        log.error("recompute_district_stress_index failed", error=str(exc))
         raise self.retry(exc=exc, countdown=60)
 
 
-async def _do_recompute_stress_index(district_id: int) -> dict:
-    from sqlalchemy import text
-    from app.core.database import AsyncSessionLocal
-    from app.models.socio import DistrictCompositeIndex
+async def _do_recompute_district_gwr() -> dict:
+    # AdminSessionFactory, not the RLS-restricted AsyncSessionFactory — this is
+    # an internal batch job writing derived aggregate data across every
+    # district, not a request scoped to one user (same reasoning as
+    # scripts/embed_cases.py and scripts/compute_district_gwr.py).
+    from app.core.database import AdminSessionFactory
+    from app.services.analytics.gwr import compute_all_districts_gwr
 
-    async with AsyncSessionLocal() as db:
-        # Fetch the latest SEI indicators for this district
-        result = await db.execute(text("""
-            SELECT year, literacy_rate, unemployment_rate, urbanization_pct, sex_ratio
-            FROM socio_economic_indicator
-            WHERE district_id = :district_id
-            ORDER BY year DESC
-            LIMIT 1
-        """), {"district_id": district_id})
-        row = result.fetchone()
+    async with AdminSessionFactory() as db:
+        return await compute_all_districts_gwr(db)
 
-    if row is None:
-        log.warning("No SEI data for district", district_id=district_id)
-        return {"status": "skipped", "reason": "no_sei_data"}
 
-    year, literacy, unemployment, urbanization, sex_ratio = row
+# ── Task 6: Early-warning scan ────────────────────────────────────────────────
 
-    # Percentile-rank composite (same logic as Ananya's composite_index.py default method).
-    # With a single district we can only compute a raw normalized score; a real
-    # percentile-rank needs all districts. Stub here computes a simple weighted index:
-    #   high literacy = low stress, high unemployment = high stress, etc.
-    literacy_norm = float(literacy or 70) / 100.0          # higher = less stress
-    unemployment_norm = float(unemployment or 5) / 100.0   # higher = more stress
-    urbanization_norm = float(urbanization or 40) / 100.0  # moderate = neutral
+@celery_app.task(name="tasks.scan_early_warnings", bind=True, max_retries=2)
+def scan_early_warnings(self) -> dict:
+    """
+    Run the early-warning detectors (multi-jurisdiction repeat offenders +
+    organized-group communities) and persist any newly-detected alerts
+    (capability #8). Idempotent — signatures already present are skipped, so the
+    hourly beat tick never duplicates a standing finding. This is the scheduled
+    twin of POST /alerts/scan. Maps cleanly onto a Catalyst Cron trigger when the
+    backend moves to AppSail.
+    """
+    try:
+        return _run_async(_do_scan_early_warnings())
+    except Exception as exc:
+        log.error("scan_early_warnings failed", error=str(exc))
+        raise self.retry(exc=exc, countdown=60)
 
-    composite = round(
-        0.4 * (1 - literacy_norm) +
-        0.4 * unemployment_norm +
-        0.2 * urbanization_norm,
-        4,
-    )
 
-    async with AsyncSessionLocal() as db:
-        index_row = DistrictCompositeIndex(
-            district_id=district_id,
-            year=year,
-            method="weighted_normalized",
-            composite_value=composite,
-        )
-        db.add(index_row)
+async def _do_scan_early_warnings() -> dict:
+    # AdminSessionFactory: a system-wide detection sweep, not a user-scoped
+    # request (same reasoning as the GWR/embedding batch jobs above).
+    from app.core.database import AdminSessionFactory
+    from app.services.analytics.early_warning import EarlyWarningService
+
+    async with AdminSessionFactory() as db:
+        result = await EarlyWarningService(db).scan()
         await db.commit()
+        return result
 
-    log.info("District stress index written", district_id=district_id, year=year, composite=composite)
-    return {"status": "ok", "district_id": district_id, "year": year, "composite": composite}
+
+# ── Task 5: Case-narrative embedding backfill ─────────────────────────────────
+
+@celery_app.task(name="tasks.backfill_case_embeddings", bind=True, max_retries=1)
+def backfill_case_embeddings(self) -> dict:
+    """
+    Embed any CaseMaster.brief_facts rows that predate the embed-on-ingest
+    path or an embedding-model swap (§8.1 vector RAG). Idempotent — safe to
+    trigger repeatedly, only embeds rows still missing a vector_chunk.
+
+    Triggered on demand from the System Jobs admin page
+    (POST /admin/jobs/backfill-embeddings) rather than requiring shell/CLI
+    access — see EmbeddingService.backfill_case_embeddings for the shared
+    implementation (also used by scripts/embed_cases.py as an out-of-band
+    fallback).
+    """
+    from app.services.embedding_service import EmbeddingService
+
+    try:
+        return _run_async(EmbeddingService.backfill_case_embeddings())
+    except Exception as exc:
+        log.error("backfill_case_embeddings failed", error=str(exc))
+        raise self.retry(exc=exc, countdown=60)

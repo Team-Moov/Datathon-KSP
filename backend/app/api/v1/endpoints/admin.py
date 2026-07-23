@@ -26,6 +26,70 @@ from app.repositories.user_repository import UserRepository
 router = APIRouter()
 
 
+# ── System jobs ───────────────────────────────────────────────────────────────
+# On-demand triggers for the batch analytics jobs that previously required
+# shell/CLI access (docker compose exec ... python -m scripts.*). Both
+# underlying tasks also run automatically now (embeddings on ingest;
+# GWR on a weekly beat schedule, app/tasks/celery_app.py) — these endpoints
+# are for "don't want to wait for the schedule" / one-off backfills.
+
+class JobTriggerOut(BaseModel):
+    task_id: str
+    task_name: str
+
+
+class JobStatusOut(BaseModel):
+    task_id: str
+    status: str  # Celery states: PENDING, STARTED, SUCCESS, FAILURE, RETRY
+    result: Optional[dict] = None
+    error: Optional[str] = None
+
+
+@router.post("/jobs/recompute-gwr", response_model=JobTriggerOut, status_code=status.HTTP_202_ACCEPTED)
+async def trigger_gwr_recompute(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.MANAGE_ANALYTICS_JOBS)),
+):
+    from app.tasks.analytics_tasks import recompute_district_stress_index
+
+    async_result = recompute_district_stress_index.delay()
+    await log_audit_event(
+        db, action="admin.job_triggered", resource_type="celery_task", resource_id=async_result.id,
+        payload={"task_name": "tasks.recompute_district_stress_index"},
+    )
+    return JobTriggerOut(task_id=async_result.id, task_name="tasks.recompute_district_stress_index")
+
+
+@router.post("/jobs/backfill-embeddings", response_model=JobTriggerOut, status_code=status.HTTP_202_ACCEPTED)
+async def trigger_embedding_backfill(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.MANAGE_ANALYTICS_JOBS)),
+):
+    from app.tasks.analytics_tasks import backfill_case_embeddings
+
+    async_result = backfill_case_embeddings.delay()
+    await log_audit_event(
+        db, action="admin.job_triggered", resource_type="celery_task", resource_id=async_result.id,
+        payload={"task_name": "tasks.backfill_case_embeddings"},
+    )
+    return JobTriggerOut(task_id=async_result.id, task_name="tasks.backfill_case_embeddings")
+
+
+@router.get("/jobs/{task_id}", response_model=JobStatusOut)
+async def get_job_status(
+    task_id: str,
+    current_user: User = Depends(require_permission(Permission.MANAGE_ANALYTICS_JOBS)),
+):
+    from celery.result import AsyncResult
+
+    from app.tasks.celery_app import celery_app
+
+    async_result = AsyncResult(task_id, app=celery_app)
+    result = async_result.result if async_result.successful() else None
+    error = str(async_result.result) if async_result.failed() else None
+    return JobStatusOut(task_id=task_id, status=async_result.status, result=result, error=error)
+
+
 class AuditLogOut(BaseModel):
     id: str
     user_id: Optional[str]

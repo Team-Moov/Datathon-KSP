@@ -34,4 +34,13 @@ def get_storage_provider() -> StorageProvider:
             project_id=settings.CATALYST_PROJECT_ID,
         )
 
+    if provider == "gcs":
+        # Imported lazily so google-cloud-storage is only required when actually selected.
+        from app.core.storage.gcs import GCSStorageProvider
+
+        return GCSStorageProvider(
+            bucket=settings.GCS_BUCKET,
+            project_id=settings.GCS_PROJECT_ID or settings.VERTEX_PROJECT_ID,
+        )
+
     raise ValueError(f"Unknown STORAGE_PROVIDER: {provider!r}")

@@ -47,3 +47,21 @@ async def forecast_hotspots(
         }
         for r in results
     ]
+
+
+@router.get("/mo-linkage/{crime_head_id}", response_model=List[Dict[str, Any]])
+async def mo_linkage_clusters(
+    crime_head_id: int,
+    min_similarity: float = Query(0.7, ge=0.0, le=1.0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.VIEW_TRENDS_HOTSPOTS)),
+):
+    """
+    Behavioral crime-series linkage (§5) from the trained MO-linkage model
+    (`mo_linkage_tfidf_contrastive_v1`). Returns candidate series clusters for a
+    crime head — plausible same-offender series, labeled as leads, never confirmed.
+    This surfaces a model whose output was previously synced to the DB but
+    unreachable from any endpoint or the UI.
+    """
+    svc = HawkesETASService(db)
+    return await svc.get_mo_linkage_clusters(crime_head_id=crime_head_id, min_similarity=min_similarity)

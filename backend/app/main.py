@@ -14,8 +14,8 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import engine, init_db
 from app.core.graph_db import graph_db
-from app.core.groq_client import init_groq
 from app.core.logging import configure_logging
+from app.core.vertex_ai_client import init_vertex_ai
 from app.core.request_context import RequestContextMiddleware
 
 configure_logging()
@@ -43,8 +43,8 @@ async def lifespan(application: FastAPI):
 
     _guard_against_mock_mfa_in_production()
 
-    # ── Groq client — must be first ────────────────────────────────────────────
-    init_groq()
+    # ── Vertex AI client — must be first ───────────────────────────────────────
+    init_vertex_ai()
 
     # Relational DB — create tables if not present, then run any pending
     # numbered schema_upgrades.py steps past schema_version (see that module).

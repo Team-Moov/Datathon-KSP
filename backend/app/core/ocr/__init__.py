@@ -1,7 +1,12 @@
 """
 OCR-provider factory. Select via `settings.OCR_PROVIDER`:
-  - "local" → LocalOcrProvider (digital-PDF text only) — default
-  - "zia"   → ZiaOcrProvider (Catalyst Zia OCR — real image/handwriting OCR)
+  - "zia" → ZiaOcrProvider (Catalyst Zia OCR — real image/handwriting/PDF OCR,
+            up to 20MB, 10 Indian languages) — the only provider now
+
+The local pdfplumber-based provider (digital-PDF text only, no real OCR) was
+removed — Zia already covers everything it did and more, and it was the last
+thing in this codebase still using pdfplumber for OCR (extractors.py's
+PDF extractors were also switched to call this factory instead).
 """
 
 from __future__ import annotations
@@ -16,12 +21,7 @@ __all__ = ["OcrProvider", "get_ocr_provider"]
 
 @lru_cache(maxsize=1)
 def get_ocr_provider() -> OcrProvider:
-    provider = getattr(settings, "OCR_PROVIDER", "local")
-
-    if provider == "local":
-        from app.core.ocr.local_ocr import LocalOcrProvider
-
-        return LocalOcrProvider()
+    provider = getattr(settings, "OCR_PROVIDER", "zia")
 
     if provider == "zia":
         from app.core.ocr.zia import ZiaOcrProvider

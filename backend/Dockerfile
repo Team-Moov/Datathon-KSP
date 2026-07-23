@@ -1,23 +1,19 @@
 FROM python:3.11-slim
 
-# System dependencies for psycopg2, pdfplumber, geopandas
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
-    libgdal-dev \
-    libgeos-dev \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# No apt-get system packages needed anymore. This used to install gcc,
+# libpq-dev, libgdal-dev, libgeos-dev, and ffmpeg — but geopandas/shapely
+# (the only reason for GDAL/GEOS) and ffmpeg were never actually imported or
+# shelled out to anywhere in the codebase (confirmed by grep), and
+# psycopg2-binary's prebuilt wheel bundles its own libpq, so gcc/libpq-dev
+# weren't needed either — this was the single largest chunk of the image
+# (GDAL alone transitively pulls in boost, ICU, spatialite, xerces-c,
+# proj-data). If a future `pip install` here ever fails needing to compile a
+# package from source, gcc is the first thing to add back.
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Download spaCy English model — installed as a direct wheel URL rather than
-# `spacy download`, whose compatibility-version lookup was returning a
-# malformed (unversioned) release URL in this environment and 404'ing.
-RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 
 COPY . .
 

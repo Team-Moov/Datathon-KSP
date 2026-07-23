@@ -191,11 +191,21 @@ class GraphSyncService:
                 rid = str(rel.element_id)
                 if rid not in seen_edge_ids:
                     seen_edge_ids.add(rid)
+                    # Must key from/to the same way nodes are keyed above (the
+                    # custom "id" property, falling back to element_id only if
+                    # a node genuinely has none) — using rel.start_node/end_node's
+                    # raw element_id here unconditionally meant edges pointed at
+                    # an identifier space the nodes array never used, so no edge
+                    # could ever resolve to a node. d3-force's forceLink throws
+                    # on an unresolvable link id, and with no error boundary in
+                    # the frontend that crash blanks the entire app.
+                    start_props = dict(rel.start_node)
+                    end_props = dict(rel.end_node)
                     edges.append({
                         "id": rid,
                         "type": rel.type,
-                        "from": str(rel.start_node.element_id),
-                        "to": str(rel.end_node.element_id),
+                        "from": start_props.get("id") or str(rel.start_node.element_id),
+                        "to": end_props.get("id") or str(rel.end_node.element_id),
                         "properties": GraphSyncService._json_safe_properties(dict(rel)),
                     })
         return {"nodes": nodes, "edges": edges}

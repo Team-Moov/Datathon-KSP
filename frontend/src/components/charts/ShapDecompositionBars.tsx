@@ -1,6 +1,12 @@
 import { cn } from "@/lib/utils"
 
 const FEATURE_LABELS: Record<string, string> = {
+  // Keys as the trained survival model / ML bridge actually writes them.
+  severity_history: "Severity-weighted history (CHI)",
+  centrality: "Network position",
+  mo_consistency: "MO consistency / escalation",
+  associate_risk: "Associate risk",
+  // Legacy ORM-column aliases (kept so older rows still render with real labels).
   chi_weighted_harm: "Severity-weighted history (CHI)",
   network_centrality: "Network position",
   mo_escalation_score: "MO consistency / escalation",

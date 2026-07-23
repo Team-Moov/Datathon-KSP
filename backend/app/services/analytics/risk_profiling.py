@@ -6,39 +6,34 @@ FAIRNESS CONSTRAINTS (§7.3):
   - All outputs are versioned — never overwrites prior scores.
 """
 
-import uuid
-from datetime import date, datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Optional
 from uuid import UUID
 
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import PersonRole
 from app.models.offender import CriminalHistory, RiskScore
 from app.repositories.person_repository import PersonRepository
 
 log = structlog.get_logger(__name__)
 
-MODEL_VERSION = "v1.0.0-logistic"
-
-# CHI weights per GravityOffence (provisional — anchored to real GravityOffenceID) (§7.2)
-CHI_WEIGHTS = {
-    "Heinous": 100.0,
-    "Non-Heinous": 10.0,
-    "Unknown": 5.0,
-}
-
-# Exponential decay half-life for recency weighting (§7.4)
-DECAY_HALF_LIFE_DAYS = 365
-
 
 class RiskProfilingService:
     """
-    Computes a versioned risk score from deterministic features.
-    NEVER uses caste/religion as features.
-    Always returns SHAP-style decomposition alongside the score.
+    Serves the latest versioned risk score for a person.
+
+    The score itself is produced offline by the trained Random Survival Forest
+    (`risk_survival_rsf_v1`, see ananya-work/models/risk_score) and synced into the
+    `risk_score` table with its real model_version, feature components, and
+    computed_at. This service reads that row — it does NOT recompute a heuristic
+    (an earlier hand-rolled logistic heuristic was retired; the stale
+    "v1.0.0-logistic"/CHI-weight constants that used to sit here were dead code and
+    misrepresented which model actually produced the score, so they're gone). The
+    fairness gate (human-verified criminal history) is still enforced here.
+
+    NEVER uses caste/religion as features. Every score ships with its SHAP-style
+    component decomposition and, via app.services.ml_registry, its model card.
     """
 
     def __init__(self, db: AsyncSession) -> None:

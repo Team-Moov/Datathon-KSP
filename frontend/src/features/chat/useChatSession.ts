@@ -1,6 +1,8 @@
 import * as React from "react"
 
-import { streamChatTurn, exportConversationPdf, type ChatMessage } from "./chatApi"
+import { streamChatTurn, exportConversationPdf, type ChatLanguage, type ChatMessage } from "./chatApi"
+import type { ChatSuggestion } from "@/lib/types/api"
+import { useVoiceLiveSession } from "./useVoiceLiveSession"
 
 export interface ToolActivityEntry {
   tool: string
@@ -18,6 +20,7 @@ export interface ConversationTurn {
   content: string
   toolActivity: ToolActivityEntry[]
   widgets: WidgetEntry[]
+  suggestions: ChatSuggestion[]
   isAiUnavailable: boolean
   isStreaming: boolean
 }
@@ -29,6 +32,7 @@ function createTurnId(): string {
 export function useChatSession() {
   const [turns, setTurns] = React.useState<ConversationTurn[]>([])
   const [isAwaitingResponse, setIsAwaitingResponse] = React.useState(false)
+  const [language, setLanguage] = React.useState<ChatLanguage>("en")
   const sessionIdRef = React.useRef(createTurnId())
   const abortControllerRef = React.useRef<AbortController | null>(null)
 
@@ -47,6 +51,7 @@ export function useChatSession() {
       content: trimmed,
       toolActivity: [],
       widgets: [],
+      suggestions: [],
       isAiUnavailable: false,
       isStreaming: false,
     }
@@ -57,6 +62,7 @@ export function useChatSession() {
       content: "",
       toolActivity: [],
       widgets: [],
+      suggestions: [],
       isAiUnavailable: false,
       isStreaming: true,
     }
@@ -72,6 +78,7 @@ export function useChatSession() {
         sessionIdRef.current,
         [...priorMessages, { role: "user", content: trimmed }],
         abortController.signal,
+        language,
       )) {
         if (event.type === "token" && event.content) {
           updateAssistantTurn(assistantTurnId, (turn) => ({ ...turn, content: turn.content + event.content }))
@@ -85,6 +92,8 @@ export function useChatSession() {
             ...turn,
             widgets: [...turn.widgets, { widgetType: event.widget_type!, data: event.data }],
           }))
+        } else if (event.type === "suggestions" && event.items) {
+          updateAssistantTurn(assistantTurnId, (turn) => ({ ...turn, suggestions: event.items! }))
         } else if (event.type === "error") {
           updateAssistantTurn(assistantTurnId, (turn) => ({
             ...turn,
@@ -114,8 +123,22 @@ export function useChatSession() {
   async function exportConversation() {
     const messages: ChatMessage[] = turns.map((turn) => ({ role: turn.role, content: turn.content }))
     if (messages.length === 0) return
-    await exportConversationPdf(sessionIdRef.current, messages)
+    await exportConversationPdf(sessionIdRef.current, messages, language)
   }
 
-  return { turns, isAwaitingResponse, submitUserMessage, cancelActiveStream, exportConversation }
+  const voiceSession = useVoiceLiveSession(setTurns, language)
+
+  return {
+    turns,
+    isAwaitingResponse,
+    language,
+    setLanguage,
+    submitUserMessage,
+    cancelActiveStream,
+    exportConversation,
+    isVoiceSessionActive: voiceSession.isSessionActive,
+    isVoiceConnecting: voiceSession.isConnecting,
+    startVoiceSession: voiceSession.startVoiceSession,
+    stopVoiceSession: voiceSession.stopVoiceSession,
+  }
 }

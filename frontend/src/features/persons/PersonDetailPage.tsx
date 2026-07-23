@@ -1,7 +1,8 @@
 import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { BadgeCheck } from "lucide-react"
-import { useParams } from "react-router-dom"
+import { BadgeCheck, Banknote, ShieldAlert, Waypoints } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { useNavigate, useParams } from "react-router-dom"
 
 import { ErrorState } from "@/components/data-states/ErrorState"
 import { LoadingSkeleton } from "@/components/data-states/LoadingSkeleton"
@@ -10,11 +11,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { extractApiErrorMessage } from "@/lib/api/httpClient"
 import { usePermission } from "@/lib/hooks/usePermission"
+import type { Permission } from "@/lib/types/permissions"
 import { fetchPersonById, submitPersonVerification } from "./personsApi"
 
 function PersonDetailPage() {
   const { personId } = useParams<{ personId: string }>()
   const { has } = usePermission()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [conflictMessage, setConflictMessage] = React.useState<string | null>(null)
 
@@ -54,6 +57,36 @@ function PersonDetailPage() {
             <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{person.full_name}</h2>
             {person.human_verified ? <Badge variant="affirm">verified</Badge> : <Badge variant="neutral">unverified</Badge>}
           </div>
+
+          {/* Deep links — carry this person into each analysis tool pre-selected
+              (?person=&name=), so the investigator never copies a UUID between pages. */}
+          {(() => {
+            const target = (path: string) =>
+              `${path}?person=${encodeURIComponent(person.id)}&name=${encodeURIComponent(person.full_name)}`
+            const allActions: { label: string; path: string; icon: LucideIcon; permission: Permission }[] = [
+              { label: "Assess risk", path: "/risk", icon: ShieldAlert, permission: "compute_risk_score" },
+              { label: "View network", path: "/network", icon: Waypoints, permission: "view_network_basic" },
+              { label: "Financial links", path: "/financial", icon: Banknote, permission: "view_financial_raw" },
+            ]
+            const actions = allActions.filter((action) => has(action.permission))
+            if (actions.length === 0) return null
+            return (
+              <div className="flex flex-wrap gap-2">
+                {actions.map((action) => (
+                  <Button
+                    key={action.path}
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => navigate(target(action.path))}
+                  >
+                    <action.icon className="size-3.5" />
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+            )
+          })()}
 
           {conflictMessage ? <p className="text-xs text-critical-500">{conflictMessage}</p> : null}
 

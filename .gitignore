@@ -33,9 +33,11 @@ venv.bak/
 
 # ── Secrets & credentials — NEVER commit these ────────────────────────────────
 backend/keys/
+backend/secrets/
 *.json.key
 sa-key*.json
 *service_account*.json
+*service-account*.json
 
 # ── Environment files ─────────────────────────────────────────────────────────
 # .env.example IS committed (safe template); .env is NOT

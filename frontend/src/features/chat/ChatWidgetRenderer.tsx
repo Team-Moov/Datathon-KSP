@@ -1,9 +1,88 @@
 import * as React from "react"
 
 import { LoadingSkeleton } from "@/components/data-states/LoadingSkeleton"
+import type { PredictedLink } from "@/components/charts/PredictedLinksList"
+import type { MultiJurisdictionOffender } from "@/components/charts/MultiJurisdictionOffendersList"
+import type { GwrRun } from "@/components/charts/GwrCoefficientsList"
+import type { GwrDistrictPoint } from "@/components/charts/GwrCentroidMap"
+import type { SuspiciousTransactionAlert } from "@/components/charts/FinancialAlertCard"
+import type { RiskScoreResult } from "@/components/charts/RiskProfileCard"
+import type { CaseBrief } from "@/components/charts/CaseBriefCard"
+import type { CaseWorkspaceSummary } from "@/components/charts/CaseWorkspaceSummaryCard"
+import type { ExtractedEntity } from "@/components/charts/EntitiesList"
+import type { AlertListItem } from "@/components/charts/AlertsList"
+import type { MoLinkageCluster } from "@/components/charts/MoLinkageList"
+import type { PersonSearchResult } from "@/components/charts/PersonSearchResultsList"
 import type { WidgetEntry } from "./useChatSession"
 
 const NetworkGraph = React.lazy(() => import("@/components/charts/NetworkGraph").then((m) => ({ default: m.NetworkGraph })))
+const PredictedLinksList = React.lazy(() =>
+  import("@/components/charts/PredictedLinksList").then((m) => ({ default: m.PredictedLinksList })),
+)
+const CentralityScoresList = React.lazy(() =>
+  import("@/components/charts/CentralityScoresList").then((m) => ({ default: m.CentralityScoresList })),
+)
+const MultiJurisdictionOffendersList = React.lazy(() =>
+  import("@/components/charts/MultiJurisdictionOffendersList").then((m) => ({ default: m.MultiJurisdictionOffendersList })),
+)
+const TrendLineChart = React.lazy(() => import("@/components/charts/TrendLineChart").then((m) => ({ default: m.TrendLineChart })))
+const GwrCoefficientsList = React.lazy(() =>
+  import("@/components/charts/GwrCoefficientsList").then((m) => ({ default: m.GwrCoefficientsList })),
+)
+const GwrCentroidMap = React.lazy(() => import("@/components/charts/GwrCentroidMap").then((m) => ({ default: m.GwrCentroidMap })))
+const FinancialAlertCard = React.lazy(() =>
+  import("@/components/charts/FinancialAlertCard").then((m) => ({ default: m.FinancialAlertCard })),
+)
+const HotspotMap = React.lazy(() => import("@/components/charts/HotspotMap").then((m) => ({ default: m.HotspotMap })))
+const RiskProfileCard = React.lazy(() => import("@/components/charts/RiskProfileCard").then((m) => ({ default: m.RiskProfileCard })))
+const CaseBriefCard = React.lazy(() => import("@/components/charts/CaseBriefCard").then((m) => ({ default: m.CaseBriefCard })))
+const CaseWorkspaceSummaryCard = React.lazy(() =>
+  import("@/components/charts/CaseWorkspaceSummaryCard").then((m) => ({ default: m.CaseWorkspaceSummaryCard })),
+)
+const EntitiesList = React.lazy(() => import("@/components/charts/EntitiesList").then((m) => ({ default: m.EntitiesList })))
+const AlertsList = React.lazy(() => import("@/components/charts/AlertsList").then((m) => ({ default: m.AlertsList })))
+const MoLinkageList = React.lazy(() => import("@/components/charts/MoLinkageList").then((m) => ({ default: m.MoLinkageList })))
+const PersonSearchResultsList = React.lazy(() =>
+  import("@/components/charts/PersonSearchResultsList").then((m) => ({ default: m.PersonSearchResultsList })),
+)
+
+interface SocioIndicatorRow {
+  year: number
+}
+
+interface CrimeStatRow {
+  year: number
+}
+
+interface HotspotCell {
+  lat_center: number
+  lng_center: number
+  predicted_rate: number
+  background_component: number
+  near_repeat_component: number
+  forecast_date: string
+}
+
+function isFlowDiagramPayload(data: unknown): data is SuspiciousTransactionAlert | SuspiciousTransactionAlert[] {
+  if (Array.isArray(data)) return true
+  return typeof data === "object" && data !== null && "accounts_involved" in data
+}
+
+function isRiskProfilePayload(data: unknown): data is RiskScoreResult {
+  return typeof data === "object" && data !== null && "shap_decomposition" in data
+}
+
+function isCaseBriefPayload(data: unknown): data is CaseBrief {
+  return typeof data === "object" && data !== null && "context_summary" in data
+}
+
+function isCaseWorkspacePayload(data: unknown): data is CaseWorkspaceSummary {
+  return typeof data === "object" && data !== null && "people" in data && "case" in data
+}
+
+function isEntitiesPayload(data: unknown): data is { entities: ExtractedEntity[] } {
+  return typeof data === "object" && data !== null && Array.isArray((data as { entities?: unknown }).entities)
+}
 
 interface RawGraphPayload {
   nodes?: { id: string; properties?: Record<string, unknown> }[]
@@ -14,14 +93,44 @@ function isGraphPayload(data: unknown): data is RawGraphPayload {
   return typeof data === "object" && data !== null && "nodes" in data
 }
 
+function isArrayPayload<T>(data: unknown): data is T[] {
+  return Array.isArray(data)
+}
+
+function isCentralityPayload(data: unknown): data is Record<string, { pagerank?: number; betweenness?: number }> {
+  return typeof data === "object" && data !== null && !Array.isArray(data)
+}
+
+function WidgetFrame({ label, children }: { label?: string; children: React.ReactNode }) {
+  return (
+    <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
+      <div className="flat-surface rounded-md p-2">
+        {label ? <p className="section-label mb-1.5 px-1">{label}</p> : null}
+        {children}
+      </div>
+    </React.Suspense>
+  )
+}
+
 /** Fixed widget catalog per the design doc's generative-UI rule — the model
  * only ever picks a widget_type it already knows about; this component maps
- * each one to a real chart, it never renders arbitrary model-produced markup. */
-function ChatWidgetRenderer({ widget }: { widget: WidgetEntry }) {
-  if ((widget.widgetType === "force_directed_graph") && isGraphPayload(widget.data)) {
+ * each one to a real chart, it never renders arbitrary model-produced markup.
+ *
+ * onFollowUpQuery closes the design doc's "two-way, not one-way" loop (§10.3):
+ * clicking a node in a rendered graph fires a fresh question back into the same
+ * conversation rather than leaving the visualization inert. */
+function ChatWidgetRenderer({
+  widget,
+  onFollowUpQuery,
+}: {
+  widget: WidgetEntry
+  onFollowUpQuery?: (query: string) => void
+}) {
+  if (widget.widgetType === "force_directed_graph" && isGraphPayload(widget.data)) {
     const nodes = (widget.data.nodes ?? []).map((node) => ({
       id: node.id,
       label: typeof node.properties?.name === "string" ? (node.properties.name as string) : node.id,
+      communityId: typeof node.properties?.community_id === "number" ? (node.properties.community_id as number) : undefined,
     }))
     const edges = (widget.data.edges ?? []).map((edge) => ({
       id: edge.id,
@@ -30,11 +139,182 @@ function ChatWidgetRenderer({ widget }: { widget: WidgetEntry }) {
       isPredicted: edge.type === "PREDICTED_LINK",
     }))
     return (
-      <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
-        <div className="flat-surface rounded-md p-2">
-          <NetworkGraph nodes={nodes} edges={edges} height={280} />
+      <WidgetFrame>
+        <NetworkGraph
+          nodes={nodes}
+          edges={edges}
+          height={280}
+          onNodeSelect={
+            onFollowUpQuery ? (node) => onFollowUpQuery(`Tell me more about ${node.label} — their network position, risk, and linked cases.`) : undefined
+          }
+        />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "person_search_results" && isArrayPayload<PersonSearchResult>(widget.data)) {
+    return (
+      <WidgetFrame label="Matched persons">
+        <PersonSearchResultsList results={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "predicted_links" && isArrayPayload<PredictedLink>(widget.data)) {
+    return (
+      <WidgetFrame label="Predicted links — unverified">
+        <PredictedLinksList links={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "centrality_scores" && isCentralityPayload(widget.data)) {
+    return (
+      <WidgetFrame label="Centrality (PageRank / betweenness)">
+        <CentralityScoresList scores={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "multi_jurisdiction_offenders" && isArrayPayload<MultiJurisdictionOffender>(widget.data)) {
+    return (
+      <WidgetFrame label="Multi-jurisdiction offenders">
+        <MultiJurisdictionOffendersList offenders={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "socio_trend" && isArrayPayload<SocioIndicatorRow>(widget.data)) {
+    return (
+      <WidgetFrame label="Socio-economic indicators">
+        <TrendLineChart
+          data={widget.data}
+          xKey="year"
+          seriesKeys={[
+            { key: "literacy_rate", label: "Literacy rate", color: "#5f6299" },
+            { key: "unemployment_rate", label: "Unemployment rate", color: "#b1503f" },
+            { key: "composite_stress_index", label: "Composite stress index", color: "#b8863f" },
+          ]}
+          height={220}
+        />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "gwr_coefficients" && isArrayPayload<GwrRun>(widget.data)) {
+    return (
+      <WidgetFrame label="GWR — local socio-economic predictors of crime harm">
+        <GwrCoefficientsList runs={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "gwr_map" && isArrayPayload<GwrDistrictPoint>(widget.data)) {
+    return (
+      <WidgetFrame label="GWR — statewide">
+        <GwrCentroidMap points={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "crime_stats_trend" && isArrayPayload<CrimeStatRow>(widget.data)) {
+    return (
+      <WidgetFrame label="Crime statistics">
+        <TrendLineChart
+          data={widget.data}
+          xKey="year"
+          seriesKeys={[
+            { key: "count", label: "Count", color: "#5f6299" },
+            { key: "chi_weighted_count", label: "CHI-weighted count", color: "#b1503f" },
+          ]}
+          height={220}
+        />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "flow_diagram" && isFlowDiagramPayload(widget.data)) {
+    const alerts = Array.isArray(widget.data) ? widget.data : [widget.data]
+    if (alerts.length === 0) {
+      return (
+        <WidgetFrame label="Financial crime scan">
+          <p className="px-1 text-xs text-zinc-400">No alert triggered — this account/list doesn't match a known typology pattern.</p>
+        </WidgetFrame>
+      )
+    }
+    return (
+      <WidgetFrame label="Financial crime alert(s)">
+        <div className="space-y-2">
+          {alerts.map((alert, index) => (
+            <FinancialAlertCard key={index} alert={alert} />
+          ))}
         </div>
-      </React.Suspense>
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "hotspot_map" && isArrayPayload<HotspotCell>(widget.data)) {
+    if (widget.data.length === 0) {
+      return (
+        <WidgetFrame label="Hotspot forecast">
+          <p className="px-1 text-xs text-zinc-400">Not enough historical incidents to fit a forecast.</p>
+        </WidgetFrame>
+      )
+    }
+    const centerLat = widget.data.reduce((sum, cell) => sum + cell.lat_center, 0) / widget.data.length
+    const centerLng = widget.data.reduce((sum, cell) => sum + cell.lng_center, 0) / widget.data.length
+    return (
+      <WidgetFrame label="Hotspot forecast">
+        <HotspotMap cells={widget.data} centerLat={centerLat} centerLng={centerLng} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "risk_profile_card" && isRiskProfilePayload(widget.data)) {
+    return (
+      <WidgetFrame label="Risk profile">
+        <RiskProfileCard result={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "case_timeline" && isCaseBriefPayload(widget.data)) {
+    return (
+      <WidgetFrame label="Case brief">
+        <CaseBriefCard brief={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "case_workspace" && isCaseWorkspacePayload(widget.data)) {
+    return (
+      <WidgetFrame label="Case workspace">
+        <CaseWorkspaceSummaryCard workspace={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "mo_linkage_clusters" && isArrayPayload<MoLinkageCluster>(widget.data)) {
+    return (
+      <WidgetFrame label="MO linkage — candidate crime series (leads)">
+        <MoLinkageList clusters={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "alerts_list" && isArrayPayload<AlertListItem>(widget.data)) {
+    return (
+      <WidgetFrame label="Early-warning alerts">
+        <AlertsList alerts={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "entities_list" && isEntitiesPayload(widget.data)) {
+    return (
+      <WidgetFrame label="Extracted entities">
+        <EntitiesList entities={widget.data.entities} />
+      </WidgetFrame>
     )
   }
 

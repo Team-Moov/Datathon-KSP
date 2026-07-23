@@ -39,12 +39,18 @@ async def compute_risk_score(
     await db.flush()
     await db.refresh(score)
 
+    from app.services.ml_registry import get_model_card
+
     return {
         "score_id": str(score.id),
         "person_id": str(person_id),
         "score": score.score,
         "model_version": score.model_version,
         "shap_decomposition": score.shap_decomposition,
+        # Model card (concordance, per-feature importance, fairness posture) travels
+        # with the score so the profile card can show WHY the model weights each
+        # feature the way it does — capability #9, not a separate lookup.
+        "model_card": get_model_card(score.model_version),
         "human_reviewed": score.human_reviewed,
         "computed_at": str(score.computed_at),
         "disclaimer": (

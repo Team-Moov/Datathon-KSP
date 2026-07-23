@@ -1,8 +1,8 @@
 """
 Provider-agnostic NER (ingestion step 4 — entities out of narrative text).
 
-Local uses the in-process spaCy model (free, offline); Zia uses Catalyst's
-text-analytics NER. Returns a normalized list of {text, type} either way.
+Gemini (Vertex AI, default) uses structured JSON extraction; Zia uses
+Catalyst's text-analytics NER. Returns a normalized list of {text, type} either way.
 """
 
 from __future__ import annotations

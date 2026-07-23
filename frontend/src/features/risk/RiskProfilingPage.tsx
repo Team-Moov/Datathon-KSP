@@ -1,26 +1,64 @@
 import * as React from "react"
 import { useMutation } from "@tanstack/react-query"
-import { ShieldAlert } from "lucide-react"
+import { RotateCw, ShieldAlert } from "lucide-react"
+import { useSearchParams } from "react-router-dom"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { ShapDecompositionBars } from "@/components/charts/ShapDecompositionBars"
+import { PersonPicker, type PickedPerson } from "@/components/inputs/PersonPicker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { extractApiErrorMessage } from "@/lib/api/httpClient"
 import { usePermission } from "@/lib/hooks/usePermission"
 import { computePersonRiskScore, markRiskScoreReviewed } from "./riskApi"
 
 function RiskProfilingPage() {
   const { has } = usePermission()
-  const [personId, setPersonId] = React.useState("")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [selected, setSelected] = React.useState<PickedPerson | null>(null)
 
-  const computeMutation = useMutation({ mutationFn: () => computePersonRiskScore(personId.trim()) })
+  const computeMutation = useMutation({ mutationFn: (personId: string) => computePersonRiskScore(personId) })
   const reviewMutation = useMutation({
-    mutationFn: () => markRiskScoreReviewed(personId.trim(), computeMutation.data!.score_id),
+    mutationFn: () => markRiskScoreReviewed(selected!.id, computeMutation.data!.score_id),
   })
+
+  // Hydrate from a deep link (?person=<id>&name=<name>) and auto-run once, so a
+  // click from the person page / a chat widget / an alert lands on a finished
+  // score rather than a blank form. Runs a single time on mount.
+  const hydratedRef = React.useRef(false)
+  React.useEffect(() => {
+    if (hydratedRef.current) return
+    hydratedRef.current = true
+    const personId = searchParams.get("person")
+    if (personId) {
+      const person = { id: personId, name: searchParams.get("name") || "Selected person" }
+      setSelected(person)
+      computeMutation.mutate(personId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleSelect(person: PickedPerson) {
+    setSelected(person)
+    // Keep the URL shareable/bookmarkable — the exact assessment is reproducible.
+    setSearchParams((prev) => {
+      prev.set("person", person.id)
+      prev.set("name", person.name)
+      return prev
+    })
+    computeMutation.mutate(person.id)
+  }
+
+  function handleClear() {
+    setSelected(null)
+    computeMutation.reset()
+    setSearchParams((prev) => {
+      prev.delete("person")
+      prev.delete("name")
+      return prev
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -37,20 +75,32 @@ function RiskProfilingPage() {
         <CardContent className="space-y-4">
           <div className="flex items-end gap-3">
             <div className="flex-1 space-y-1.5">
-              <Label htmlFor="risk-person-id">Person ID</Label>
-              <Input id="risk-person-id" value={personId} onChange={(event) => setPersonId(event.target.value)} placeholder="UUID" />
+              <p className="section-label">Person</p>
+              <PersonPicker selected={selected} onSelect={handleSelect} onClear={handleClear} />
             </div>
-            <Button onClick={() => computeMutation.mutate()} disabled={!personId.trim() || computeMutation.isPending}>
-              {computeMutation.isPending ? "Computing..." : "Compute score"}
-            </Button>
+            {selected ? (
+              <Button
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => computeMutation.mutate(selected.id)}
+                disabled={computeMutation.isPending}
+              >
+                <RotateCw className={computeMutation.isPending ? "size-4 animate-spin" : "size-4"} />
+                Recompute
+              </Button>
+            ) : null}
           </div>
 
           {computeMutation.isError ? (
             <p className="text-xs text-critical-500">{extractApiErrorMessage(computeMutation.error)}</p>
           ) : null}
 
-          {!computeMutation.data && !computeMutation.isPending ? (
-            <EmptyState icon={ShieldAlert} title="No assessment computed yet" description="Enter a person ID and compute a versioned risk score." />
+          {!selected && !computeMutation.data ? (
+            <EmptyState
+              icon={ShieldAlert}
+              title="No assessment computed yet"
+              description="Search a person by name to compute a versioned risk score."
+            />
           ) : null}
 
           {computeMutation.data ? (

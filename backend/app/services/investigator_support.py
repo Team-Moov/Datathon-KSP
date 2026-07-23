@@ -12,10 +12,8 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 import structlog
-from langchain_groq import ChatGroq
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.services.analytics.network_analysis import NetworkAnalysisService
 from app.services.analytics.financial_crime import FinancialCrimeService
 from app.services.embedding_service import EmbeddingService
@@ -33,13 +31,6 @@ class InvestigatorSupportService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        # Groq-hosted Llama 3.1 8B — used for case-brief narration (cost-efficient).
-        self.llm = ChatGroq(
-            model=settings.GROQ_LLM_MODEL_FAST,
-            api_key=settings.GROQ_API_KEY,
-            temperature=0,
-            streaming=True,
-        )
         self.case_repo = CaseRepository(db)
         self.vector_repo = VectorRepository(db)
         self.embedding_svc = EmbeddingService()
@@ -72,7 +63,10 @@ class InvestigatorSupportService:
             timeline.append(
                 {
                     "stage": event.stage.value,
-                    "date": str(event.event_date),
+                    # "event_date", not "date" — matches workspace_service.py's
+                    # timeline shape (CaseWorkspaceSnapshot["timeline"]) so both
+                    # producers can share the frontend's one CaseTimeline widget.
+                    "event_date": str(event.event_date),
                     "confidence": float(event.confidence),
                     "source_document_id": str(event.source_document_id) if event.source_document_id else None,
                 }
@@ -136,7 +130,21 @@ class InvestigatorSupportService:
         leads = []
 
         # Lead type 1: predicted network links for accused persons in this case
-        case = await self.case_repo.get_by_id(case_id)
+        # get_by_id() (a bare db.get() PK lookup) doesn't eager-load
+        # person_roles — a bare lazy access on it fails under async
+        # (MissingGreenlet), the same class of bug _similar_cases already
+        # works around for .chargesheet below. Confirmed live: this path was
+        # never actually exercised end-to-end before the vector store had
+        # real data to reach it with.
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from app.models.case import CaseMaster
+
+        case = (
+            await self.db.execute(
+                select(CaseMaster).options(selectinload(CaseMaster.person_roles)).where(CaseMaster.id == case_id)
+            )
+        ).scalar_one_or_none()
         if case:
             for role in (case.person_roles or []):
                 if role.role.value == "accused":

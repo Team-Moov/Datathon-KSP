@@ -21,20 +21,28 @@ class BaseExtractor(abc.ABC):
 
 
 class FIRPdfExtractor(BaseExtractor):
-    """Layout-aware template extraction for IIF-1-shaped FIR PDFs using Docling/pdfplumber."""
+    """
+    Layout-aware template extraction for IIF-1-shaped FIR PDFs, via the
+    configured OCR provider (Zia — confirmed it handles PDFs directly, not
+    just images, up to 20MB). Previously used pdfplumber directly for
+    digital-text-only extraction; routing through the OCR provider instead
+    means scanned/handwritten FIRs work too, not just digital ones.
+    """
 
     method = ExtractionMethod.TEMPLATE_EXTRACTION
 
     async def extract(self, file_path: Path) -> Dict[str, Any]:
-        import pdfplumber
+        from app.core.ocr import get_ocr_provider
 
         fields: Dict[str, Any] = {"confidence": 0.8}
         try:
-            with pdfplumber.open(file_path) as pdf:
-                text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+            result = await get_ocr_provider().extract_text(file_path.read_bytes(), file_path.name)
+            text = result.get("text", "") or ""
             fields["raw_text"] = text
             fields["brief_facts"] = text  # vector-store embedding target
             fields["narrative_text"] = text
+            if result.get("confidence") is not None:
+                fields["confidence"] = result["confidence"]
         except Exception as exc:
             fields["confidence"] = 0.4
             fields["extraction_error"] = str(exc)
@@ -42,20 +50,23 @@ class FIRPdfExtractor(BaseExtractor):
 
 
 class ChargesheetExtractor(BaseExtractor):
-    """Targeted extraction for verdict/sections + full-text embed."""
+    """Targeted extraction for verdict/sections + full-text embed, via the
+    configured OCR provider (see FIRPdfExtractor for why)."""
 
     method = ExtractionMethod.FULL_TEXT_EMBED
 
     async def extract(self, file_path: Path) -> Dict[str, Any]:
-        import pdfplumber
+        from app.core.ocr import get_ocr_provider
 
         fields: Dict[str, Any] = {"confidence": 0.75}
         try:
-            with pdfplumber.open(file_path) as pdf:
-                text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+            result = await get_ocr_provider().extract_text(file_path.read_bytes(), file_path.name)
+            text = result.get("text", "") or ""
             fields["narrative_text"] = text
             # Rough heuristic — better version uses regex/NER
             fields["cs_type"] = "Chargesheet" if "chargesheet" in text.lower() else "Undetected"
+            if result.get("confidence") is not None:
+                fields["confidence"] = result["confidence"]
         except Exception as exc:
             fields["confidence"] = 0.3
             fields["extraction_error"] = str(exc)
@@ -68,30 +79,31 @@ class HistorySheetExtractor(BaseExtractor):
     method = ExtractionMethod.NER_RELATION
 
     async def extract(self, file_path: Path) -> Dict[str, Any]:
-        import asyncio
-        from groq import Groq
-        from app.core.config import settings
         import json
 
+        from google.genai import types
+
+        from app.core.config import settings
+        from app.core.vertex_ai_client import get_genai_client
+
         text_content = file_path.read_text(errors="replace") if file_path.suffix in (".txt", ".md") else ""
-        if not text_content or not settings.GROQ_API_KEY:
+        if not text_content or not settings.VERTEX_PROJECT_ID:
             return {"confidence": 0.6, "narrative_text": text_content, "entities": {}}
 
-        def _call_groq() -> Dict[str, Any]:
-            client = Groq(api_key=settings.GROQ_API_KEY)
-            prompt = f"Extract all person names, locations, and organizations from the following text as JSON with keys 'persons', 'locations', 'organizations':\\n\\n{text_content}"
-            resp = client.chat.completions.create(
-                model=settings.GROQ_LLM_MODEL_FAST,
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}
+        prompt = (
+            "Extract all person names, locations, and organizations from the following "
+            "text as JSON with keys 'persons', 'locations', 'organizations':\n\n" + text_content
+        )
+        try:
+            response = await get_genai_client().aio.models.generate_content(
+                model=settings.GEMINI_MODEL_FAST,
+                contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
+                config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             try:
-                return json.loads(resp.choices[0].message.content)
+                entities = json.loads(response.text)
             except Exception:
-                return {}
-
-        try:
-            entities = await asyncio.to_thread(_call_groq)
+                entities = {}
             return {
                 "confidence": 0.85,
                 "narrative_text": text_content,
@@ -118,42 +130,43 @@ class CsvExtractor(BaseExtractor):
 
 class AudioExtractor(BaseExtractor):
     """
-    Groq-hosted Whisper large-v3 — supports Kannada and English in the same
-    model, called via the Groq API rather than a GCP-specific speech service.
-    Runs the (sync) Groq SDK call in a worker thread so it never blocks the
-    event loop.
+    Gemini's native audio understanding — supports Kannada and English in the
+    same model, replacing Groq Whisper. The genai client is natively async, so
+    unlike the old sync-Groq-SDK-in-a-worker-thread approach, this call runs
+    directly on the event loop with no thread offload needed.
     """
 
     method = ExtractionMethod.TRANSCRIPTION
 
     async def extract(self, file_path: Path) -> Dict[str, Any]:
-        import asyncio
-
-        try:
-            return await asyncio.to_thread(self._transcribe_sync, file_path)
-        except Exception as exc:
-            return {"confidence": 0.0, "extraction_error": str(exc)}
-
-    @staticmethod
-    def _transcribe_sync(file_path: Path) -> Dict[str, Any]:
-        from groq import Groq
+        from google.genai import types
 
         from app.core.config import settings
+        from app.core.vertex_ai_client import get_genai_client
 
-        client = Groq(api_key=settings.GROQ_API_KEY)
-        with open(file_path, "rb") as audio_file:
-            response = client.audio.transcriptions.create(
-                file=(file_path.name, audio_file.read()),
-                model=settings.GROQ_WHISPER_MODEL,
-                language="kn",  # Whisper auto-detects within the language if this misses
-                response_format="verbose_json",
+        mime_type = "audio/mpeg" if file_path.suffix.lower() == ".mp3" else "audio/wav"
+        try:
+            response = await get_genai_client().aio.models.generate_content(
+                model=settings.GEMINI_MODEL_FAST,
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_bytes(data=file_path.read_bytes(), mime_type=mime_type),
+                            types.Part(text=(
+                                "Transcribe this audio verbatim. It may be in Kannada or English — "
+                                "preserve the original language. Return only the transcription, no commentary."
+                            )),
+                        ],
+                    )
+                ],
             )
-
-        return {
-            "confidence": 0.85,
-            "narrative_text": response.text,
-            "language": getattr(response, "language", "kn"),
-        }
+            return {
+                "confidence": 0.85,
+                "narrative_text": response.text,
+            }
+        except Exception as exc:
+            return {"confidence": 0.0, "extraction_error": str(exc)}
 
 
 class NewsHtmlExtractor(BaseExtractor):
