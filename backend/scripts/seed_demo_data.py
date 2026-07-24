@@ -23,7 +23,7 @@ and the district-isolation RLS policies correctly deny every insert otherwise
 import asyncio
 import os
 import uuid
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 import structlog
 from sqlalchemy import select
@@ -57,10 +57,12 @@ from app.models.enums import (
 from app.models.financial import FinancialTransaction
 from app.models.offender import CriminalHistory, RiskScore
 from app.models.person import Person, PersonCaseRole
+from app.models.socio import CrimeStatAggregate, SocioEconomicIndicator
 from app.models.unit import District, State, Unit, UnitType
 from app.models.user import User
 from app.core.graph_db import graph_db
 from app.services.graph_sync_service import GraphSyncService
+from app.services.analytics.gwr import compute_all_districts_gwr
 
 log = structlog.get_logger(__name__)
 
@@ -125,12 +127,39 @@ async def seed() -> None:
 
     async with admin_session_factory() as session:
         state = await _get_or_create(session, State, name="Karnataka", defaults={"code": "KA"})
-        bengaluru = await _get_or_create(
-            session, District, name="Bengaluru Urban", state_id=state.id, defaults={"code": "BLR"}
-        )
-        mysuru = await _get_or_create(
-            session, District, name="Mysuru", state_id=state.id, defaults={"code": "MYS"}
-        )
+        
+        districts_data = [
+            ("Bengaluru Urban", "BLR", 88.7, 7.2, 90.5, 954.0, 0.68),
+            ("Mysuru", "MYS", 82.3, 5.8, 41.5, 982.0, 0.42),
+            ("Belagavi", "BGM", 73.5, 6.4, 25.3, 970.0, 0.58),
+            ("Mangaluru", "MNR", 88.9, 4.9, 47.6, 1020.0, 0.35),
+            ("Kalaburagi", "KLB", 65.2, 8.1, 32.7, 971.0, 0.72),
+            ("Hubballi-Dharwad", "HBL", 80.1, 6.9, 58.2, 968.0, 0.54),
+            ("Shivamogga", "SMG", 80.5, 5.2, 35.6, 995.0, 0.40),
+            ("Ballari", "BLI", 67.4, 7.8, 37.5, 983.0, 0.65),
+        ]
+        district_objs = {}
+        for name, code, lit, unemp, urb, sex, stress in districts_data:
+            d = await _get_or_create(session, District, name=name, state_id=state.id, defaults={"code": code})
+            district_objs[name] = d
+            for yr in range(2021, 2026):
+                await _get_or_create(
+                    session,
+                    SocioEconomicIndicator,
+                    district_id=d.id,
+                    year=yr,
+                    defaults={
+                        "literacy_rate": round(lit + (yr - 2021) * 0.4, 2),
+                        "unemployment_rate": round(max(2.0, unemp + (yr - 2021) * 0.2), 2),
+                        "urbanization_pct": round(urb + (yr - 2021) * 0.8, 2),
+                        "population_density": 450.0,
+                        "sex_ratio": sex,
+                        "composite_stress_index": stress,
+                    },
+                )
+
+        bengaluru = district_objs["Bengaluru Urban"]
+        mysuru = district_objs["Mysuru"]
 
         station_type = await _get_or_create(session, UnitType, name="Police Station", defaults={"hierarchy_level": 3})
         circle_type = await _get_or_create(session, UnitType, name="Circle", defaults={"hierarchy_level": 2})
@@ -157,6 +186,22 @@ async def seed() -> None:
         section = await _get_or_create(session, Section, act_id=act.id, section_number="379", defaults={"description": "Theft"})
         case_status = await _get_or_create(session, CaseStatusMaster, status_name="Under Investigation")
 
+        # Seed CrimeStatAggregate per district per year
+        for d_name, d_obj in district_objs.items():
+            base_count = 150 if "Bengaluru" in d_name else (90 if "Hubballi" in d_name or "Mangaluru" in d_name else 60)
+            for yr in range(2021, 2026):
+                await _get_or_create(
+                    session,
+                    CrimeStatAggregate,
+                    district_id=d_obj.id,
+                    year=yr,
+                    crime_head_id=crime_head.id,
+                    defaults={
+                        "count": base_count + (yr - 2021) * 12,
+                        "chi_weighted_count": (base_count + (yr - 2021) * 12) * 2.2,
+                    },
+                )
+
         await _seed_users(session, bengaluru.id, blr_station.id)
         case, person_a, person_b, victim, document = await _seed_primary_case(
             session, blr_station.id, bengaluru.id, crime_head.id, crime_sub_head.id, gravity.id,
@@ -165,8 +210,14 @@ async def seed() -> None:
         await _seed_secondary_case(session, mys_station.id, mysuru.id, crime_head.id, crime_sub_head.id, gravity.id, case_status.id)
 
         await session.commit()
-
         await _sync_to_graph(case, person_a, person_b, victim, document)
+
+        # Trigger GWR run so coefficients exist in DB
+        try:
+            await compute_all_districts_gwr(session)
+        except Exception as err:
+            log.warning("GWR computation during seed skipped or failed", error=str(err))
+
 
     await admin_engine.dispose()
     await graph_db.close()
@@ -220,15 +271,15 @@ async def _seed_primary_case(
         return case, person_a, person_b, victim, document
 
     person_a = Person(
-        full_name="Manjunath Gowda", sex=Sex.MALE,
+        full_name="Manjunath Gowda", sex=Sex.MALE, date_of_birth=date(_TODAY.year - 28, 6, 15),
         permanent_address="12 MG Road, Bengaluru", present_address="12 MG Road, Bengaluru", human_verified=True,
     )
     person_b = Person(
-        full_name="Naveen Reddy", sex=Sex.MALE,
+        full_name="Naveen Reddy", sex=Sex.MALE, date_of_birth=date(_TODAY.year - 34, 3, 22),
         permanent_address="45 Brigade Road, Bengaluru", present_address="45 Brigade Road, Bengaluru", human_verified=True,
     )
     victim = Person(
-        full_name="Ashwin Rao", sex=Sex.MALE,
+        full_name="Ashwin Rao", sex=Sex.MALE, date_of_birth=date(_TODAY.year - 52, 11, 3),
         permanent_address="9 Church Street, Bengaluru", present_address="9 Church Street, Bengaluru", human_verified=True,
     )
     session.add_all([person_a, person_b, victim])
@@ -240,6 +291,7 @@ async def _seed_primary_case(
         district_id=district_id,
         incident_from_date=_TODAY - timedelta(days=14),
         date_reported=_TODAY - timedelta(days=14),
+        incident_time=time(23, 15),
         latitude=12.9716,
         longitude=77.6412,
         crime_head_id=crime_head_id,
@@ -325,6 +377,7 @@ async def _seed_secondary_case(session, unit_id, district_id, crime_head_id, cri
         district_id=district_id,
         incident_from_date=_TODAY - timedelta(days=5),
         date_reported=_TODAY - timedelta(days=5),
+        incident_time=time(2, 40),
         crime_head_id=crime_head_id,
         crime_sub_head_id=crime_sub_head_id,
         gravity_offence_id=gravity_id,
@@ -335,6 +388,19 @@ async def _seed_secondary_case(session, unit_id, district_id, crime_head_id, cri
     session.add(case)
     await session.flush()
     session.add(CaseStageEvent(case_id=case.id, stage=CaseStage.REGISTERED, event_date=_TODAY - timedelta(days=5), confidence=1.0))
+
+    # A second victim in a different age cohort/gender — otherwise the real
+    # victim-demographics computation (socio_insights.get_victim_demographics)
+    # has exactly one data point statewide, which is technically correct but
+    # not demonstrable as a real cohort breakdown.
+    victim2 = Person(
+        full_name="Lakshmi Devi", sex=Sex.FEMALE, date_of_birth=date(_TODAY.year - 63, 8, 9),
+        permanent_address="Devaraja Market Road, Mysuru", present_address="Devaraja Market Road, Mysuru",
+        human_verified=True,
+    )
+    session.add(victim2)
+    await session.flush()
+    session.add(PersonCaseRole(person_id=victim2.id, case_id=case.id, role=PersonRole.VICTIM))
 
 
 async def _sync_to_graph(case, person_a, person_b, victim, document) -> None:

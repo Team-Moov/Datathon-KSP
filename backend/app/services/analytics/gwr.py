@@ -28,7 +28,9 @@ import structlog
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.district_coords import DEFAULT_DISTRICT_COORDS
 from app.models.socio import CrimeStatAggregate, DistrictCompositeIndex, SocioEconomicIndicator
+from app.models.unit import District
 
 log = structlog.get_logger(__name__)
 
@@ -85,9 +87,24 @@ async def compute_all_districts_gwr(db: AsyncSession) -> Dict[str, Any]:
     ).all()
     centroids = {row.district_id: (float(row.lat), float(row.lon)) for row in centroid_rows}
 
+    # Case-derived centroids are preferred, but requiring them meant GWR could
+    # never clear MIN_DISTRICTS_FOR_FIT until every district had a geo-tagged
+    # case — which may never happen for most districts in a demo/early
+    # dataset. A district's approximate reference coordinate is a reasonable
+    # spatial-kernel input on its own (that's what these coordinates are for),
+    # so fall back to it rather than silently excluding the district from the
+    # regression entirely.
+    district_names = {
+        d.id: d.name
+        for d in (await db.execute(select(District.id, District.name))).all()
+    }
+
     observations: List[Dict[str, Any]] = []
     for indicator in indicator_rows:
         centroid = centroids.get(indicator.district_id)
+        if not centroid:
+            fallback_name = district_names.get(indicator.district_id)
+            centroid = DEFAULT_DISTRICT_COORDS.get(fallback_name) if fallback_name else None
         if not centroid or any(getattr(indicator, col) is None for col in _FACTOR_COLUMNS):
             continue
 

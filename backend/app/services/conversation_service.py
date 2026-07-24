@@ -29,6 +29,7 @@ from app.services.analytics.hawkes_forecast import HawkesETASService
 from app.services.analytics.risk_profiling import RiskProfilingService
 from app.services.analytics.financial_crime import FinancialCrimeService
 from app.services.analytics.socio_insights import SocioInsightsService
+from app.services.analytics.temporal_trends import TemporalTrendsService
 from app.services.investigator_support import InvestigatorSupportService
 
 log = structlog.get_logger(__name__)
@@ -144,10 +145,30 @@ _FOLLOWUP_SUGGESTIONS: Dict[str, List[Dict[str, str]]] = {
     "forecast_hotspots": [
         {"label": "Socio-economic drivers", "query": "Show the socio-economic stress indicators for that district."},
         {"label": "GWR drivers", "query": "Which local factors predict crime harm most strongly in that district?"},
+        {"label": "Surveillance priorities", "query": "Rank the surveillance priority checkpoints for that district and crime type."},
+        {"label": "Temporal patterns", "query": "Show the day-of-week and monthly trend for that district."},
+    ],
+    "get_temporal_trends": [
+        {"label": "Spatial hotspots", "query": "Forecast crime hotspots for that district next week."},
+    ],
+    "get_surveillance_priorities": [
+        {"label": "MO clusters", "query": "Find MO linkage clusters for that crime type."},
     ],
     "get_socio_indicators": [
         {"label": "GWR map", "query": "Show the statewide GWR map of crime-harm predictors."},
         {"label": "Forecast hotspots", "query": "Forecast crime hotspots for that district next week."},
+    ],
+    "get_districts": [
+        {"label": "Compare correlations", "query": "What socio-economic factors correlate most with crime harm statewide?"},
+    ],
+    "get_victim_demographics": [
+        {"label": "Policy recommendations", "query": "What policy recommendations exist for that district?"},
+    ],
+    "get_urbanization_impact": [
+        {"label": "Correlation matrix", "query": "What correlates most with crime harm statewide?"},
+    ],
+    "get_policy_recommendations": [
+        {"label": "Victim demographics", "query": "Show victim demographics for that district."},
     ],
     "get_case_workspace": [
         {"label": "Generate case brief", "query": "Generate a full case brief for that case."},
@@ -236,6 +257,7 @@ class ConversationService:
         self.financial_svc = FinancialCrimeService(db)
         self.socio_svc = SocioInsightsService(db)
         self.investigator_svc = InvestigatorSupportService(db)
+        self.temporal_svc = TemporalTrendsService(db)
 
     async def chat(
         self,
@@ -477,6 +499,11 @@ class ConversationService:
             ),
             "get_gwr_coefficients": lambda: self.socio_svc.get_gwr_outputs(args["district_id"]),
             "get_gwr_map": lambda: self.socio_svc.get_all_districts_latest_gwr(),
+            "get_districts": lambda: self.socio_svc.get_all_districts(),
+            "get_socio_correlations": lambda: self.socio_svc.get_correlation_matrix(),
+            "get_victim_demographics": lambda: self.socio_svc.get_victim_demographics(args.get("district_id")),
+            "get_urbanization_impact": lambda: self.socio_svc.get_urbanization_impact(),
+            "get_policy_recommendations": lambda: self.socio_svc.get_policy_recommendations(args["district_id"]),
             "get_case_workspace": lambda: self._get_case_workspace_tool(args["case_id"]),
             "extract_document_text": lambda: self._extract_document_text_tool(args["document_id"]),
             "extract_entities": lambda: self._extract_entities_tool(args["text"]),
@@ -488,6 +515,17 @@ class ConversationService:
             ),
             "get_mo_linkage_clusters": lambda: self.hawkes_svc.get_mo_linkage_clusters(
                 crime_head_id=args["crime_head_id"], min_similarity=args.get("min_similarity", 0.7)
+            ),
+            "get_crime_heads": lambda: self.hawkes_svc.get_crime_heads(),
+            "get_temporal_trends": lambda: self.temporal_svc.get_temporal_trends(
+                district_id=args["district_id"], crime_head_id=args.get("crime_head_id")
+            ),
+            "get_surveillance_priorities": lambda: self.hawkes_svc.get_surveillance_priorities(
+                district_id=args["district_id"],
+                crime_head_id=args["crime_head_id"],
+                target_date=__import__("datetime").date.fromisoformat(args["target_date"]),
+                top_n=args.get("top_n", 10),
+                district_stress_index=args.get("stress_index"),
             ),
         }
         handler = dispatch.get(tool_name)
@@ -737,11 +775,19 @@ class ConversationService:
             "get_crime_stats": "crime_stats_trend",
             "get_gwr_coefficients": "gwr_coefficients",
             "get_gwr_map": "gwr_map",
+            "get_districts": "district_list",
+            "get_socio_correlations": "socio_correlation_matrix",
+            "get_victim_demographics": "victim_demographics",
+            "get_urbanization_impact": "urbanization_impact",
+            "get_policy_recommendations": "policy_recommendations",
             "get_case_workspace": "case_workspace",
             "extract_entities": "entities_list",
             "generate_case_brief": "case_timeline",
             "get_active_alerts": "alerts_list",
             "get_mo_linkage_clusters": "mo_linkage_clusters",
+            "get_crime_heads": "crime_head_list",
+            "get_temporal_trends": "temporal_trends",
+            "get_surveillance_priorities": "surveillance_priorities",
         }
         widget_type = widget_map.get(tool_name)
         if widget_type:
@@ -827,10 +873,30 @@ class ConversationService:
             },
             {
                 "name": "forecast_hotspots",
-                "description": "Hawkes/ETAS crime hotspot forecast for a district and crime type",
+                "description": "Hawkes/ETAS crime hotspot forecast for a district and crime type — per-cell predicted_rate decomposed into background_component (chronic socio-economic baseline) and near_repeat_component (acute recent-activity spike). Use get_districts and get_crime_heads first to resolve names to IDs — never guess a district_id or crime_head_id.",
                 "parameters": {"type": "object", "properties": {
                     "district_id": {"type": "integer"}, "crime_head_id": {"type": "integer"},
                     "target_date": {"type": "string"}, "stress_index": {"type": "number"},
+                }, "required": ["district_id", "crime_head_id", "target_date"]},
+            },
+            {
+                "name": "get_crime_heads",
+                "description": "List every crime category (crime head) with its id and name. Use this to resolve a crime type name (e.g. 'vehicle theft', 'cybercrime') to a crime_head_id before calling any tool that needs one — never guess a crime_head_id.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "get_temporal_trends",
+                "description": "Real day-of-week and monthly seasonality breakdown for a district (optionally filtered to a crime type), computed from actual case dates. Also returns an hour-of-day breakdown with an honest coverage percentage — most historical cases have no recorded time-of-day, so hour-of-day may be empty or partial; always mention the coverage percentage if you cite hour-of-day.",
+                "parameters": {"type": "object", "properties": {
+                    "district_id": {"type": "integer"}, "crime_head_id": {"type": "integer"},
+                }, "required": ["district_id"]},
+            },
+            {
+                "name": "get_surveillance_priorities",
+                "description": "Top-N highest-risk grid cells from the real hotspot forecast, ranked and labeled as surveillance priority checkpoints with a chronic-vs-acute breakdown. This is a data-driven priority ranking, NOT a patrol shift roster or named-officer schedule — no such data exists in this system, so never present it as an assignable schedule.",
+                "parameters": {"type": "object", "properties": {
+                    "district_id": {"type": "integer"}, "crime_head_id": {"type": "integer"},
+                    "target_date": {"type": "string"}, "top_n": {"type": "integer"}, "stress_index": {"type": "number"},
                 }, "required": ["district_id", "crime_head_id", "target_date"]},
             },
             {
@@ -881,6 +947,31 @@ class ConversationService:
                 "name": "get_gwr_map",
                 "description": "Get the latest GWR coefficients for every district at once, with centroid coordinates, for a statewide map view",
                 "parameters": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "get_districts",
+                "description": "List every Karnataka district with its id, code, and latest composite stress score, literacy, unemployment, and urbanization readings. Use this to resolve a district name to a district_id before calling any tool that needs one — never guess a district_id.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "get_socio_correlations",
+                "description": "Statewide empirical Pearson correlation (r and p-value) between socio-economic factors (unemployment, urbanization, literacy, composite stress) and crime — both raw incident counts and CHI-weighted harm. Use this to answer 'what correlates with crime' or 'why does CHI weighting matter' questions.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "get_victim_demographics",
+                "description": "Aggregate victim age-cohort, gender, and crime-category breakdown for resource-allocation planning. Place-level aggregate only — never returns individual victim records. Omit district_id for a statewide aggregate.",
+                "parameters": {"type": "object", "properties": {"district_id": {"type": "integer"}}},
+            },
+            {
+                "name": "get_urbanization_impact",
+                "description": "Urbanization growth vs. crime-velocity trend for every district with multi-year data — which districts are urbanizing fastest and how crime is shifting alongside it (Social Disorganization Theory).",
+                "parameters": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "get_policy_recommendations",
+                "description": "Automated, criminologically-grounded preventive policy recommendations for a district, driven by its real unemployment/urbanization/literacy/stress readings — priority-ranked with theoretical grounding and expected impact.",
+                "parameters": {"type": "object", "properties": {"district_id": {"type": "integer"}}, "required": ["district_id"]},
             },
             {
                 "name": "extract_document_text",

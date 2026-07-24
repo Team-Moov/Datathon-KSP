@@ -108,6 +108,108 @@ class HawkesETASService:
         )
         return results
 
+    async def get_surveillance_priorities(
+        self,
+        district_id: int,
+        crime_head_id: int,
+        target_date: date,
+        top_n: int = 10,
+        district_stress_index: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Ranks the real Hawkes/ETAS forecast's grid cells by predicted rate and
+        returns the top N as surveillance priority checkpoints.
+
+        Deliberately NOT a patrol shift roster or named-unit dispatch
+        schedule — no beat/shift/checkpost/coverage-area data model exists
+        anywhere in this schema to honestly base one on (checked: Unit only
+        has a station/circle/district hierarchy, no geometry or roster
+        fields). This ranks and labels real forecast output; it invents no
+        new numbers and assigns no real officer or unit to anything.
+        """
+        results = await self.forecast(
+            district_id=district_id,
+            crime_head_id=crime_head_id,
+            target_date=target_date,
+            district_stress_index=district_stress_index,
+        )
+        if not results:
+            return {
+                "status": "insufficient_data",
+                "target_date": str(target_date),
+                "checkpoints": [],
+                "chronic_vs_acute": None,
+            }
+
+        # Tie-break on near_repeat_component: params.mu (the background rate)
+        # is a single constant applied uniformly across the whole grid, not
+        # spatially varying, so when near-repeat is 0 in most cells (typical
+        # away from very recent incidents), many cells genuinely tie on
+        # predicted_rate — surface the ones with real recent-activity signal
+        # first rather than leaving the tie order to grid-generation order.
+        ranked = sorted(
+            results, key=lambda r: (r.predicted_rate, r.near_repeat_component), reverse=True
+        )
+        top = ranked[:top_n]
+        max_rate = ranked[0].predicted_rate if ranked else 0.0
+
+        def _tier(rate: float) -> str:
+            if max_rate <= 0:
+                return "Low"
+            ratio = rate / max_rate
+            if ratio >= 0.66:
+                return "High"
+            if ratio >= 0.33:
+                return "Medium"
+            return "Low"
+
+        checkpoints = [
+            {
+                "rank": i + 1,
+                "lat": r.cell.lat_center,
+                "lng": r.cell.lng_center,
+                "predicted_rate": r.predicted_rate,
+                "background_component": r.background_component,
+                "near_repeat_component": r.near_repeat_component,
+                "priority_tier": _tier(r.predicted_rate),
+                "dominant_driver": (
+                    "Chronic (socio-economic baseline)"
+                    if r.background_component >= r.near_repeat_component
+                    else "Acute (recent near-repeat activity)"
+                ),
+            }
+            for i, r in enumerate(top)
+        ]
+
+        total_bg = sum(r.background_component for r in results)
+        total_nr = sum(r.near_repeat_component for r in results)
+        total = total_bg + total_nr
+        chronic_vs_acute = (
+            {
+                "chronic_pct": round(total_bg / total * 100, 1),
+                "acute_pct": round(total_nr / total * 100, 1),
+            }
+            if total > 0
+            else None
+        )
+
+        return {
+            "status": "ok",
+            "target_date": str(target_date),
+            "total_cells_forecast": len(results),
+            "checkpoints": checkpoints,
+            "chronic_vs_acute": chronic_vs_acute,
+        }
+
+    async def get_crime_heads(self) -> List[Dict[str, Any]]:
+        """Reference list for the trends page's crime-category selector — no
+        equivalent existed anywhere before (only ever queried directly by
+        offline ETL scripts, never through an API endpoint)."""
+        from app.models.case import CrimeHead
+
+        rows = (await self.db.execute(select(CrimeHead).order_by(CrimeHead.name))).scalars().all()
+        return [{"id": r.id, "name": r.name, "code": r.code} for r in rows]
+
     async def get_mo_linkage_clusters(
         self,
         crime_head_id: int,

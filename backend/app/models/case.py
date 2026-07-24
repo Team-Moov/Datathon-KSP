@@ -5,7 +5,7 @@ with additions for poly-store integration (CaseStageEvent).
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import List, Optional
 
 from sqlalchemy import (
@@ -18,6 +18,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    Time,
     func,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
@@ -102,6 +103,12 @@ class CaseMaster(Base):
     incident_from_date: Mapped[Optional[date]] = mapped_column(Date)
     incident_to_date: Mapped[Optional[date]] = mapped_column(Date)
     date_reported: Mapped[Optional[date]] = mapped_column(Date, index=True)
+    incident_time: Mapped[Optional[time]] = mapped_column(Time)
+    """Time-of-occurrence — the real IIF-1 FIR form has this field, but nothing
+    in this schema captured it until now, which is why no hour-of-day analytics
+    were possible. Nullable: never backfilled/guessed for historical cases,
+    only ever set going forward when a source actually reports it (manual
+    entry, or future OCR/NER extraction of the FIR's stated time field)."""
 
     # Geography (from real schema)
     latitude: Mapped[Optional[float]] = mapped_column(Numeric(10, 7))

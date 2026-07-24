@@ -14,6 +14,16 @@ import type { AlertListItem } from "@/components/charts/AlertsList"
 import type { MoLinkageCluster } from "@/components/charts/MoLinkageList"
 import type { PersonSearchResult } from "@/components/charts/PersonSearchResultsList"
 import type { PersonAccount } from "@/features/financial/financialApi"
+import type {
+  DistrictOption,
+  PolicyRecommendationsResponse,
+  SocioCorrelationResponse,
+  UrbanizationImpactItem,
+  VictimDemographicsData,
+} from "@/features/socio/socioApi"
+import type { CrimeHeadOption } from "@/components/charts/CrimeHeadListCard"
+import type { TemporalTrendsData } from "@/components/charts/TemporalTrendsChart"
+import type { SurveillancePrioritiesData } from "@/components/charts/SurveillancePriorityList"
 import type { WidgetEntry } from "./useChatSession"
 
 const NetworkGraph = React.lazy(() => import("@/components/charts/NetworkGraph").then((m) => ({ default: m.NetworkGraph })))
@@ -49,6 +59,30 @@ const PersonSearchResultsList = React.lazy(() =>
 const FinancialAccountsList = React.lazy(() =>
   import("@/components/charts/FinancialAccountsList").then((m) => ({ default: m.FinancialAccountsList })),
 )
+const DistrictListCard = React.lazy(() =>
+  import("@/components/charts/DistrictListCard").then((m) => ({ default: m.DistrictListCard })),
+)
+const CrimeHeadListCard = React.lazy(() =>
+  import("@/components/charts/CrimeHeadListCard").then((m) => ({ default: m.CrimeHeadListCard })),
+)
+const TemporalTrendsChart = React.lazy(() =>
+  import("@/components/charts/TemporalTrendsChart").then((m) => ({ default: m.TemporalTrendsChart })),
+)
+const SurveillancePriorityList = React.lazy(() =>
+  import("@/components/charts/SurveillancePriorityList").then((m) => ({ default: m.SurveillancePriorityList })),
+)
+const SocioCorrelationMatrix = React.lazy(() =>
+  import("@/components/charts/SocioCorrelationMatrix").then((m) => ({ default: m.SocioCorrelationMatrix })),
+)
+const VictimDemographicsChart = React.lazy(() =>
+  import("@/components/charts/VictimDemographicsChart").then((m) => ({ default: m.VictimDemographicsChart })),
+)
+const UrbanizationImpactChart = React.lazy(() =>
+  import("@/components/charts/UrbanizationImpactChart").then((m) => ({ default: m.UrbanizationImpactChart })),
+)
+const PolicyRecommendationsCard = React.lazy(() =>
+  import("@/components/charts/PolicyRecommendationsCard").then((m) => ({ default: m.PolicyRecommendationsCard })),
+)
 
 interface SocioIndicatorRow {
   year: number
@@ -82,6 +116,26 @@ function isCaseBriefPayload(data: unknown): data is CaseBrief {
 
 function isCaseWorkspacePayload(data: unknown): data is CaseWorkspaceSummary {
   return typeof data === "object" && data !== null && "people" in data && "case" in data
+}
+
+function isSocioCorrelationPayload(data: unknown): data is SocioCorrelationResponse {
+  return typeof data === "object" && data !== null && "correlations" in data
+}
+
+function isVictimDemographicsPayload(data: unknown): data is VictimDemographicsData {
+  return typeof data === "object" && data !== null && "age_groups" in data
+}
+
+function isPolicyRecommendationsPayload(data: unknown): data is PolicyRecommendationsResponse {
+  return typeof data === "object" && data !== null && "recommendations" in data
+}
+
+function isTemporalTrendsPayload(data: unknown): data is TemporalTrendsData {
+  return typeof data === "object" && data !== null && "day_of_week" in data
+}
+
+function isSurveillancePrioritiesPayload(data: unknown): data is SurveillancePrioritiesData {
+  return typeof data === "object" && data !== null && "checkpoints" in data
 }
 
 function isEntitiesPayload(data: unknown): data is { entities: ExtractedEntity[] } {
@@ -168,6 +222,70 @@ function ChatWidgetRenderer({
     return (
       <WidgetFrame label="Linked financial accounts">
         <FinancialAccountsList accounts={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "district_list" && isArrayPayload<DistrictOption>(widget.data)) {
+    return (
+      <WidgetFrame label="Districts">
+        <DistrictListCard districts={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "socio_correlation_matrix" && isSocioCorrelationPayload(widget.data)) {
+    return (
+      <WidgetFrame label="Statistical correlation matrix">
+        <SocioCorrelationMatrix data={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "victim_demographics" && isVictimDemographicsPayload(widget.data)) {
+    return (
+      <WidgetFrame label="Victim demographics">
+        <VictimDemographicsChart data={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "urbanization_impact" && isArrayPayload<UrbanizationImpactItem>(widget.data)) {
+    return (
+      <WidgetFrame label="Urbanization vs. crime velocity">
+        <UrbanizationImpactChart data={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "policy_recommendations" && isPolicyRecommendationsPayload(widget.data)) {
+    return (
+      <WidgetFrame label="Policy recommendations">
+        <PolicyRecommendationsCard data={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "crime_head_list" && isArrayPayload<CrimeHeadOption>(widget.data)) {
+    return (
+      <WidgetFrame label="Crime categories">
+        <CrimeHeadListCard crimeHeads={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "temporal_trends" && isTemporalTrendsPayload(widget.data)) {
+    return (
+      <WidgetFrame label="Temporal & seasonal trends">
+        <TemporalTrendsChart data={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "surveillance_priorities" && isSurveillancePrioritiesPayload(widget.data)) {
+    return (
+      <WidgetFrame label="Surveillance priority checkpoints">
+        <SurveillancePriorityList data={widget.data} />
       </WidgetFrame>
     )
   }

@@ -30,8 +30,21 @@ async def _step_0001_baseline(conn) -> None:
     return
 
 
+async def _step_0002_add_incident_time(conn) -> None:
+    """
+    CaseMaster never captured time-of-occurrence, only date — the real IIF-1
+    FIR form has this field, but it was never modeled here, so hour-of-day
+    crime analytics were never possible. Nullable, never backfilled: existing
+    rows stay NULL, only newly-created/edited cases populate it going forward.
+    """
+    await conn.execute(
+        text("ALTER TABLE case_master ADD COLUMN IF NOT EXISTS incident_time TIME")
+    )
+
+
 UPGRADE_STEPS: List[Tuple[int, Callable[..., Awaitable[None]]]] = [
     (1, _step_0001_baseline),
+    (2, _step_0002_add_incident_time),
 ]
 
 

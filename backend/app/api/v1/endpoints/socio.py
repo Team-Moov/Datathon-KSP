@@ -70,3 +70,51 @@ async def get_gwr_map(
     choropleth — this platform has no district-boundary geometry).
     """
     return await SocioInsightsService(db).get_all_districts_latest_gwr()
+
+
+@router.get("/districts", response_model=List[Dict[str, Any]])
+async def get_all_districts(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.VIEW_AGGREGATE_ANALYTICS)),
+):
+    """List all Karnataka districts with stress scores and centroid coordinates."""
+    return await SocioInsightsService(db).get_all_districts()
+
+
+@router.get("/correlations", response_model=Dict[str, Any])
+async def get_socio_correlations(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.VIEW_AGGREGATE_ANALYTICS)),
+):
+    """Statewide correlation matrix: Socio-economic indicators vs CHI-weighted harm vs Raw counts."""
+    return await SocioInsightsService(db).get_correlation_matrix()
+
+
+@router.get("/demographics/victims", response_model=Dict[str, Any])
+async def get_victim_demographics(
+    district_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.VIEW_AGGREGATE_ANALYTICS)),
+):
+    """Aggregate victim socio-demographics for police resource planning."""
+    return await SocioInsightsService(db).get_victim_demographics(district_id)
+
+
+@router.get("/urbanization-impact", response_model=List[Dict[str, Any]])
+async def get_urbanization_impact(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.VIEW_AGGREGATE_ANALYTICS)),
+):
+    """Urbanization growth vs crime trend velocity analysis."""
+    return await SocioInsightsService(db).get_urbanization_impact()
+
+
+@router.get("/policy-recommendations/{district_id}", response_model=Dict[str, Any])
+async def get_policy_recommendations(
+    district_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.VIEW_AGGREGATE_ANALYTICS)),
+):
+    """Automated criminological diagnostic & policy intervention recommendations for a district."""
+    return await SocioInsightsService(db).get_policy_recommendations(district_id)
+
