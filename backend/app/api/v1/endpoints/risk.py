@@ -32,7 +32,7 @@ async def compute_risk_score(
     if score is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Risk score blocked — criminal history not human-verified or person not found",
+            detail="Risk score unavailable. Either the criminal history is not human-verified, or the offline ML pipeline hasn't generated a score for this person yet.",
         )
 
     db.add(score)

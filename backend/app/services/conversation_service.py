@@ -156,6 +156,9 @@ _FOLLOWUP_SUGGESTIONS: Dict[str, List[Dict[str, str]]] = {
     "generate_case_brief": [
         {"label": "Open case workspace", "query": "Open the full case workspace for that case."},
     ],
+    "get_financial_accounts": [
+        {"label": "Run financial scan", "query": "Run a full financial-crime scan on those accounts."},
+    ],
     "run_financial_scan": [
         {"label": "Layering cycles", "query": "Detect layering cycles across the flagged accounts."},
         {"label": "Organized clusters", "query": "Group the flagged accounts into organized clusters."},
@@ -456,6 +459,9 @@ class ConversationService:
             "compute_risk_score": lambda: self._compute_risk_score_tool(
                 args["person_id"], args.get("role", "INVESTIGATOR")
             ),
+            "get_financial_accounts": lambda: self.financial_svc.get_accounts_for_person(
+                UUID(args["person_id"])
+            ),
             "detect_financial_structuring": lambda: self.financial_svc.detect_structuring(args["account"]),
             "detect_funnel_account": lambda: self.financial_svc.detect_funnel_account(args["account"]),
             "detect_financial_cycles": lambda: self.financial_svc.detect_cycles_in_graph(),
@@ -532,7 +538,13 @@ class ConversationService:
         """
         score = await self.risk_svc.compute_risk_score(UUID(person_id), role)
         if score is None:
-            return {"error": "Risk score blocked — criminal history not human-verified, or person not found"}
+            return {
+                "error": (
+                    "Risk score unavailable. Either the criminal history is not "
+                    "human-verified, or the offline ML pipeline hasn't generated a "
+                    "score for this person yet."
+                )
+            }
 
         self.db.add(score)
         await self.db.flush()
@@ -715,6 +727,7 @@ class ConversationService:
             "get_multi_jurisdiction_offenders": "multi_jurisdiction_offenders",
             "forecast_hotspots": "hotspot_map",
             "compute_risk_score": "risk_profile_card",
+            "get_financial_accounts": "financial_accounts_list",
             "detect_financial_structuring": "flow_diagram",
             "detect_funnel_account": "flow_diagram",
             "detect_financial_cycles": "flow_diagram",
@@ -797,8 +810,19 @@ class ConversationService:
                 "parameters": {"type": "object", "properties": {}},
             },
             {
+                "name": "get_financial_accounts",
+                "description": (
+                    "List the bank accounts linked to a person's transactions, with activity count and whether a "
+                    "typology alert already fired on each. This is the entry point for ANY financial question about "
+                    "a person ('give me financial info on X', 'does X have suspicious transactions') — call this "
+                    "FIRST to get real account numbers, then pass those into detect_financial_structuring / "
+                    "detect_funnel_account / run_financial_scan. Never guess an account number."
+                ),
+                "parameters": {"type": "object", "properties": {"person_id": {"type": "string"}}, "required": ["person_id"]},
+            },
+            {
                 "name": "detect_funnel_account",
-                "description": "Detect a funnel/mule account pattern (inflow burst, dormancy, then rapid outflow) for a given account",
+                "description": "Detect a funnel/mule account pattern (inflow burst, dormancy, then rapid outflow) for a given account. Get the account number from get_financial_accounts first if you only have a person.",
                 "parameters": {"type": "object", "properties": {"account": {"type": "string"}}, "required": ["account"]},
             },
             {
@@ -816,7 +840,7 @@ class ConversationService:
             },
             {
                 "name": "detect_financial_structuring",
-                "description": "Detect structuring/smurfing for an account",
+                "description": "Detect structuring/smurfing for an account. Get the account number from get_financial_accounts first if you only have a person.",
                 "parameters": {"type": "object", "properties": {"account": {"type": "string"}}, "required": ["account"]},
             },
             {
@@ -831,7 +855,7 @@ class ConversationService:
             },
             {
                 "name": "run_financial_scan",
-                "description": "Run every financial-crime detector (structuring, funnel account, layering cycles, organized clusters) over a given account list in one pass",
+                "description": "Run every financial-crime detector (structuring, funnel account, layering cycles, organized clusters) over a given account list in one pass. Get the account list from get_financial_accounts first if you only have a person.",
                 "parameters": {"type": "object", "properties": {"accounts": {"type": "array", "items": {"type": "string"}}}, "required": ["accounts"]},
             },
             {

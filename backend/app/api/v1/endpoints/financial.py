@@ -4,12 +4,10 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Query
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.permissions import Permission, require_permission
-from app.models.financial import FinancialTransaction
 from app.models.user import User
 from app.services.analytics.financial_crime import FinancialCrimeService
 
@@ -27,27 +25,10 @@ async def accounts_for_person(
     account identifier, an investigator picks a person and gets the accounts tied to
     them (via FinancialTransaction.linked_person_id), each with an activity count and
     whether a typology alert already fired — ready to hand straight to /scan.
+    Same lookup the get_financial_accounts chat tool uses (FinancialCrimeService).
     """
-    rows = (
-        await db.execute(
-            select(
-                FinancialTransaction.from_account,
-                FinancialTransaction.to_account,
-                FinancialTransaction.alert_type,
-            ).where(FinancialTransaction.linked_person_id == person_id)
-        )
-    ).all()
-
-    accounts: Dict[str, Dict[str, Any]] = {}
-    for from_account, to_account, alert_type in rows:
-        for account in (from_account, to_account):
-            if not account:
-                continue
-            entry = accounts.setdefault(account, {"account": account, "txn_count": 0, "flagged": False})
-            entry["txn_count"] += 1
-            if alert_type is not None:
-                entry["flagged"] = True
-    return sorted(accounts.values(), key=lambda a: (-a["txn_count"], a["account"]))
+    svc = FinancialCrimeService(db)
+    return await svc.get_accounts_for_person(person_id)
 
 
 @router.get("/structuring/{account}", response_model=Optional[Dict[str, Any]])

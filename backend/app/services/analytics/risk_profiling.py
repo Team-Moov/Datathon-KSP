@@ -75,6 +75,12 @@ class RiskProfilingService:
                 score=risk_row.score,
                 model_version=risk_row.model_version,
             )
-        return risk_row
+            return risk_row
+
+        log.info(
+            "No synced risk score for person — ML pipeline hasn't scored them yet",
+            person_id=str(person_id),
+        )
+        return None
 
 

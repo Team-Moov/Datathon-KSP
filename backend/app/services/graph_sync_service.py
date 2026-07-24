@@ -91,6 +91,65 @@ class GraphSyncService:
         )
         await invalidate_graph_cache()
 
+    async def sync_financial_transactions(self, transactions: List[Dict[str, Any]]) -> None:
+        """
+        Writes the Account-level TRANSACTED_WITH graph that
+        detect_cycles_in_graph/detect_organized_clusters actually query, plus
+        person-level FINANCIALLY_ASSOCIATED_WITH inference when two different
+        linked persons' transactions touch the same account (kept as a
+        distinct, weaker relationship type from the confirmed
+        Person-Person TRANSACTED_WITH edge upsert_financial_edge writes —
+        never conflate predicted/inferred with confirmed, per §4).
+        Mirrors scripts/seed_financial_transactions.py._sync_to_neo4j so
+        live-ingested and seeded transactions land in the same graph shape.
+        Each dict needs: id, from_account, to_account, amount,
+        transaction_date, and optionally linked_person_id.
+        """
+        from collections import defaultdict
+        from itertools import combinations
+
+        account_to_persons: Dict[str, set] = defaultdict(set)
+
+        for txn in transactions:
+            await graph_db.execute_query(
+                """
+                MERGE (a:Account {account_no: $from_acc})
+                MERGE (b:Account {account_no: $to_acc})
+                MERGE (a)-[r:TRANSACTED_WITH {transaction_id: $txn_id}]->(b)
+                SET r.amount = $amount, r.date = $date, r.updated_at = datetime()
+                """,
+                {
+                    "from_acc": txn["from_account"],
+                    "to_acc": txn["to_account"],
+                    "txn_id": str(txn["id"]),
+                    "amount": float(txn["amount"]),
+                    "date": str(txn["transaction_date"]),
+                },
+            )
+            pid = txn.get("linked_person_id")
+            if pid:
+                account_to_persons[txn["from_account"]].add(str(pid))
+                account_to_persons[txn["to_account"]].add(str(pid))
+
+        for account, people in account_to_persons.items():
+            if len(people) < 2:
+                continue
+            for p1, p2 in combinations(sorted(people), 2):
+                await graph_db.execute_query(
+                    """
+                    MERGE (a:Person {id: $p1})
+                    MERGE (b:Person {id: $p2})
+                    MERGE (a)-[r:FINANCIALLY_ASSOCIATED_WITH]-(b)
+                    SET r.shared_account = $account, r.evidence_type = 'financial',
+                        r.updated_at = datetime()
+                    """,
+                    {"p1": p1, "p2": p2, "account": account},
+                )
+
+        if transactions:
+            await invalidate_graph_cache()
+            log.info("Financial transactions synced to graph", count=len(transactions))
+
     async def get_person_network(
         self, person_id: str, depth: int = 2
     ) -> Dict[str, Any]:

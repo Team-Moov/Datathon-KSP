@@ -56,6 +56,32 @@ class FinancialCrimeService:
         self.db = db
 
     # ------------------------------------------------------------------ #
+    # The connective lookup: person -> accounts. Lets a caller (chat tool or
+    # REST) start from a person_id (which entity resolution/search already
+    # produces) instead of needing an opaque account string upfront -- that's
+    # the missing link that made the other detectors uncallable from a plain
+    # "give me financial info on X" question with no account number in hand.
+    # ------------------------------------------------------------------ #
+    async def get_accounts_for_person(self, person_id: UUID) -> List[Dict[str, Any]]:
+        stmt = select(
+            FinancialTransaction.from_account,
+            FinancialTransaction.to_account,
+            FinancialTransaction.alert_type,
+        ).where(FinancialTransaction.linked_person_id == person_id)
+        rows = (await self.db.execute(stmt)).all()
+
+        accounts: Dict[str, Dict[str, Any]] = {}
+        for from_account, to_account, alert_type in rows:
+            for account in (from_account, to_account):
+                if not account:
+                    continue
+                entry = accounts.setdefault(account, {"account": account, "txn_count": 0, "flagged": False})
+                entry["txn_count"] += 1
+                if alert_type is not None:
+                    entry["flagged"] = True
+        return sorted(accounts.values(), key=lambda a: (-a["txn_count"], a["account"]))
+
+    # ------------------------------------------------------------------ #
     # Structuring: fan-out from one source, legs under CTR threshold,
     # summing over it inside a rolling window -- per (from, to) pair, not
     # blended across every counterparty of the account.

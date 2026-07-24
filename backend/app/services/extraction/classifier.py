@@ -65,8 +65,33 @@ class DocumentClassifier:
             if any(kw in lower_name for kw in keywords):
                 return source_type, file_format
 
-        # CSV/XLSX default → aggregate stats
+        # CSV/XLSX with no filename hint — sniff the header row for a
+        # financial-transaction shape (account + amount columns) before
+        # falling back to the FIR/generic tabular path, since most real bank
+        # exports don't say "bank"/"transaction" in the filename.
         if file_format in (DocumentFormat.CSV, DocumentFormat.XLSX):
+            if await self._looks_financial(file_path, file_format):
+                return SourceType.FINANCIAL, file_format
             return SourceType.FIR, file_format  # will be disambiguated by schema validation
 
         return SourceType.FIR, file_format  # safe default — FIR pipeline is most general
+
+    @staticmethod
+    async def _looks_financial(file_path: Path, file_format: DocumentFormat) -> bool:
+        try:
+            if file_format == DocumentFormat.CSV:
+                import csv
+
+                with open(file_path, newline="", encoding="utf-8", errors="replace") as f:
+                    header = next(csv.reader(f), [])
+            else:
+                import pandas as pd
+
+                header = list(pd.read_excel(file_path, nrows=0).columns)
+        except Exception:
+            return False
+
+        lower = {str(h).strip().lower() for h in header}
+        has_account = any("account" in h for h in lower)
+        has_amount = any(h in ("amount", "amt", "value") or "amount" in h for h in lower)
+        return has_account and has_amount

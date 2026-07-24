@@ -16,7 +16,17 @@ class PersonRepository(BaseRepository[Person]):
         super().__init__(Person, db)
 
     async def search_by_name(self, query: str, limit: int = 20) -> List[Person]:
-        """Simple ILIKE name search — used as a pre-step for entity resolution."""
+        """Simple ILIKE name search — used as a pre-step for entity resolution.
+        Also supports searching by exact UUID if a valid UUID is passed."""
+        try:
+            from uuid import UUID as _UUID
+            query_uuid = _UUID(query)
+            stmt = select(Person).where(Person.id == query_uuid)
+            result = await self.db.execute(stmt)
+            return list(result.scalars().all())
+        except ValueError:
+            pass
+
         stmt = (
             select(Person)
             .where(Person.full_name.ilike(f"%{query}%"))

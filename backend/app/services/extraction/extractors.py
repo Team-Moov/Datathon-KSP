@@ -5,7 +5,7 @@ Each extractor is independently replaceable; the IngestionService just calls ext
 
 import abc
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from app.models.enums import DocumentFormat, ExtractionMethod, SourceType
 
@@ -128,6 +128,103 @@ class CsvExtractor(BaseExtractor):
             return {"confidence": 0.0, "extraction_error": str(exc)}
 
 
+class FinancialCsvExtractor(BaseExtractor):
+    """
+    Schema-validated load for bank/transaction statements (§9.1) — no LLM
+    needed, same philosophy as CsvExtractor. Normalizes varying real-world
+    column names (from/sender_account, txn_date, amt, ...) into
+    FinancialTransaction-shaped rows so a live upload actually reaches the
+    `financial_transaction` table the detectors query, instead of stopping at
+    a 'dataframe' key nothing downstream consumes.
+    """
+
+    method = ExtractionMethod.DIRECT_LOAD
+
+    _COLUMN_ALIASES: Dict[str, List[str]] = {
+        "from_account": ["from_account", "from", "sender_account", "debit_account", "source_account"],
+        "to_account": ["to_account", "to", "receiver_account", "credit_account", "dest_account", "destination_account"],
+        "amount": ["amount", "amt", "value", "txn_amount", "transaction_amount"],
+        "transaction_date": ["transaction_date", "date", "txn_date", "value_date"],
+        "currency": ["currency", "ccy"],
+        "transaction_type": ["transaction_type", "type", "mode", "txn_type"],
+        "linked_person_id": ["linked_person_id", "person_id"],
+        "linked_person_name": ["linked_person_name", "person_name", "account_holder", "name", "customer_name"],
+    }
+
+    async def extract(self, file_path: Path) -> Dict[str, Any]:
+        import pandas as pd
+
+        try:
+            if file_path.suffix.lower() in (".xlsx", ".xls"):
+                df = pd.read_excel(file_path)
+            else:
+                df = pd.read_csv(file_path)
+        except Exception as exc:
+            return {"confidence": 0.0, "extraction_error": str(exc)}
+
+        col_map = self._resolve_columns(df.columns)
+        required = ("from_account", "to_account", "amount", "transaction_date")
+        missing = [f for f in required if f not in col_map]
+        if missing:
+            return {
+                "confidence": 0.0,
+                "extraction_error": (
+                    f"Could not identify column(s) for {missing} in a financial "
+                    f"upload. Columns found: {list(df.columns)}"
+                ),
+            }
+
+        transactions: List[Dict[str, Any]] = []
+        skipped = 0
+        for _, row in df.iterrows():
+            try:
+                from_acc = str(row[col_map["from_account"]]).strip()
+                to_acc = str(row[col_map["to_account"]]).strip()
+                amount = float(row[col_map["amount"]])
+                txn_date = pd.to_datetime(row[col_map["transaction_date"]]).date()
+                if not from_acc or not to_acc or amount <= 0:
+                    skipped += 1
+                    continue
+            except (ValueError, TypeError, KeyError):
+                skipped += 1
+                continue
+
+            txn: Dict[str, Any] = {
+                "from_account": from_acc,
+                "to_account": to_acc,
+                "amount": amount,
+                "transaction_date": txn_date,
+            }
+            if "currency" in col_map and pd.notna(row[col_map["currency"]]):
+                txn["currency"] = str(row[col_map["currency"]]).strip()
+            if "transaction_type" in col_map and pd.notna(row[col_map["transaction_type"]]):
+                txn["transaction_type"] = str(row[col_map["transaction_type"]]).strip()
+            if "linked_person_id" in col_map and pd.notna(row[col_map["linked_person_id"]]):
+                txn["linked_person_id"] = str(row[col_map["linked_person_id"]]).strip()
+            elif "linked_person_name" in col_map and pd.notna(row[col_map["linked_person_name"]]):
+                txn["linked_person_name"] = str(row[col_map["linked_person_name"]]).strip()
+            transactions.append(txn)
+
+        confidence = 1.0 if transactions and skipped == 0 else (0.7 if transactions else 0.0)
+        return {
+            "confidence": confidence,
+            "transactions": transactions,
+            "rows_total": int(len(df)),
+            "rows_skipped": skipped,
+        }
+
+    @classmethod
+    def _resolve_columns(cls, columns) -> Dict[str, str]:
+        lower_cols = {str(c).strip().lower(): c for c in columns}
+        resolved: Dict[str, str] = {}
+        for field, aliases in cls._COLUMN_ALIASES.items():
+            for alias in aliases:
+                if alias in lower_cols:
+                    resolved[field] = lower_cols[alias]
+                    break
+        return resolved
+
+
 class AudioExtractor(BaseExtractor):
     """
     Gemini's native audio understanding — supports Kannada and English in the
@@ -195,6 +292,8 @@ _EXTRACTOR_MAP: Dict[tuple, type[BaseExtractor]] = {
     (SourceType.HISTORY_SHEET, DocumentFormat.PDF): HistorySheetExtractor,
     (SourceType.FIR, DocumentFormat.CSV): CsvExtractor,
     (SourceType.FIR, DocumentFormat.XLSX): CsvExtractor,
+    (SourceType.FINANCIAL, DocumentFormat.CSV): FinancialCsvExtractor,
+    (SourceType.FINANCIAL, DocumentFormat.XLSX): FinancialCsvExtractor,
     (SourceType.STATEMENT, DocumentFormat.WAV): AudioExtractor,
     (SourceType.STATEMENT, DocumentFormat.MP3): AudioExtractor,
     (SourceType.NEWS, DocumentFormat.HTML): NewsHtmlExtractor,

@@ -13,6 +13,7 @@ import type { ExtractedEntity } from "@/components/charts/EntitiesList"
 import type { AlertListItem } from "@/components/charts/AlertsList"
 import type { MoLinkageCluster } from "@/components/charts/MoLinkageList"
 import type { PersonSearchResult } from "@/components/charts/PersonSearchResultsList"
+import type { PersonAccount } from "@/features/financial/financialApi"
 import type { WidgetEntry } from "./useChatSession"
 
 const NetworkGraph = React.lazy(() => import("@/components/charts/NetworkGraph").then((m) => ({ default: m.NetworkGraph })))
@@ -44,6 +45,9 @@ const AlertsList = React.lazy(() => import("@/components/charts/AlertsList").the
 const MoLinkageList = React.lazy(() => import("@/components/charts/MoLinkageList").then((m) => ({ default: m.MoLinkageList })))
 const PersonSearchResultsList = React.lazy(() =>
   import("@/components/charts/PersonSearchResultsList").then((m) => ({ default: m.PersonSearchResultsList })),
+)
+const FinancialAccountsList = React.lazy(() =>
+  import("@/components/charts/FinancialAccountsList").then((m) => ({ default: m.FinancialAccountsList })),
 )
 
 interface SocioIndicatorRow {
@@ -156,6 +160,14 @@ function ChatWidgetRenderer({
     return (
       <WidgetFrame label="Matched persons">
         <PersonSearchResultsList results={widget.data} />
+      </WidgetFrame>
+    )
+  }
+
+  if (widget.widgetType === "financial_accounts_list" && isArrayPayload<PersonAccount>(widget.data)) {
+    return (
+      <WidgetFrame label="Linked financial accounts">
+        <FinancialAccountsList accounts={widget.data} />
       </WidgetFrame>
     )
   }
