@@ -112,7 +112,7 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: str = ""  # path to service-account JSON; google-genai picks this up via ADC automatically if set
     GEMINI_MODEL: str = "gemini-2.5-flash"            # tool-calling / planning (was GROQ_LLM_MODEL)
     GEMINI_MODEL_FAST: str = "gemini-2.5-flash-lite"  # cheap narration/claim-validation pass (was GROQ_LLM_MODEL_FAST)
-    GEMINI_LIVE_MODEL: str = "gemini-2.0-flash-live-preview-04-09"  # real-time duplex voice — verify current model id before deploying, Live model names churn
+    GEMINI_LIVE_MODEL: str = "gemini-live-2.5-flash-native-audio"  # real-time duplex voice — GA as of Dec 2025; old gemini-2.0-flash-live-preview-* IDs return 1008 policy violation
 
     # ── Embeddings — Vertex AI ──────────────────────────────────────────────────
     # output_dimensionality is pinned to EMBEDDING_DIM at call time (see

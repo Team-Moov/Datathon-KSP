@@ -1,6 +1,7 @@
 """Conversational AI streaming endpoint (§10)."""
 
 import asyncio
+import base64
 import json
 from typing import List
 
@@ -151,29 +152,80 @@ async def chat_voice_live(
 
     live_config = types.LiveConnectConfig(
         response_modalities=["AUDIO"],
-        system_instruction=system_instruction,
+        system_instruction=types.Content(
+            role="user",
+            parts=[types.Part(text=system_instruction)],
+        ),
         tools=svc._gemini_tools,
     )
 
-    async def relay_client_audio_to_gemini(session) -> None:
+    async def relay_client_audio_to_gemini(live_session) -> None:
+        """Read binary PCM frames from the browser WebSocket and stream them to Gemini."""
         while True:
             message = await websocket.receive()
             if message["type"] == "websocket.disconnect":
                 break
             audio_bytes = message.get("bytes")
             if audio_bytes:
-                await session.send_realtime_input(
-                    audio=types.Blob(data=audio_bytes, mime_type="audio/pcm;rate=16000")
+                await live_session.send(
+                    input=types.LiveClientRealtimeInput(
+                        media_chunks=[types.Blob(data=audio_bytes, mime_type="audio/pcm;rate=16000")]
+                    )
                 )
 
-    async def relay_gemini_to_client(session) -> None:
-        async for response in session.receive():
-            if response.data:
-                await websocket.send_bytes(response.data)
+    _audio_config_sent = False
+
+    async def relay_gemini_to_client(live_session) -> None:
+        """Read server messages from Gemini and forward audio/text/tool events to the browser."""
+        nonlocal _audio_config_sent
+        async for response in live_session.receive():
+            # ── Audio parts — iterate raw parts to get MIME type & avoid mixing blobs ──
+            server_content = response.server_content
+            if server_content and server_content.model_turn and server_content.model_turn.parts:
+                for part in server_content.model_turn.parts:
+                    if part.inline_data and isinstance(part.inline_data.data, bytes):
+                        # The Vertex AI Live API returns audio inline_data as base64-encoded
+                        # bytes (ASCII chars representing base64), NOT raw PCM bytes.
+                        # Sending base64 bytes directly to the browser as "PCM16" is the
+                        # root cause of static noise — decode first.
+                        raw_b64 = part.inline_data.data
+                        try:
+                            pcm_bytes = base64.b64decode(raw_b64)
+                        except Exception:
+                            pcm_bytes = raw_b64  # fallback: pass through if already raw
+                        mime = part.inline_data.mime_type or ""
+                        # Send audio config (sample rate) before the very first audio frame
+                        if not _audio_config_sent and ("audio" in mime or not mime):
+                            sample_rate = 24000  # Gemini Live native audio outputs 24kHz PCM16
+                            for segment in mime.replace(";", ",").split(","):
+                                segment = segment.strip()
+                                if segment.startswith("rate="):
+                                    try:
+                                        sample_rate = int(segment.split("=", 1)[1])
+                                    except ValueError:
+                                        pass
+                            log.info(
+                                "Gemini Live audio config",
+                                mime_type=mime,
+                                sample_rate=sample_rate,
+                                raw_b64_len=len(raw_b64),
+                                decoded_pcm_len=len(pcm_bytes),
+                            )
+                            await websocket.send_text(json.dumps(
+                                {"type": "audio_config", "sample_rate": sample_rate}
+                            ))
+                            _audio_config_sent = True
+                        # Only forward actual PCM audio bytes (decoded)
+                        if "audio" in mime or not mime:
+                            await websocket.send_bytes(pcm_bytes)
+                            await websocket.send_text(json.dumps({"type": "speaking", "active": True}))
+
+            # Transcription / narration text tokens
             if response.text:
                 await websocket.send_text(json.dumps({"type": "token", "content": response.text}))
 
-            tool_call = getattr(response, "tool_call", None)
+            # Tool calls from the model
+            tool_call = response.tool_call
             if tool_call and tool_call.function_calls:
                 function_responses = []
                 for fc in tool_call.function_calls:
@@ -183,18 +235,29 @@ async def chat_voice_live(
                     if widget_event:
                         await websocket.send_text(json.dumps({"type": "widget", **widget_event}, default=str))
                     await websocket.send_text(json.dumps({"type": "tool_result", "tool": fc.name, "data": result}, default=str))
-                    function_responses.append(types.FunctionResponse(id=fc.id, name=fc.name, response={"result": result}))
-                await session.send_tool_response(function_responses=function_responses)
+                    function_responses.append(
+                        types.FunctionResponse(id=fc.id, name=fc.name, response={"result": result})
+                    )
+                # Return tool results to the model (v1.2.0: session.send with FunctionResponse list)
+                await live_session.send(input=function_responses)
 
-            server_content = getattr(response, "server_content", None)
+            # Turn complete — signal audio output has ended
             if server_content and getattr(server_content, "turn_complete", False):
+                # Do NOT reset _audio_config_sent here — the sample rate is constant for the
+                # entire Live session. Resetting causes the frontend to recreate its AudioContext
+                # outside a user gesture on turn 2+, which browsers suspend, silently dropping audio.
+                await websocket.send_text(json.dumps({"type": "speaking", "active": False}))
                 await websocket.send_text(json.dumps({"type": "done"}))
 
+            # Interrupted — tell client to flush its playback queue
+            if server_content and getattr(server_content, "interrupted", False):
+                await websocket.send_text(json.dumps({"type": "interrupted"}))
+
     try:
-        async with client.aio.live.connect(model=settings.GEMINI_LIVE_MODEL, config=live_config) as session:
+        async with client.aio.live.connect(model=settings.GEMINI_LIVE_MODEL, config=live_config) as live_session:
             await asyncio.gather(
-                relay_client_audio_to_gemini(session),
-                relay_gemini_to_client(session),
+                relay_client_audio_to_gemini(live_session),
+                relay_gemini_to_client(live_session),
             )
     except WebSocketDisconnect:
         pass

@@ -138,6 +138,7 @@ export function useChatSession() {
     exportConversation,
     isVoiceSessionActive: voiceSession.isSessionActive,
     isVoiceConnecting: voiceSession.isConnecting,
+    isVoiceSpeaking: voiceSession.isSpeaking,
     startVoiceSession: voiceSession.startVoiceSession,
     stopVoiceSession: voiceSession.stopVoiceSession,
   }

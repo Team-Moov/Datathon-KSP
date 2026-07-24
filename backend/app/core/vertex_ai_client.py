@@ -53,7 +53,14 @@ def init_vertex_ai() -> None:
             "Add it to .env before starting the API."
         )
     if settings.GOOGLE_APPLICATION_CREDENTIALS:
-        os.environ.setdefault("GOOGLE_APPLICATION_CREDENTIALS", settings.GOOGLE_APPLICATION_CREDENTIALS)
+        creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS
+        if not os.path.exists(creds_path):
+            module_dir = os.path.dirname(os.path.abspath(__file__))
+            backend_dir = os.path.dirname(os.path.dirname(module_dir))
+            alt_path = os.path.join(backend_dir, "secrets", "gcp-service-account.json")
+            if os.path.exists(alt_path):
+                creds_path = alt_path
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
     log.info(
         "Vertex AI client configured",
         project=settings.VERTEX_PROJECT_ID,
@@ -61,6 +68,7 @@ def init_vertex_ai() -> None:
         llm_model=settings.GEMINI_MODEL,
         fast_model=settings.GEMINI_MODEL_FAST,
         live_model=settings.GEMINI_LIVE_MODEL,
+        credentials_path=os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"),
     )
 
 
