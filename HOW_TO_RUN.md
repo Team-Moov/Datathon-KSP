@@ -1,137 +1,158 @@
 # How to run the whole thing end-to-end
 
-For anyone connecting the frontend to the backend (or just trying to see
-the financial crime detection actually work) — this is the full path from
-zero to a working app in the browser.
+Full path from a fresh machine to a working app in the browser, with real
+(synthetic) financial crime data loaded. Written for Windows without Docker
+Desktop pre-installed — uses WSL2 + Docker Engine instead, which doesn't
+need Windows admin rights.
 
 ---
 
-## 0. Known blocker — fix this first
+## 0. Status check — known blockers (as of this branch)
 
-**`frontend/src/lib/api/httpClient.ts` does not exist**, even though every
-single `*Api.ts` file (`financialApi.ts`, `adminApi.ts`, `authApi.ts`, ...)
-imports it. Confirmed by checking the actual file tree — it was never
-added. `npm run dev` will fail to build until this file exists.
+**Fixed, no longer an issue:** `frontend/src/lib/api/httpClient.ts` was
+missing earlier (every `*Api.ts` file imports it, `npm run dev` would fail
+to build) — confirmed this is now present on `vishy-catalyst`/`master`. If
+you're running from a much older branch and hit a build error naming this
+file, that's why.
 
-This isn't a financial-crime-module problem — it blocks the whole frontend.
-Whoever owns the API client layer needs to add it before step 4 below will
-work for anyone.
+**Still true:** nothing in the entire repo has been run against a live
+database by anyone on the team as of the last check. This guide is the
+first attempt.
 
 ---
 
 ## 1. Prerequisites
 
-- Docker Desktop installed and running
-- Node.js (for the frontend)
-- Python 3.11+ with the packages in `backend/requirements.txt` (only needed
-  if you want to run scripts like the seeder outside the `api` container)
+- **WSL2 with Ubuntu** (check with `wsl --status` in cmd/PowerShell — if you
+  don't have it, `wsl --install` needs admin rights once; skip this doc's
+  approach and use Docker Desktop instead if you can't get admin access)
+- Node.js (for the frontend, only if running it outside Docker)
+- That's it — Docker itself gets installed *inside* WSL in step 2, which
+  only needs your Linux user's own `sudo` password, not Windows admin.
 
 ---
 
-## 2. Set up environment variables
+## 2. Install Docker inside WSL (one-time)
+
+Open a WSL terminal (type `wsl` in cmd) and run:
 
 ```bash
-cd backend
-cp .env.example .env
+sudo apt update
+sudo apt install -y docker.io docker-compose-v2
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER
+newgrp docker
 ```
-
-The defaults in `.env.example` work out of the box for local/demo use
-**except** `GROQ_API_KEY` — that's only required for the `/chat` and
-case-brief AI features (get one free at console.groq.com). Financial
-crime detection does not need it.
 
 ---
 
-## 3. Start everything with Docker
+## 3. Get to the repo and set up environment variables
+
+WSL sees your Windows drives under `/mnt/` — so `D:\datathonKSRTC\repo`
+becomes:
 
 ```bash
-cd backend
-docker-compose up -d
+cd /mnt/d/datathonKSRTC/repo
+cp backend/.env.example backend/.env
 ```
 
-This starts, in one command:
-- **PostgreSQL** (`pgvector/pgvector:pg16`) — port `5432`
-- **Neo4j** (with the graph-data-science plugin) — bolt on `7687`, browser UI on `7474`
-- **Redis** — port `6379`
-- **The FastAPI backend itself** — published on **`http://localhost:8090`**
-  (not 8000 — see the comment in `docker-compose.yml`, something else on
-  dev machines may already own port 8000)
-- Celery worker + beat, for background jobs
+Now **edit `backend/.env`** (`nano backend/.env`, or open it in VS Code) —
+these four have **no default and the app refuses to start without them**,
+everything else in `.env.example` already works as-is:
 
-The API creates its own tables and Row-Level Security policies
-automatically on first startup (`init_db()` in `app/main.py`'s lifespan
-handler) — no manual migration step needed for a fresh database.
+```
+SECRET_KEY=your-own-password-here
+POSTGRES_PASSWORD=your-own-password-here
+POSTGRES_APP_PASSWORD=your-own-password-here
+NEO4J_PASSWORD=your-own-password-here
+```
 
-Check it's actually up:
+(Any value works — this only runs on your own machine. Leave
+`GROQ_API_KEY` blank; it has a safe empty default and is only needed for
+the `/chat` AI features, not financial crime detection.)
+
+---
+
+## 4. Start everything
+
+From the repo root (not `backend/`):
+
 ```bash
-docker-compose ps
+docker compose up --build
+```
+
+This one command builds and starts: Postgres (with pgvector), Neo4j (with
+the graph-data-science plugin), Redis, the FastAPI backend, Celery
+worker+beat, and an nginx-served production build of the frontend.
+
+First run takes a few minutes (building images). The API creates its own
+database tables and Row-Level Security policies automatically on startup —
+no manual migration needed for a fresh database.
+
+**Check it's actually up** (in a second WSL terminal):
+```bash
 curl http://localhost:8090/api/v1/docs
 ```
-(Or open that URL in a browser — it's the FastAPI Swagger UI.)
+Or just open that URL in a browser — it's the FastAPI Swagger UI.
 
 ---
 
-## 4. Populate real data
+## 5. Load the data — both seeders
 
-Nothing exists in the database until something seeds it. Two seeders exist:
+Nothing exists in the database until these run. In a second terminal
+(leave `docker compose up` running in the first):
 
 ```bash
-# From inside the backend/ directory, or via docker-compose exec api ...
+cd /mnt/d/datathonKSRTC/repo/backend
 
-# Baseline demo data — a handful of linked sample cases, users per rank,
-# so pages aren't empty on a fresh install
-python -m scripts.seed_demo_data
+# Named, walkable demo data — 2 people (Manjunath Gowda, Naveen Reddy)
+# with hand-picked structuring/funnel/layering patterns and matching
+# risk-profiling scores. Good for pointing at something specific live.
+docker compose exec api python -m scripts.seed_demo_data
 
-# The financial crime module specifically — bulk typology-driven synthetic
-# transactions (structuring, funnel, layering) with real detection-ready data
-python -m scripts.seed_financial_transactions
+# Bulk, realistic dataset — 600+ typology-driven synthetic transactions.
+# This is the actual validated pipeline (precision/recall proof), not a
+# curated highlight reel. Adds to the same table, doesn't overwrite the above.
+docker compose exec api python -m scripts.seed_financial_transactions
 ```
 
-Run demo data first if you want guaranteed minimal content everywhere;
-run the financial seeder for the realistic bulk dataset the detectors were
-actually built and validated against.
-
-To confirm detection works against what got seeded:
+Optional — get real accuracy numbers off the bulk data:
 ```bash
-python -m scripts.validate_financial_crime
+docker compose exec api python -m scripts.validate_financial_crime
 ```
 
 ---
 
-## 5. Start the frontend
+## 6. Open the app and see it work
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+- **Frontend:** `http://localhost:4173`
+- **API docs:** `http://localhost:8090/api/v1/docs`
 
-Vite's dev server automatically proxies any `/api/*` request to
-`http://localhost:8090` (see `frontend/vite.config.ts`) — so once both the
-backend and frontend are running, the app in your browser talks to the
-real backend with no extra config.
+Log in with a demo account (all created by `seed_demo_data.py`). Password
+is whatever you set `SEED_DEMO_PASSWORD` to in your own `backend/.env` —
+defaults to `Demo@12345` if you didn't set it (see `.env.example`):
 
----
+| Email | Rank |
+|---|---|
+| `dsp@ksp.demo` | DSP |
+| `analyst@ksp.demo` | Crime Analyst |
 
-## 6. Actually seeing the financial crime page work
+(Financial data specifically requires DSP/SP/DGP/CRIME_ANALYST — lower
+ranks won't see the Financial Crime page's data even if the page loads.)
 
-Once logged in (demo users are created by `seed_demo_data.py` — check that
-script for exact emails/passwords, DSP/SP/DGP/CRIME_ANALYST roles are the
-ones with `VIEW_FINANCIAL_RAW` permission), go to the Financial Crime
-Detection page. It has three tabs:
+Open the case `THEFT-BLR-INDR-2025-0142` or go straight to the Financial
+Crime Detection page:
+- **Structuring** tab — Manjunath Gowda's pattern, or look up any account
+  from the bulk data (`SELECT DISTINCT from_account FROM financial_transaction LIMIT 5;`
+  against Postgres if you want a bulk-data example instead)
+- **Funnel Account** tab — Naveen Reddy's mule-account pattern
+- **Layering Cycles** tab — loads automatically, shows every detected loop
+  (including Naveen Reddy's, which was specifically built to close a loop
+  so this detector would actually find it)
 
-- **Structuring** / **Funnel Account** — type an account identifier and
-  click "Check account." You need a real account number from the seeded
-  data — query Postgres directly to find one:
-  ```sql
-  SELECT DISTINCT from_account FROM financial_transaction LIMIT 5;
-  ```
-- **Layering Cycles** — loads automatically, no input needed, shows every
-  detected cycle in the seeded data.
-
-The `/organized-clusters` and `/scan` endpoints exist and work
-(`app/api/v1/endpoints/financial.py`) but aren't wired into the UI yet —
-they'd need a new tab/page if you want that visible in a demo.
+`/organized-clusters` and `/scan` endpoints work but aren't wired to any
+UI tab yet — reachable via the Swagger docs (`/api/v1/docs`) if you want to
+show them without a dedicated page.
 
 ---
 
@@ -139,8 +160,8 @@ they'd need a new tab/page if you want that visible in a demo.
 
 | Service | Port | What it's for |
 |---|---|---|
+| Frontend (production build) | 4173 | The actual app in your browser |
 | Backend API | 8090 | REST API, Swagger docs at `/api/v1/docs` |
-| Frontend dev server | 5173 | The actual app in your browser |
 | Postgres | 5432 | Relational data |
 | Neo4j Bolt | 7687 | Graph queries (used by the app) |
 | Neo4j Browser | 7474 | Neo4j's own web UI, for manually poking the graph |
@@ -150,16 +171,19 @@ they'd need a new tab/page if you want that visible in a demo.
 
 ## If something's not working
 
-- **`npm run dev` fails immediately** → almost certainly the missing
-  `httpClient.ts` from section 0. Check with whoever owns the API client
-  layer.
+- **`docker compose up` fails on `sudo` / permission errors** → you skipped
+  `newgrp docker` in step 2, or need to fully close and reopen the WSL
+  terminal after the `usermod` command.
+- **API container won't start / health check fails** → check
+  `docker compose logs api` — usually a missing/wrong `.env` value (the
+  four with no defaults, from step 3).
 - **Financial data seeder finds "no CaseMaster/Person rows" every time you
   run it** → it should be using the admin DB connection specifically to
   get around Postgres Row-Level Security on `case_master`. If it's not,
-  something regressed — see `backend/scripts/FINANCIAL_CRIME_README.md`
-  for the full explanation of why this matters.
-- **API container won't start / health check fails** → check
-  `docker-compose logs api` — usually a missing/wrong `.env` value.
-- **Nothing loads at all in the frontend** → confirm both
-  `docker-compose ps` (backend/DB containers) and `npm run dev` (frontend)
-  are actually running at the same time, in two separate terminals.
+  something regressed — see `backend/scripts/FINANCIAL_CRIME_README.md`.
+- **Frontend loads but Financial Crime page shows nothing** → confirm
+  you're logged in as DSP/SP/DGP/CRIME_ANALYST, not a lower rank, and that
+  step 5's seeders actually ran without error.
+- **Port already in use** → something else on your machine owns that port;
+  check `docker compose ps` and either stop the conflicting service or
+  change the port mapping in `docker-compose.yml`.

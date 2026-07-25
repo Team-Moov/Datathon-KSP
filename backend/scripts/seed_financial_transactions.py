@@ -47,6 +47,36 @@ from app.core.graph_db import graph_db
 from app.models.case import CaseMaster
 from app.models.financial import FinancialTransaction
 from app.models.person import Person
+from app.models.enums import Sex
+from app.models.unit import District, State
+
+# Same 8 districts seed_demo_data.py already establishes (Karnataka/state
+# code KA) -- reused by name so this pool lands on the *same* District rows
+# if that script already ran, rather than creating a second parallel set.
+_DISTRICT_NAMES = [
+    ("Bengaluru Urban", "BLR"), ("Mysuru", "MYS"), ("Belagavi", "BGM"),
+    ("Mangaluru", "MNR"), ("Kalaburagi", "KLB"), ("Hubballi-Dharwad", "HBL"),
+    ("Shivamogga", "SMG"), ("Ballari", "BLI"),
+]
+
+# Real-sounding, varied Karnataka names -- not "Synthetic Person N". Mixed
+# across common Kannada/Indian first and last names so 60 people don't read
+# as an obviously generated list.
+_FIRST_NAMES_MALE = [
+    "Manjunath", "Naveen", "Ashwin", "Ravi", "Suresh", "Prakash", "Vijay",
+    "Ganesh", "Harish", "Kiran", "Mahesh", "Nagaraj", "Raghavendra", "Santosh",
+    "Shivaraj", "Sunil", "Umesh", "Vinod", "Yogesh", "Chandrashekar",
+]
+_FIRST_NAMES_FEMALE = [
+    "Lakshmi", "Deepa", "Kavitha", "Manjula", "Nagaveni", "Pooja", "Radha",
+    "Sandhya", "Shilpa", "Sowmya", "Sujatha", "Sunitha", "Usha", "Vani",
+    "Vidya", "Anitha", "Bhagya", "Chaitra", "Gowri", "Jyothi",
+]
+_LAST_NAMES = [
+    "Gowda", "Reddy", "Rao", "Naik", "Hegde", "Kulkarni", "Patil", "Shetty",
+    "Iyengar", "Murthy", "Bhat", "Nayak", "Shenoy", "Deshpande", "Achar",
+    "Poojary", "Kamath", "Prabhu", "Rai", "Acharya",
+]
 
 log = structlog.get_logger(__name__)
 
@@ -62,40 +92,97 @@ CTR_THRESHOLD_INR = 1_000_000.0
 # minimal synthetic pool so this script is runnable standalone before
 # ingestion is finished.
 # ------------------------------------------------------------------ #
-async def _get_or_create_pool(session, n_persons: int = 60, n_cases: int = 30):
-    persons = (await session.execute(select(Person.id))).scalars().all()
-    cases = (await session.execute(select(CaseMaster.id))).scalars().all()
+async def _get_or_create_districts(session) -> list:
+    """Reuses seed_demo_data.py's exact districts if that script already ran
+    (matched by name), otherwise creates them -- either way ends up on real
+    District rows, never a fake placeholder district."""
+    result = await session.execute(select(State).filter_by(name="Karnataka"))
+    state = result.scalar_one_or_none()
+    if state is None:
+        state = State(name="Karnataka", code="KA")
+        session.add(state)
+        await session.flush()
 
-    created_persons = False
-    if not persons:
-        log.warning("No Person rows found -- creating a minimal synthetic pool")
-        new_people = [
-            Person(full_name=f"Synthetic Person {i}", is_synthetic=True)
-            if hasattr(Person, "is_synthetic")
-            else Person(full_name=f"Synthetic Person {i}")
-            for i in range(n_persons)
-        ]
+    districts = []
+    for name, code in _DISTRICT_NAMES:
+        result = await session.execute(select(District).filter_by(name=name))
+        d = result.scalar_one_or_none()
+        if d is None:
+            d = District(name=name, state_id=state.id, code=code)
+            session.add(d)
+            await session.flush()
+        districts.append(d)
+    return districts
+
+
+def _random_person_name(rng: random.Random) -> tuple:
+    """Returns (full_name, sex) -- picking from the matching first-name pool
+    so sex and name stay consistent, rather than generating one independent
+    of the other."""
+    if rng.random() < 0.5:
+        first = rng.choice(_FIRST_NAMES_MALE)
+        sex = Sex.MALE
+    else:
+        first = rng.choice(_FIRST_NAMES_FEMALE)
+        sex = Sex.FEMALE
+    last = rng.choice(_LAST_NAMES)
+    return f"{first} {last}", sex
+
+
+async def _get_or_create_pool(session, n_persons: int = 60, n_cases: int = 30, seed: int = RNG_SEED):
+    """Ensures a pool of at least n_persons/n_cases, spread across all real
+    Karnataka districts with varied demographics -- tops up rather than
+    skipping entirely when a few rows already exist (e.g. from
+    seed_demo_data.py's 2-3 named people), so bulk generation never ends up
+    funneling 600+ transactions through a tiny, single-district pool."""
+    rng = random.Random(seed)
+    districts = await _get_or_create_districts(session)
+
+    persons = (await session.execute(select(Person.id))).scalars().all()
+    persons = list(persons)
+    if len(persons) < n_persons:
+        needed = n_persons - len(persons)
+        log.info(f"Topping up person pool with {needed} demographically-varied rows across {len(districts)} districts")
+        new_people = []
+        for _ in range(needed):
+            full_name, sex = _random_person_name(rng)
+            district = rng.choice(districts)
+            age = rng.randint(19, 64)
+            person_kwargs = dict(
+                full_name=full_name, sex=sex,
+                date_of_birth=date(date.today().year - age, rng.randint(1, 12), rng.randint(1, 28)),
+                age_at_registration=age,
+                permanent_address=f"{rng.randint(1, 200)} Main Road, {district.name}",
+                present_address=f"{rng.randint(1, 200)} Main Road, {district.name}",
+            )
+            if hasattr(Person, "is_synthetic"):
+                person_kwargs["is_synthetic"] = True
+            new_people.append(Person(**person_kwargs))
         session.add_all(new_people)
         await session.flush()
-        persons = [p.id for p in new_people]
-        created_persons = True
+        persons.extend(p.id for p in new_people)
 
-    created_cases = False
-    if not cases:
-        log.warning("No CaseMaster rows found -- creating a minimal synthetic pool")
-        new_cases = [
-            CaseMaster(crime_no=f"SYN/{i:04d}/2024", date_reported=date(2024, 1, 1))
-            for i in range(n_cases)
-        ]
+    cases = (await session.execute(select(CaseMaster.id))).scalars().all()
+    cases = list(cases)
+    if len(cases) < n_cases:
+        needed = n_cases - len(cases)
+        log.info(f"Topping up case pool with {needed} rows spread across {len(districts)} districts")
+        new_cases = []
+        for i in range(needed):
+            district = rng.choice(districts)
+            new_cases.append(
+                CaseMaster(
+                    crime_no=f"SYN/{district.code}/{uuid.uuid4().hex[:6].upper()}/2024",
+                    district_id=district.id,
+                    date_reported=date(2024, 1, 1) + timedelta(days=rng.randint(0, 300)),
+                )
+            )
         session.add_all(new_cases)
         await session.flush()
-        cases = [c.id for c in new_cases]
-        created_cases = True
+        cases.extend(c.id for c in new_cases)
 
-    if created_persons or created_cases:
-        await session.commit()
-
-    return list(persons), list(cases)
+    await session.commit()
+    return persons, cases
 
 
 def _account_id(prefix: str = "ACC") -> str:
