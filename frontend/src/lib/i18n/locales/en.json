@@ -68,7 +68,6 @@
     "trendsForecasting": "Trends & Forecasting",
     "earlyWarningAlerts": "Early-Warning Alerts",
     "sociologicalInsights": "Sociological Insights",
-    "modelTransparency": "Model Transparency",
     "auditLog": "Audit Log",
     "userManagement": "User Management",
     "systemJobs": "System Jobs"
@@ -495,16 +494,6 @@
     "user": "User",
     "rank": "Rank",
     "status": "Status"
-  },
-  "models": {
-    "title": "Models",
-    "description": "Machine learning models and configurations",
-    "family": "Family",
-    "serves": "Serves",
-    "featureImportance": "Feature importance",
-    "fairness": "Fairness",
-    "neverModeled": "{{attributes}} never modeled",
-    "pageDesc": "Every ML model's held-out quality, feature importance, and fairness posture — the evidence behind each automated insight (capability #9)."
   },
   "documents": {
     "title": "Documents",

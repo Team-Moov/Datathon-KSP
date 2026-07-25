@@ -39,7 +39,6 @@ const CrimeTrendsPage = React.lazy(() =>
   import("@/features/trends/CrimeTrendsPage").then((m) => ({ default: m.CrimeTrendsPage })),
 )
 const AlertsPage = React.lazy(() => import("@/features/alerts/AlertsPage").then((m) => ({ default: m.AlertsPage })))
-const ModelsPage = React.lazy(() => import("@/features/models/ModelsPage").then((m) => ({ default: m.ModelsPage })))
 const SocioInsightsPage = React.lazy(() =>
   import("@/features/socio/SocioInsightsPage").then((m) => ({ default: m.SocioInsightsPage })),
 )
@@ -140,7 +139,6 @@ function AppRouter() {
             }
           />
           <Route path="/chat" element={<InvestigatorAssistantPage />} />
-          <Route path="/models" element={<ModelsPage />} />
 
           <Route
             path="/admin/audit-log"

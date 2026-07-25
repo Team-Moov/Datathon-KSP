@@ -2,7 +2,6 @@ import {
   Banknote,
   BellRing,
   Cog,
-  Cpu,
   FileText,
   LayoutGrid,
   MessagesSquare,
@@ -59,7 +58,6 @@ export const NAVIGATION_GROUPS: NavigationGroup[] = [
   {
     labelKey: "nav.groups.governance",
     entries: [
-      { labelKey: "nav.modelTransparency", path: "/models", icon: Cpu },
       { labelKey: "nav.auditLog", path: "/admin/audit-log", icon: ScrollText, requiredPermission: "view_audit_log" },
       { labelKey: "nav.userManagement", path: "/admin/users", icon: Users, requiredPermission: "manage_users" },
       { labelKey: "nav.systemJobs", path: "/admin/jobs", icon: Cog, requiredPermission: "manage_analytics_jobs" },

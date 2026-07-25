@@ -68,7 +68,6 @@
     "trendsForecasting": "प्रवृत्तियां और पूर्वानुमान",
     "earlyWarningAlerts": "पूर्व-चेतावनी सतर्कता",
     "sociologicalInsights": "समाजशास्त्रीय अंतर्दृष्टि",
-    "modelTransparency": "मॉडल पारदर्शिता",
     "auditLog": "ऑडिट लॉग",
     "userManagement": "उपयोगकर्ता प्रबंधन",
     "systemJobs": "सिस्टम कार्य"
@@ -495,16 +494,6 @@
     "user": "उपयोगकर्ता",
     "rank": "रैंक",
     "status": "स्थिति"
-  },
-  "models": {
-    "title": "मॉडल",
-    "description": "मशीन लर्निंग मॉडल और कॉन्फ़िगरेशन",
-    "family": "परिवार",
-    "serves": "सेवा करता है",
-    "featureImportance": "फ़ीचर महत्व",
-    "fairness": "निष्पक्षता",
-    "neverModeled": "{{attributes}} कभी मॉडल नहीं किया गया",
-    "pageDesc": "हर ML मॉडल की होल्ड-आउट गुणवत्ता, फ़ीचर महत्व, और निष्पक्षता स्थिति — हर स्वचालित अंतर्दृष्टि के पीछे का प्रमाण।"
   },
   "documents": {
     "title": "दस्तावेज़",
