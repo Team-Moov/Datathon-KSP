@@ -2,6 +2,7 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ShieldCheck } from "lucide-react"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
 import { Button } from "@/components/ui/button"
@@ -11,12 +12,6 @@ import { extractApiErrorMessage } from "@/lib/api/httpClient"
 import type { MfaChallenge } from "@/lib/types/api"
 import { requestMfaResend } from "./authApi"
 
-const otpFormSchema = z.object({
-  code: z.string().length(6, "Enter the 6-digit code"),
-})
-
-type OtpFormValues = z.infer<typeof otpFormSchema>
-
 interface MfaChallengePageProps {
   challenge: MfaChallenge
   onVerified: (challengeId: string, code: string) => Promise<void>
@@ -24,6 +19,12 @@ interface MfaChallengePageProps {
 }
 
 function MfaChallengePage({ challenge, onVerified, onBackToCredentials }: MfaChallengePageProps) {
+  const { t } = useTranslation()
+  const otpFormSchema = z.object({
+    code: z.string().length(6, t("mfa.enterSixDigitCode")),
+  })
+  type OtpFormValues = z.infer<typeof otpFormSchema>
+
   const [activeChallenge, setActiveChallenge] = React.useState(challenge)
   const [serverError, setServerError] = React.useState<string | null>(null)
   const [isResending, setIsResending] = React.useState(false)
@@ -39,7 +40,7 @@ function MfaChallengePage({ challenge, onVerified, onBackToCredentials }: MfaCha
     try {
       await onVerified(activeChallenge.challenge_id, values.code)
     } catch (error) {
-      setServerError(extractApiErrorMessage(error, "That code didn't work — check it and try again."))
+      setServerError(extractApiErrorMessage(error, t("mfa.codeDidntWork")))
     }
   }
 
@@ -50,7 +51,7 @@ function MfaChallengePage({ challenge, onVerified, onBackToCredentials }: MfaCha
       const next = (await requestMfaResend(activeChallenge.challenge_id)) as MfaChallenge
       setActiveChallenge(next)
     } catch (error) {
-      setServerError(extractApiErrorMessage(error, "Couldn't send a new code."))
+      setServerError(extractApiErrorMessage(error, t("mfa.couldntSendCode")))
     } finally {
       setIsResending(false)
     }
@@ -60,23 +61,23 @@ function MfaChallengePage({ challenge, onVerified, onBackToCredentials }: MfaCha
     <div className="space-y-5">
       <div className="flex items-center gap-2 text-zinc-800 dark:text-zinc-100">
         <ShieldCheck className="size-5 text-accent-600 dark:text-accent-300" />
-        <h2 className="text-base font-semibold">Verify it's you</h2>
+        <h2 className="text-base font-semibold">{t("mfa.verifyItsYou")}</h2>
       </div>
 
       {activeChallenge.simulated_code ? (
         <div className="rounded-md border border-caution-500/40 bg-caution-500/10 px-3 py-2 text-xs text-caution-600 dark:text-caution-500">
-          Development mode — real delivery isn't configured yet. Your code is{" "}
+          {t("mfa.devModeNotice")}{" "}
           <span className="font-mono font-semibold">{activeChallenge.simulated_code}</span>.
         </div>
       ) : (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Enter the code sent to your registered device. It expires in {activeChallenge.expires_in_minutes} minutes.
+          {t("mfa.enterCodeSent", { minutes: activeChallenge.expires_in_minutes })}
         </p>
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         <div className="space-y-1.5">
-          <Label htmlFor="otp-code">Verification code</Label>
+          <Label htmlFor="otp-code">{t("mfa.verificationCode")}</Label>
           <Input
             id="otp-code"
             inputMode="numeric"
@@ -92,13 +93,13 @@ function MfaChallengePage({ challenge, onVerified, onBackToCredentials }: MfaCha
         {serverError ? <p className="text-xs text-critical-500">{serverError}</p> : null}
 
         <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? "Verifying..." : "Verify and continue"}
+          {isSubmitting ? t("mfa.verifying") : t("mfa.verifyAndContinue")}
         </Button>
       </form>
 
       <div className="flex items-center justify-between text-xs">
         <button type="button" onClick={onBackToCredentials} className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400">
-          Use a different account
+          {t("mfa.useDifferentAccount")}
         </button>
         <button
           type="button"
@@ -106,7 +107,7 @@ function MfaChallengePage({ challenge, onVerified, onBackToCredentials }: MfaCha
           disabled={isResending}
           className="font-medium text-accent-600 hover:text-accent-700 disabled:opacity-50 dark:text-accent-300"
         >
-          {isResending ? "Sending..." : "Resend code"}
+          {isResending ? t("mfa.sending") : t("mfa.resendCode")}
         </button>
       </div>
     </div>

@@ -85,7 +85,7 @@ function OverviewPage() {
         </CardContent>
       </Card>
 
-      <p className="section-label">{t("dashboard.casesInView", { plural: activeInvestigationCount === 1 ? "" : "s", count: activeInvestigationCount })}</p>
+      <p className="section-label">{t("dashboard.casesInView", { count: activeInvestigationCount })}</p>
     </div>
   )
 }

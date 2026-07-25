@@ -1,4 +1,5 @@
 import { Building2, TrendingUp } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { UrbanizationImpactItem } from "@/features/socio/socioApi"
@@ -8,16 +9,17 @@ interface UrbanizationImpactChartProps {
 }
 
 export function UrbanizationImpactChart({ data }: UrbanizationImpactChartProps) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-4">
       <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
             <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span>Urbanization & Social Disorganization Velocity</span>
+            <span>{t("urbanizationChart.title")}</span>
           </CardTitle>
           <CardDescription className="text-xs text-zinc-500 dark:text-zinc-400">
-            Tracks crime velocity shifts during rapid urban expansion events (grounded in Shaw & McKay's Social Disorganization Theory).
+            {t("urbanizationChart.description")}
           </CardDescription>
         </CardHeader>
 
@@ -40,11 +42,11 @@ export function UrbanizationImpactChart({ data }: UrbanizationImpactChartProps) 
 
                 <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-zinc-100/70 dark:bg-zinc-800/70 text-xs">
                   <div>
-                    <span className="text-[11px] text-zinc-500">Urban Growth</span>
+                    <span className="text-[11px] text-zinc-500">{t("urbanizationChart.urbanGrowth")}</span>
                     <div className="font-bold text-blue-600 dark:text-blue-400">+{item.urbanization_growth_pct}%</div>
                   </div>
                   <div>
-                    <span className="text-[11px] text-zinc-500">Crime Velocity Shift</span>
+                    <span className="text-[11px] text-zinc-500">{t("urbanizationChart.crimeVelocityShift")}</span>
                     <div className="font-bold text-amber-600 dark:text-amber-400">{item.crime_velocity_change}</div>
                   </div>
                 </div>
@@ -52,10 +54,10 @@ export function UrbanizationImpactChart({ data }: UrbanizationImpactChartProps) 
                 <div className="space-y-1 text-xs">
                   <div className="flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300 font-medium">
                     <TrendingUp className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>Primary Surge: {item.primary_crime_head}</span>
+                    <span>{t("urbanizationChart.primarySurge")}: {item.primary_crime_head}</span>
                   </div>
                   <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed italic">
-                    Mechanism: "{item.social_mechanism}"
+                    {t("urbanizationChart.mechanism")}: "{item.social_mechanism}"
                   </p>
                 </div>
               </div>

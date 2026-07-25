@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Check, Search, X } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Input } from "@/components/ui/input"
 import { searchPersonsByName } from "@/features/persons/personsApi"
@@ -22,7 +23,7 @@ function PersonPicker({
   selected,
   onSelect,
   onClear,
-  placeholder = "Search a person by name…",
+  placeholder,
   autoFocus,
 }: {
   selected: PickedPerson | null
@@ -31,6 +32,8 @@ function PersonPicker({
   placeholder?: string
   autoFocus?: boolean
 }) {
+  const { t } = useTranslation()
+  const resolvedPlaceholder = placeholder ?? t("personPicker.searchByName")
   const [query, setQuery] = React.useState("")
   const [isOpen, setIsOpen] = React.useState(false)
   const debounced = useDebouncedValue(query, 250)
@@ -70,7 +73,7 @@ function PersonPicker({
             type="button"
             onClick={onClear}
             className="shrink-0 rounded p-0.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-            title="Choose a different person"
+            title={t("personPicker.chooseDifferentPerson")}
           >
             <X className="size-3.5" />
           </button>
@@ -91,14 +94,14 @@ function PersonPicker({
             setIsOpen(true)
           }}
           onFocus={() => setIsOpen(true)}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           className="pl-8"
         />
       </div>
       {isOpen && debounced.trim().length >= 2 ? (
         <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
           {isFetching && !matches ? (
-            <li className="px-3 py-2 text-xs text-zinc-400">Searching…</li>
+            <li className="px-3 py-2 text-xs text-zinc-400">{t("common.searching")}</li>
           ) : matches && matches.length > 0 ? (
             matches.map((person) => (
               <li key={person.id}>
@@ -109,13 +112,13 @@ function PersonPicker({
                 >
                   <span className="truncate text-zinc-800 dark:text-zinc-100">{person.full_name}</span>
                   {person.human_verified ? (
-                    <span className="shrink-0 text-[10px] text-affirm-600 dark:text-affirm-500">verified</span>
+                    <span className="shrink-0 text-[10px] text-affirm-600 dark:text-affirm-500">{t("persons.verified")}</span>
                   ) : null}
                 </button>
               </li>
             ))
           ) : (
-            <li className="px-3 py-2 text-xs text-zinc-400">No matches.</li>
+            <li className="px-3 py-2 text-xs text-zinc-400">{t("personPicker.noMatches")}</li>
           )}
         </ul>
       ) : null}

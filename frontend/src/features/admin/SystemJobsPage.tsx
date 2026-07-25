@@ -2,6 +2,7 @@ import * as React from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Database, RefreshCw, Sparkles } from "lucide-react"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,13 +35,14 @@ interface JobCardProps {
 }
 
 function JobCard({ icon: Icon, title, description, triggerLabel, triggerFn }: JobCardProps) {
+  const { t } = useTranslation()
   const [taskId, setTaskId] = React.useState<string | null>(null)
 
   const triggerMutation = useMutation({
     mutationFn: triggerFn,
     onSuccess: (data) => {
       setTaskId(data.task_id)
-      toast.success(`${title} started`)
+      toast.success(t("systemJobs.jobStarted", { title }))
     },
     onError: (error) => toast.error(extractApiErrorMessage(error)),
   })
@@ -58,9 +60,9 @@ function JobCard({ icon: Icon, title, description, triggerLabel, triggerFn }: Jo
 
   React.useEffect(() => {
     if (statusQuery.data?.status === "SUCCESS") {
-      toast.success(`${title} finished`)
+      toast.success(t("systemJobs.jobFinished", { title }))
     } else if (statusQuery.data?.status === "FAILURE") {
-      toast.error(`${title} failed: ${statusQuery.data.error ?? "unknown error"}`)
+      toast.error(t("systemJobs.jobFailed", { title, error: statusQuery.data.error ?? t("systemJobs.unknownError") }))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusQuery.data?.status])
@@ -82,14 +84,14 @@ function JobCard({ icon: Icon, title, description, triggerLabel, triggerFn }: Jo
       <CardContent className="flex items-center justify-between gap-3">
         <p className="text-xs text-zinc-500">
           {taskId
-            ? `Task ${taskId.slice(0, 8)}…${
+            ? `${t("systemJobs.task")} ${taskId.slice(0, 8)}…${
                 statusQuery.data?.result
                   ? ` — ${Object.entries(statusQuery.data.result)
                       .map(([k, v]) => `${k}: ${v}`)
                       .join(", ")}`
                   : ""
               }`
-            : "Not run yet this session."}
+            : t("systemJobs.notRunYet")}
         </p>
         <Button
           size="sm"
@@ -99,7 +101,7 @@ function JobCard({ icon: Icon, title, description, triggerLabel, triggerFn }: Jo
           disabled={triggerMutation.isPending || isRunning}
         >
           <RefreshCw className={`size-3.5 ${isRunning ? "animate-spin" : ""}`} />
-          {isRunning ? "Running…" : triggerLabel}
+          {isRunning ? t("systemJobs.runningEllipsis") : triggerLabel}
         </Button>
       </CardContent>
     </Card>
@@ -107,30 +109,29 @@ function JobCard({ icon: Icon, title, description, triggerLabel, triggerFn }: Jo
 }
 
 function SystemJobsPage() {
+  const { t } = useTranslation()
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">System Jobs</h1>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("nav.systemJobs")}</h1>
         <p className="text-sm text-zinc-500">
-          On-demand triggers for batch analytics jobs. GWR also recomputes automatically on a weekly
-          schedule; embeddings are generated automatically for every newly ingested document — these
-          buttons are for backfills and "don't want to wait for the schedule."
+          {t("systemJobs.pageDesc")}
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <JobCard
           icon={Sparkles}
-          title="Recompute GWR"
-          description="Re-fit geographically weighted regression coefficients across all qualifying districts."
-          triggerLabel="Recompute now"
+          title={t("systemJobs.recomputeGwr")}
+          description={t("systemJobs.recomputeGwrDesc")}
+          triggerLabel={t("systemJobs.recomputeNow")}
           triggerFn={triggerGwrRecompute}
         />
         <JobCard
           icon={Database}
-          title="Backfill Embeddings"
-          description="Embed any case narratives that predate the automatic embed-on-ingest path."
-          triggerLabel="Backfill now"
+          title={t("systemJobs.backfillEmbeddings")}
+          description={t("systemJobs.backfillEmbeddingsDesc")}
+          triggerLabel={t("systemJobs.backfillNow")}
           triggerFn={triggerEmbeddingBackfill}
         />
       </div>

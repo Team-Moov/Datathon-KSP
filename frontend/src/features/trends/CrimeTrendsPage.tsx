@@ -111,12 +111,12 @@ function CrimeTrendsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Scope</CardTitle>
+          <CardTitle>{t("trends.scope")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="trend-district">District</Label>
+              <Label htmlFor="trend-district">{t("common.district")}</Label>
               <select
                 id="trend-district"
                 value={districtId}
@@ -131,7 +131,7 @@ function CrimeTrendsPage() {
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="trend-crime-head">Crime category</Label>
+              <Label htmlFor="trend-crime-head">{t("trends.crimeCategory")}</Label>
               <select
                 id="trend-crime-head"
                 value={crimeHeadId}
@@ -146,7 +146,7 @@ function CrimeTrendsPage() {
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="trend-date">Target Date</Label>
+              <Label htmlFor="trend-date">{t("trends.targetDate")}</Label>
               <Input id="trend-date" type="date" value={targetDate} onChange={(event) => setTargetDate(event.target.value)} />
             </div>
           </div>
@@ -159,39 +159,39 @@ function CrimeTrendsPage() {
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "hotspots" ? "bg-indigo-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
         >
           <MapPinned className="w-3.5 h-3.5" />
-          <span>Spatial Hotspots</span>
+          <span>{t("trends.spatialHotspots")}</span>
         </button>
         <button
           onClick={() => setActiveTab("temporal")}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "temporal" ? "bg-indigo-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
         >
           <CalendarClock className="w-3.5 h-3.5" />
-          <span>Temporal Seasonality</span>
+          <span>{t("trends.temporalSeasonality")}</span>
         </button>
         <button
           onClick={() => setActiveTab("mo")}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "mo" ? "bg-indigo-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
         >
           <Fingerprint className="w-3.5 h-3.5" />
-          <span>MO Serial Clusters</span>
+          <span>{t("trends.moSerialClusters")}</span>
         </button>
         <button
           onClick={() => setActiveTab("surveillance")}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "surveillance" ? "bg-indigo-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
         >
           <ShieldAlert className="w-3.5 h-3.5" />
-          <span>Surveillance Priority</span>
+          <span>{t("trends.surveillancePriority")}</span>
         </button>
       </div>
 
       {activeTab === "hotspots" && (
         <Card>
           <CardHeader>
-            <CardTitle>Hawkes/ETAS Hotspot Forecast</CardTitle>
+            <CardTitle>{t("trends.hawkesForecast")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button onClick={() => forecastMutation.mutate()} disabled={forecastMutation.isPending || !selectorsReady}>
-              {forecastMutation.isPending ? "Forecasting..." : "Run forecast"}
+              {forecastMutation.isPending ? t("trends.forecasting") : t("trends.runForecast")}
             </Button>
 
             {forecastMutation.isError ? (
@@ -201,14 +201,14 @@ function CrimeTrendsPage() {
             {forecastMutation.isPending ? (
               <LoadingSkeleton variant="card" rows={1} />
             ) : cells.length === 0 ? (
-              <EmptyState icon={MapPinned} title="No forecast yet" description="Run a forecast to see the hotspot map for this district and crime type." />
+              <EmptyState icon={MapPinned} title={t("trends.noForecastYet")} description={t("trends.noForecastYetDesc")} />
             ) : (
               <>
                 {chronicVsAcute ? (
                   <div className="flex items-center gap-4 rounded-md bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 text-xs">
-                    <span className="section-label">Chronic vs. acute risk</span>
-                    <span className="font-medium text-indigo-600 dark:text-indigo-400">Chronic (baseline): {chronicVsAcute.chronicPct}%</span>
-                    <span className="font-medium text-amber-600 dark:text-amber-400">Acute (near-repeat): {chronicVsAcute.acutePct}%</span>
+                    <span className="section-label">{t("trends.chronicVsAcute")}</span>
+                    <span className="font-medium text-indigo-600 dark:text-indigo-400">{t("trends.chronicBaseline")}: {chronicVsAcute.chronicPct}%</span>
+                    <span className="font-medium text-amber-600 dark:text-amber-400">{t("trends.acuteNearRepeat")}: {chronicVsAcute.acutePct}%</span>
                   </div>
                 ) : null}
                 <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
@@ -223,7 +223,7 @@ function CrimeTrendsPage() {
       {activeTab === "temporal" && (
         <Card>
           <CardHeader>
-            <CardTitle>Day-of-Week, Monthly &amp; Hour-of-Day Trends</CardTitle>
+            <CardTitle>{t("trends.dayOfWeek")}</CardTitle>
           </CardHeader>
           <CardContent>
             {temporalQuery.isLoading ? (
@@ -231,7 +231,7 @@ function CrimeTrendsPage() {
             ) : temporalQuery.isError ? (
               <ErrorState message={extractApiErrorMessage(temporalQuery.error)} onRetry={() => void temporalQuery.refetch()} />
             ) : temporalQuery.data && temporalQuery.data.status === "insufficient_data" ? (
-              <EmptyState icon={CalendarClock} title="Not enough case data" description="This district/crime-type combination has no dated cases yet." />
+              <EmptyState icon={CalendarClock} title={t("trends.notEnoughCaseData")} description={t("trends.notEnoughCaseDataDesc")} />
             ) : temporalQuery.data ? (
               <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
                 <TemporalTrendsChart data={temporalQuery.data} />
@@ -244,7 +244,7 @@ function CrimeTrendsPage() {
       {activeTab === "mo" && (
         <Card>
           <CardHeader>
-            <CardTitle>MO-Based Serial Case Linkage</CardTitle>
+            <CardTitle>{t("trends.moBasedLinkage")}</CardTitle>
           </CardHeader>
           <CardContent>
             {moLinkageQuery.isLoading ? (
@@ -252,7 +252,7 @@ function CrimeTrendsPage() {
             ) : moLinkageQuery.isError ? (
               <ErrorState message={extractApiErrorMessage(moLinkageQuery.error)} onRetry={() => void moLinkageQuery.refetch()} />
             ) : !moLinkageQuery.data || moLinkageQuery.data.length === 0 ? (
-              <EmptyState icon={Fingerprint} title="No MO series found" description="No candidate same-offender series above the similarity threshold for this crime type." />
+              <EmptyState icon={Fingerprint} title={t("trends.noMoSeries")} description={t("trends.noMoSeriesDesc")} />
             ) : (
               <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
                 <MoLinkageList clusters={moLinkageQuery.data} />
@@ -265,15 +265,14 @@ function CrimeTrendsPage() {
       {activeTab === "surveillance" && (
         <Card>
           <CardHeader>
-            <CardTitle>Surveillance Priority Checkpoints</CardTitle>
+            <CardTitle>{t("trends.surveillancePriorities")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Top-risk grid cells from the real hotspot forecast, ranked. Not a patrol shift roster — no beat, shift,
-              or unit-coverage data exists in this system to base one on; this ranks and labels real forecast output.
+              {t("trends.survRankingDesc")}
             </p>
             <Button onClick={() => surveillanceMutation.mutate()} disabled={surveillanceMutation.isPending || !selectorsReady}>
-              {surveillanceMutation.isPending ? "Ranking..." : "Rank priorities"}
+              {surveillanceMutation.isPending ? t("trends.ranking") : t("trends.rankPriorities")}
             </Button>
             {surveillanceMutation.isError ? (
               <p className="text-xs text-critical-500">{extractApiErrorMessage(surveillanceMutation.error)}</p>
@@ -281,7 +280,7 @@ function CrimeTrendsPage() {
             {surveillanceMutation.isPending ? (
               <LoadingSkeleton variant="card" rows={1} />
             ) : !surveillanceMutation.data || surveillanceMutation.data.status === "insufficient_data" ? (
-              <EmptyState icon={ShieldAlert} title="No ranking yet" description="Rank priorities to see the top-risk checkpoints for this district and crime type." />
+              <EmptyState icon={ShieldAlert} title={t("trends.noRankingYet")} description={t("trends.noRankingYetDesc")} />
             ) : (
               <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
                 <SurveillancePriorityList data={surveillanceMutation.data} />

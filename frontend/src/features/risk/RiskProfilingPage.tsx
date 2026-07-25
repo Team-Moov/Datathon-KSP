@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useMutation } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import { RotateCw, ShieldAlert } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
 
@@ -14,6 +15,7 @@ import { usePermission } from "@/lib/hooks/usePermission"
 import { computePersonRiskScore, markRiskScoreReviewed } from "./riskApi"
 
 function RiskProfilingPage() {
+  const { t } = useTranslation()
   const { has } = usePermission()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selected, setSelected] = React.useState<PickedPerson | null>(null)
@@ -62,20 +64,19 @@ function RiskProfilingPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Risk Profiling</h1>
+      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("risk.title")}</h1>
       <p className="max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-        Central-Eight-informed, CHI-weighted risk assessment for investigative attention only — never a standalone
-        decision. Protected demographic attributes are never used as model features.
+        {t("risk.description")}
       </p>
 
       <Card>
         <CardHeader>
-          <CardTitle>Compute Assessment</CardTitle>
+          <CardTitle>{t("risk.computeAssessment")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-end gap-3">
             <div className="flex-1 space-y-1.5">
-              <p className="section-label">Person</p>
+              <p className="section-label">{t("risk.person") || "Person"}</p>
               <PersonPicker selected={selected} onSelect={handleSelect} onClear={handleClear} />
             </div>
             {selected ? (
@@ -86,7 +87,7 @@ function RiskProfilingPage() {
                 disabled={computeMutation.isPending}
               >
                 <RotateCw className={computeMutation.isPending ? "size-4 animate-spin" : "size-4"} />
-                Recompute
+                {t("risk.recompute") || "Recompute"}
               </Button>
             ) : null}
           </div>
@@ -98,8 +99,8 @@ function RiskProfilingPage() {
           {!selected && !computeMutation.data ? (
             <EmptyState
               icon={ShieldAlert}
-              title="No assessment computed yet"
-              description="Search a person by name to compute a versioned risk score."
+              title={t("risk.noAssessment")}
+              description={t("risk.assessmentDesc")}
             />
           ) : null}
 

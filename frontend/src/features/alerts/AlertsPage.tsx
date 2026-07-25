@@ -2,6 +2,7 @@ import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { RefreshCw, ShieldAlert } from "lucide-react"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 
 import { AlertsList } from "@/components/charts/AlertsList"
 import { EmptyState } from "@/components/data-states/EmptyState"
@@ -19,13 +20,13 @@ import {
   type AlertType,
 } from "./alertsApi"
 
-const TYPE_FILTERS: { label: string; value: AlertType | "all" }[] = [
-  { label: "All", value: "all" },
-  { label: "Repeat offenders", value: "repeat_offender" },
-  { label: "Organized groups", value: "organized_group" },
-]
-
 function AlertsPage() {
+  const { t } = useTranslation()
+  const TYPE_FILTERS: { label: string; value: AlertType | "all" }[] = [
+    { label: t("alerts.all"), value: "all" },
+    { label: t("alerts.repeatOffenders"), value: "repeat_offender" },
+    { label: t("alerts.organizedGroups"), value: "organized_group" },
+  ]
   const { currentUser } = useAuth()
   const queryClient = useQueryClient()
   const [typeFilter, setTypeFilter] = React.useState<AlertType | "all">("all")
@@ -61,7 +62,7 @@ function AlertsPage() {
   const scanMutation = useMutation({
     mutationFn: triggerAlertScan,
     onSuccess: (data) => {
-      toast.success(`Scan complete — ${data.inserted} new alert(s)`)
+      toast.success(t("alerts.scanComplete", { count: data.inserted }))
       invalidate()
     },
     onError: (error) => toast.error(extractApiErrorMessage(error)),
@@ -71,10 +72,9 @@ function AlertsPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Early-Warning Alerts</h1>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("nav.earlyWarningAlerts")}</h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Proactive signals for repeat offenders and organized groups — every alert traces to a deterministic
-            detector, never a guess.
+            {t("alerts.pageDesc")}
           </p>
         </div>
         {canScan ? (
@@ -86,7 +86,7 @@ function AlertsPage() {
             onClick={() => scanMutation.mutate()}
           >
             <RefreshCw className={scanMutation.isPending ? "size-4 animate-spin" : "size-4"} />
-            Run scan
+            {t("alerts.runScan")}
           </Button>
         ) : null}
       </div>
@@ -115,8 +115,8 @@ function AlertsPage() {
       ) : !alertsQuery.data || alertsQuery.data.length === 0 ? (
         <EmptyState
           icon={ShieldAlert}
-          title="No active alerts"
-          description={canScan ? "Run a scan to detect repeat-offender and organized-group signals." : "Nothing is currently flagged for your attention."}
+          title={t("alerts.noActiveAlerts")}
+          description={canScan ? t("alerts.runScanPrompt") : t("alerts.nothingFlagged")}
         />
       ) : (
         <AlertsList

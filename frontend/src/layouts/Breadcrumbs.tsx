@@ -1,22 +1,26 @@
 import { ChevronRight } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 
-const SEGMENT_LABELS: Record<string, string> = {
-  cases: "Cases",
-  persons: "Persons",
-  network: "Network Explorer",
-  risk: "Risk Profiling",
-  financial: "Financial Crime",
-  trends: "Trends & Forecasting",
-  socio: "Sociological Insights",
-  chat: "Assistant",
-  admin: "Governance",
-  "audit-log": "Audit Log",
-  users: "User Management",
+// Maps a URL segment to its breadcrumbs.* translation key. "audit-log" isn't
+// a valid i18n key segment (the hyphen), hence the separate key name.
+const SEGMENT_KEYS: Record<string, string> = {
+  cases: "breadcrumbs.cases",
+  persons: "breadcrumbs.persons",
+  network: "breadcrumbs.network",
+  risk: "breadcrumbs.risk",
+  financial: "breadcrumbs.financial",
+  trends: "breadcrumbs.trends",
+  socio: "breadcrumbs.socio",
+  chat: "breadcrumbs.chat",
+  admin: "breadcrumbs.admin",
+  "audit-log": "breadcrumbs.auditLog",
+  users: "breadcrumbs.users",
 }
 
-function labelForSegment(segment: string): string {
-  if (SEGMENT_LABELS[segment]) return SEGMENT_LABELS[segment]
+function labelForSegment(segment: string, t: TFunction): string {
+  if (SEGMENT_KEYS[segment]) return t(SEGMENT_KEYS[segment])
   // Route params (a UUID or crime number) — show a shortened form rather than
   // the raw identifier so the breadcrumb bar doesn't overflow.
   if (segment.length > 14) return `${segment.slice(0, 8)}...`
@@ -24,17 +28,18 @@ function labelForSegment(segment: string): string {
 }
 
 function Breadcrumbs() {
+  const { t } = useTranslation()
   const location = useLocation()
   const segments = location.pathname.split("/").filter(Boolean)
 
   if (segments.length === 0) {
-    return <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Overview</p>
+    return <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">{t("breadcrumbs.overview")}</p>
   }
 
   return (
     <nav className="flex items-center gap-1 text-sm">
       <Link to="/" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-        Overview
+        {t("breadcrumbs.overview")}
       </Link>
       {segments.map((segment, index) => {
         const path = `/${segments.slice(0, index + 1).join("/")}`
@@ -43,10 +48,10 @@ function Breadcrumbs() {
           <span key={path} className="flex items-center gap-1">
             <ChevronRight className="size-3.5 text-zinc-300 dark:text-zinc-700" />
             {isLast ? (
-              <span className="font-medium text-zinc-800 dark:text-zinc-100">{labelForSegment(segment)}</span>
+              <span className="font-medium text-zinc-800 dark:text-zinc-100">{labelForSegment(segment, t)}</span>
             ) : (
               <Link to={path} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-                {labelForSegment(segment)}
+                {labelForSegment(segment, t)}
               </Link>
             )}
           </span>

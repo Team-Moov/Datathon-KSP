@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Download, Loader2, Mic, MicOff, MessagesSquare, SendHorizontal, Volume2, WifiOff, X } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { Button } from "@/components/ui/button"
@@ -11,8 +12,9 @@ import { type ConversationTurn, useChatSession } from "./useChatSession"
 
 // ── Animated waveform bars shown when Gemini is speaking ─────────────────────
 function SpeakingWaveform() {
+  const { t } = useTranslation()
   return (
-    <span className="inline-flex items-end gap-[3px]" aria-label="Gemini is speaking">
+    <span className="inline-flex items-end gap-[3px]" aria-label={t("chat.geminiSpeaking")}>
       {[0, 1, 2, 3, 4].map((i) => (
         <span
           key={i}
@@ -46,6 +48,7 @@ function VoiceBanner({
   isSpeaking: boolean
   onStop: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <div
       className={cn(
@@ -59,14 +62,14 @@ function VoiceBanner({
         {isSpeaking ? (
           <>
             <Volume2 className="size-4 shrink-0" />
-            <span className="font-medium">Gemini is speaking</span>
+            <span className="font-medium">{t("chat.geminiSpeaking")}</span>
             <SpeakingWaveform />
           </>
         ) : (
           <>
             <MicPulseRing active />
-            <span className="font-medium">Listening…</span>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">Speak your question</span>
+            <span className="font-medium">{t("chat.listening")}</span>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">{t("chat.speakYourQuestion")}</span>
           </>
         )}
       </div>
@@ -74,10 +77,10 @@ function VoiceBanner({
         type="button"
         onClick={onStop}
         className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium opacity-70 transition-opacity hover:opacity-100"
-        title="End voice session"
+        title={t("chat.endVoiceSession")}
       >
         <X className="size-3.5" />
-        End session
+        {t("chat.endSession")}
       </button>
     </div>
   )
@@ -109,6 +112,7 @@ function ConversationBubble({
   turn: ConversationTurn
   onFollowUpQuery?: (query: string) => void
 }) {
+  const { t } = useTranslation()
   const isUser = turn.role === "user"
   return (
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
@@ -134,7 +138,7 @@ function ConversationBubble({
             <p className="whitespace-pre-wrap">{turn.content}</p>
           ) : turn.isStreaming ? (
             <span className="inline-flex items-center gap-1 text-zinc-400">
-              <Loader2 className="size-3.5 animate-spin" /> Thinking...
+              <Loader2 className="size-3.5 animate-spin" /> {t("chat.thinking")}
             </span>
           ) : null}
         </div>
@@ -165,6 +169,7 @@ function ConversationBubble({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 function InvestigatorAssistantPage() {
+  const { t } = useTranslation()
   const {
     turns,
     isAwaitingResponse,
@@ -220,15 +225,14 @@ function InvestigatorAssistantPage() {
         {/* ── Header ── */}
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Investigator Assistant</h1>
+            <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("nav.assistant")}</h1>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Plans which deterministic tool to run and narrates the result — every number comes from a tool output, never
-              free recall.
+              {t("chat.planDesc")}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Select value={language} onValueChange={(value) => setLanguage(value as ChatLanguage)}>
-              <SelectTrigger className="w-28" title="Reply language">
+              <SelectTrigger className="w-28" title={t("chat.replyLanguage")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -242,10 +246,10 @@ function InvestigatorAssistantPage() {
               onClick={handleExport}
               disabled={turns.length === 0 || isExporting}
               className="gap-1.5"
-              title="Save this conversation as a PDF"
+              title={t("chat.saveAsPdf")}
             >
               {isExporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              Export PDF
+              {t("chat.exportPdf")}
             </Button>
           </div>
         </div>
@@ -262,8 +266,8 @@ function InvestigatorAssistantPage() {
           {turns.length === 0 ? (
             <EmptyState
               icon={MessagesSquare}
-              title="Ask about a case, person, or pattern"
-              description='Try "show the network for person X" or "forecast hotspots for district 3 next week."'
+              title={t("chat.emptyStateTitle")}
+              description={t("chat.emptyStateDesc")}
             />
           ) : (
             turns.map((turn) => (
@@ -284,8 +288,8 @@ function InvestigatorAssistantPage() {
             onChange={(event) => setDraftMessage(event.target.value)}
             placeholder={
               isVoiceSessionActive
-                ? "Voice session active — speak your question…"
-                : "Type a question, or press the mic for a live voice conversation…"
+                ? t("chat.voiceSessionActivePlaceholder")
+                : t("chat.typeQuestionPlaceholder")
             }
             disabled={isTextInputDisabled}
             className="flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none focus-visible:border-accent-400 focus-visible:ring-2 focus-visible:ring-accent-400/30 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
@@ -301,7 +305,7 @@ function InvestigatorAssistantPage() {
               "gap-1.5 transition-all",
               isVoiceSessionActive && !isVoiceSpeaking && "animate-pulse",
             )}
-            title={isVoiceSessionActive ? "End live voice conversation" : "Start live voice conversation (Gemini Live)"}
+            title={isVoiceSessionActive ? t("chat.endLiveVoice") : t("chat.startLiveVoice")}
           >
             {isVoiceConnecting ? (
               <Loader2 className="size-4 animate-spin" />
@@ -310,14 +314,14 @@ function InvestigatorAssistantPage() {
             ) : (
               <Mic className="size-4" />
             )}
-            {isVoiceConnecting ? "Connecting…" : isVoiceSessionActive ? "End voice" : "Voice"}
+            {isVoiceConnecting ? t("chat.connectingEllipsis") : isVoiceSessionActive ? t("chat.endVoice") : t("chat.voice")}
           </Button>
 
           {/* Send button — hidden while voice session is active */}
           {!isVoiceSessionActive && (
             <Button type="submit" disabled={isAwaitingResponse || !draftMessage.trim()} className="gap-1.5">
               <SendHorizontal className="size-4" />
-              Send
+              {t("chat.send")}
             </Button>
           )}
         </form>

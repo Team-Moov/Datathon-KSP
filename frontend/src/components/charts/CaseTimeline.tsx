@@ -1,16 +1,18 @@
 import * as React from "react"
 import { ChevronRight, CircleDot, FileText } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
-const STAGE_LABELS: Record<string, string> = {
-  registered: "Registered",
-  investigation: "Under Investigation",
-  chargesheet_filed: "Chargesheet Filed",
-  disposed: "Disposed",
-  closed: "Closed",
+// Maps the backend's fixed English stage strings to translation keys.
+const STAGE_KEYS: Record<string, string> = {
+  registered: "caseTimeline.stages.registered",
+  investigation: "caseTimeline.stages.investigation",
+  chargesheet_filed: "caseTimeline.stages.chargesheetFiled",
+  disposed: "caseTimeline.stages.disposed",
+  closed: "caseTimeline.stages.closed",
 }
 
 interface TimelineEvent {
@@ -35,16 +37,17 @@ interface TimelineEvent {
  * that doesn't exist.
  */
 function CaseTimeline({ timeline }: { timeline: TimelineEvent[] }) {
+  const { t } = useTranslation()
   const [expandedIndex, setExpandedIndex] = React.useState<number | null>(null)
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Timeline</CardTitle>
+        <CardTitle>{t("caseTimeline.timeline")}</CardTitle>
       </CardHeader>
       <CardContent>
         {timeline.length === 0 ? (
-          <EmptyState title="No stage events recorded yet" />
+          <EmptyState title={t("caseTimeline.noStageEvents")} />
         ) : (
           <ol className="space-y-3 border-l border-zinc-200 pl-4 dark:border-zinc-800">
             {timeline.map((event, index) => {
@@ -64,10 +67,10 @@ function CaseTimeline({ timeline }: { timeline: TimelineEvent[] }) {
                   >
                     <div>
                       <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                        {STAGE_LABELS[event.stage] ?? event.stage}
+                        {STAGE_KEYS[event.stage] ? t(STAGE_KEYS[event.stage]) : event.stage}
                       </p>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {event.event_date} · confidence {Math.round(event.confidence * 100)}%
+                        {event.event_date} · {t("evidence.confidence")} {Math.round(event.confidence * 100)}%
                       </p>
                     </div>
                     {hasSource ? (
@@ -77,7 +80,7 @@ function CaseTimeline({ timeline }: { timeline: TimelineEvent[] }) {
                   {isExpanded && event.source_document_id ? (
                     <div className="mt-1.5 flex items-center gap-1.5 rounded-md bg-zinc-50 px-2 py-1.5 text-[11px] text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
                       <FileText className="size-3" />
-                      <span>Source document: </span>
+                      <span>{t("caseTimeline.sourceDocument")}: </span>
                       <span className="font-mono">{event.source_document_id}</span>
                     </div>
                   ) : null}

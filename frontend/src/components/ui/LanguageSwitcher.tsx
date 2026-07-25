@@ -14,12 +14,12 @@ interface LanguageSwitcherProps {
 
 const LANGUAGES = [
   { code: "en", name: "English", label: "EN" },
-  { code: "kn", name: "ಕನ್ನಡ", label: "ಕನ್ನಡ" },
-  { code: "hi", name: "हिन्दी", label: "हिन्दी" },
+  { code: "kn", name: "ಕನ್ನಡ (Kannada)", label: "ಕನ್ನಡ" },
+  { code: "hi", name: "हिन्दी (Hindi)", label: "हिन्दी" },
 ]
 
 export function LanguageSwitcher({ compact = false }: LanguageSwitcherProps) {
-  const { i18n } = useTranslation()
+  const { i18n, t } = useTranslation()
 
   const handleLanguageChange = (langCode: string) => {
     i18n.changeLanguage(langCode)
@@ -49,10 +49,10 @@ export function LanguageSwitcher({ compact = false }: LanguageSwitcherProps) {
 
   return (
     <Select value={i18n.language} onValueChange={handleLanguageChange}>
-      <SelectTrigger className="w-40">
+      <SelectTrigger className="w-48">
         <div className="flex items-center gap-2">
           <Globe className="size-4" />
-          <SelectValue placeholder="Select language" />
+          <SelectValue placeholder={t("common.language") || "Select language"} />
         </div>
       </SelectTrigger>
       <SelectContent>

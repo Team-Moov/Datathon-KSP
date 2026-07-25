@@ -113,10 +113,10 @@ function SocioInsightsPage() {
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <UsersRound className="w-6 h-6 text-accent-600 dark:text-accent-300" />
-            <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Sociological Crime Insights & Policy Platform</h1>
+            <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{t("socio.title")}</h1>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
-            Place-level criminological analytics grounded in Social Disorganization Theory (Shaw & McKay). District aggregate indicators are strictly firewalled from individual person records.
+            {t("socio.description")}
           </p>
         </div>
 
@@ -125,7 +125,7 @@ function SocioInsightsPage() {
           <Compass className="w-5 h-5 text-accent-600 dark:text-accent-300 shrink-0" />
           <div className="space-y-0.5">
             <label htmlFor="district-select" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
-              Target District
+              {t("common.targetDistrict")}
             </label>
             <select
               id="district-select"
@@ -184,7 +184,7 @@ function SocioInsightsPage() {
           }`}
         >
           <TrendingUp className="w-3.5 h-3.5" />
-          <span>Socio-Economic Trends</span>
+          <span>{t("socio.tabs.overview")}</span>
         </button>
 
         <button
@@ -196,7 +196,7 @@ function SocioInsightsPage() {
           }`}
         >
           <UsersRound className="w-3.5 h-3.5" />
-          <span>Victim Demographics</span>
+          <span>{t("socio.tabs.demographics")}</span>
         </button>
 
         <button
@@ -208,7 +208,7 @@ function SocioInsightsPage() {
           }`}
         >
           <BarChart3 className="w-3.5 h-3.5" />
-          <span>Harm Correlation Matrix</span>
+          <span>{t("socio.tabs.correlations")}</span>
         </button>
 
         <button
@@ -220,7 +220,7 @@ function SocioInsightsPage() {
           }`}
         >
           <Map className="w-3.5 h-3.5" />
-          <span>GWR Spatial Model</span>
+          <span>{t("socio.tabs.gwr")}</span>
         </button>
 
         <button
@@ -232,7 +232,7 @@ function SocioInsightsPage() {
           }`}
         >
           <Building2 className="w-3.5 h-3.5" />
-          <span>Urban Growth Velocity</span>
+          <span>{t("socio.tabs.urbanization")}</span>
         </button>
 
         <button
@@ -244,7 +244,7 @@ function SocioInsightsPage() {
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Policy Diagnostic</span>
+          <span>{t("socio.tabs.policy")}</span>
         </button>
       </div>
 
@@ -255,7 +255,7 @@ function SocioInsightsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                District Socio-Economic Time Series
+                {t("socio.trends")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -264,16 +264,16 @@ function SocioInsightsPage() {
               ) : indicatorsQuery.isError ? (
                 <ErrorState message={extractApiErrorMessage(indicatorsQuery.error)} onRetry={() => void indicatorsQuery.refetch()} />
               ) : !indicatorsQuery.data || indicatorsQuery.data.length === 0 ? (
-                <EmptyState icon={UsersRound} title="No indicator data available for this district" />
+                <EmptyState icon={UsersRound} title={t("socio.noIndicatorData")} />
               ) : (
                 <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
                   <TrendLineChart
                     data={indicatorsQuery.data}
                     xKey="year"
                     seriesKeys={[
-                      { key: "literacy_rate", label: "Literacy Rate (%)", color: "#5f6299" },
-                      { key: "unemployment_rate", label: "Unemployment Rate (%)", color: "#b1503f" },
-                      { key: "composite_stress_index", label: "Composite Stress Index", color: "#b8863f" },
+                      { key: "literacy_rate", label: t("socio.metrics.literacyRate"), color: "#5f6299" },
+                      { key: "unemployment_rate", label: t("socio.metrics.unemploymentRate"), color: "#b1503f" },
+                      { key: "composite_stress_index", label: t("socio.metrics.compositeStressScore"), color: "#b8863f" },
                     ]}
                   />
                 </React.Suspense>
@@ -290,7 +290,7 @@ function SocioInsightsPage() {
             ) : victimDemographicsQuery.isError ? (
               <ErrorState message={extractApiErrorMessage(victimDemographicsQuery.error)} onRetry={() => void victimDemographicsQuery.refetch()} />
             ) : victimDemographicsQuery.data && victimDemographicsQuery.data.status === "insufficient_data" ? (
-              <EmptyState icon={UsersRound} title="No victim-role case data for this scope" description={victimDemographicsQuery.data.police_resource_recommendation} />
+              <EmptyState icon={UsersRound} title={t("socio.noVictimData")} description={victimDemographicsQuery.data.police_resource_recommendation} />
             ) : victimDemographicsQuery.data ? (
               <VictimDemographicsChart data={victimDemographicsQuery.data} />
             ) : null}
@@ -305,7 +305,7 @@ function SocioInsightsPage() {
             ) : correlationsQuery.isError ? (
               <ErrorState message={extractApiErrorMessage(correlationsQuery.error)} onRetry={() => void correlationsQuery.refetch()} />
             ) : correlationsQuery.data && correlationsQuery.data.status === "insufficient_data" ? (
-              <EmptyState icon={BarChart3} title="Not enough data for a correlation matrix" description={correlationsQuery.data.key_takeaway} />
+              <EmptyState icon={BarChart3} title={t("socio.insufficientData")} description={correlationsQuery.data.key_takeaway} />
             ) : correlationsQuery.data ? (
               <SocioCorrelationMatrix data={correlationsQuery.data} />
             ) : null}
@@ -318,7 +318,7 @@ function SocioInsightsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                  Geographically Weighted Regression — District Coefficients
+                  {t("socio.spatialModel")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -327,7 +327,7 @@ function SocioInsightsPage() {
                 ) : gwrQuery.isError ? (
                   <ErrorState message={extractApiErrorMessage(gwrQuery.error)} onRetry={() => void gwrQuery.refetch()} />
                 ) : !gwrQuery.data || gwrQuery.data.length === 0 ? (
-                  <EmptyState title="No GWR runs available for this district" description="Execute GWR compute pipeline to generate versioned coefficient matrices." />
+                  <EmptyState title={t("socio.noGwrData")} description={t("socio.noGwrDataDesc")} />
                 ) : (
                   <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
                     <GwrCoefficientsList runs={gwrQuery.data} />
@@ -339,7 +339,7 @@ function SocioInsightsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                  Statewide GWR Coefficient Heatmap Centroids
+                  {t("socio.gwrMapHeatmap")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -348,7 +348,7 @@ function SocioInsightsPage() {
                 ) : gwrMapQuery.isError ? (
                   <ErrorState message={extractApiErrorMessage(gwrMapQuery.error)} onRetry={() => void gwrMapQuery.refetch()} />
                 ) : !gwrMapQuery.data || gwrMapQuery.data.length === 0 ? (
-                  <EmptyState icon={Map} title="No GWR map data available" description="Run GWR computation to populate district centroids." />
+                  <EmptyState icon={Map} title={t("socio.noGwrMapData")} description={t("socio.noGwrMapDataDesc")} />
                 ) : (
                   <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
                     <GwrCentroidMap points={gwrMapQuery.data} />
@@ -367,7 +367,7 @@ function SocioInsightsPage() {
             ) : urbanizationQuery.isError ? (
               <ErrorState message={extractApiErrorMessage(urbanizationQuery.error)} onRetry={() => void urbanizationQuery.refetch()} />
             ) : !urbanizationQuery.data || urbanizationQuery.data.length === 0 ? (
-              <EmptyState icon={Building2} title="Not enough multi-year data" description="At least two years of urbanization indicator data per district are needed to compute a growth trend." />
+              <EmptyState icon={Building2} title={t("socio.notEnoughUrbanData")} description={t("socio.notEnoughUrbanDataDesc")} />
             ) : (
               <UrbanizationImpactChart data={urbanizationQuery.data} />
             )}

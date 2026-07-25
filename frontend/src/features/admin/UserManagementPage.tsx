@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { UserPlus, Users } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
@@ -29,17 +30,17 @@ import {
 
 const RANKS = Object.keys(RANK_LABELS) as PoliceRank[]
 
-const createUserFormSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8, "At least 8 characters"),
-  full_name: z.string().min(1, "Required"),
-  role: z.enum(RANKS as [PoliceRank, ...PoliceRank[]]),
-  badge_number: z.string().optional(),
-})
-
-type CreateUserFormValues = z.infer<typeof createUserFormSchema>
-
 function CreateUserDialog() {
+  const { t } = useTranslation()
+  const createUserFormSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8, t("userManagement.atLeast8Chars")),
+    full_name: z.string().min(1, t("userManagement.required")),
+    role: z.enum(RANKS as [PoliceRank, ...PoliceRank[]]),
+    badge_number: z.string().optional(),
+  })
+  type CreateUserFormValues = z.infer<typeof createUserFormSchema>
+
   const queryClient = useQueryClient()
   const [isOpen, setIsOpen] = React.useState(false)
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateUserFormValues>({
@@ -50,7 +51,7 @@ function CreateUserDialog() {
   const createMutation = useMutation({
     mutationFn: submitNewUser,
     onSuccess: () => {
-      toast.success("User created")
+      toast.success(t("userManagement.userCreated"))
       void queryClient.invalidateQueries({ queryKey: ["admin-users"] })
       reset()
       setIsOpen(false)
@@ -63,36 +64,36 @@ function CreateUserDialog() {
       <DialogTrigger asChild>
         <Button size="sm" className="gap-1.5">
           <UserPlus className="size-3.5" />
-          New user
+          {t("userManagement.newUser")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create user</DialogTitle>
+          <DialogTitle>{t("userManagement.createUser")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit((values) => createMutation.mutate(values))} className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="new-user-name">Full name</Label>
+            <Label htmlFor="new-user-name">{t("userManagement.fullName")}</Label>
             <Input id="new-user-name" {...register("full_name")} />
             {errors.full_name ? <p className="text-xs text-critical-500">{errors.full_name.message}</p> : null}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="new-user-email">Email</Label>
+            <Label htmlFor="new-user-email">{t("auth.email")}</Label>
             <Input id="new-user-email" type="email" {...register("email")} />
             {errors.email ? <p className="text-xs text-critical-500">{errors.email.message}</p> : null}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="new-user-password">Temporary password</Label>
+            <Label htmlFor="new-user-password">{t("userManagement.temporaryPassword")}</Label>
             <Input id="new-user-password" type="password" {...register("password")} />
             {errors.password ? <p className="text-xs text-critical-500">{errors.password.message}</p> : null}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="new-user-badge">Badge number</Label>
+            <Label htmlFor="new-user-badge">{t("userManagement.badgeNumber")}</Label>
             <Input id="new-user-badge" {...register("badge_number")} />
           </div>
           <DialogFooter>
             <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Creating..." : "Create user"}
+              {createMutation.isPending ? t("userManagement.creating") : t("userManagement.createUser")}
             </Button>
           </DialogFooter>
         </form>
@@ -102,6 +103,7 @@ function CreateUserDialog() {
 }
 
 function UserRow({ user }: { user: AdminUserRecord }) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
 
   const roleChangeMutation = useMutation({
@@ -136,7 +138,7 @@ function UserRow({ user }: { user: AdminUserRecord }) {
           </SelectContent>
         </Select>
       </TableCell>
-      <TableCell>{user.is_active ? <Badge variant="affirm">active</Badge> : <Badge variant="critical">deactivated</Badge>}</TableCell>
+      <TableCell>{user.is_active ? <Badge variant="affirm">{t("userManagement.active")}</Badge> : <Badge variant="critical">{t("userManagement.deactivated")}</Badge>}</TableCell>
       <TableCell className="text-right">
         {user.is_active ? (
           <Button
@@ -146,7 +148,7 @@ function UserRow({ user }: { user: AdminUserRecord }) {
             onClick={() => deactivateMutation.mutate()}
             disabled={deactivateMutation.isPending}
           >
-            Deactivate
+            {t("userManagement.deactivate")}
           </Button>
         ) : null}
       </TableCell>
@@ -155,6 +157,7 @@ function UserRow({ user }: { user: AdminUserRecord }) {
 }
 
 function UserManagementPage() {
+  const { t } = useTranslation()
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["admin-users"],
     queryFn: fetchAdminUserList,
@@ -163,13 +166,13 @@ function UserManagementPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">User Management</h1>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("nav.userManagement")}</h1>
         <CreateUserDialog />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Platform Users</CardTitle>
+          <CardTitle>{t("userManagement.platformUsers")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -177,14 +180,14 @@ function UserManagementPage() {
           ) : isError ? (
             <ErrorState message={extractApiErrorMessage(error)} onRetry={() => void refetch()} />
           ) : !data || data.length === 0 ? (
-            <EmptyState icon={Users} title="No users found" />
+            <EmptyState icon={Users} title={t("userManagement.noUsersFound")} />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Rank</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t("userManagement.user")}</TableHead>
+                  <TableHead>{t("userManagement.rank")}</TableHead>
+                  <TableHead>{t("userManagement.status")}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>

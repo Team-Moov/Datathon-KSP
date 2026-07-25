@@ -1,6 +1,7 @@
 import * as React from "react"
 import { ChevronsLeft, ChevronsRight, ShieldHalf } from "lucide-react"
 import { NavLink } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { usePermission } from "@/lib/hooks/usePermission"
 import { cn } from "@/lib/utils"
@@ -9,6 +10,7 @@ import { NAVIGATION_GROUPS } from "./navigationConfig"
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "ksp.sidebarCollapsed"
 
 function Sidebar() {
+  const { t } = useTranslation()
   const [isCollapsed, setIsCollapsed] = React.useState(
     () => localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true",
   )
@@ -33,7 +35,7 @@ function Sidebar() {
         <ShieldHalf className="size-5 shrink-0 text-accent-600 dark:text-accent-300" />
         {!isCollapsed ? (
           <span className="truncate text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-            Crime Intelligence
+            {t("nav.appName")}
           </span>
         ) : null}
       </div>
@@ -46,8 +48,8 @@ function Sidebar() {
           if (visibleEntries.length === 0) return null
 
           return (
-            <div key={group.label} className="mb-4">
-              {!isCollapsed ? <p className="section-label mb-1.5 px-2">{group.label}</p> : null}
+            <div key={group.labelKey} className="mb-4">
+              {!isCollapsed ? <p className="section-label mb-1.5 px-2">{t(group.labelKey)}</p> : null}
               <ul className="space-y-0.5">
                 {visibleEntries.map((entry) => (
                   <li key={entry.path}>
@@ -64,7 +66,7 @@ function Sidebar() {
                       }
                     >
                       <entry.icon className="size-4 shrink-0" />
-                      {!isCollapsed ? <span className="truncate">{entry.label}</span> : null}
+                      {!isCollapsed ? <span className="truncate">{t(entry.labelKey)}</span> : null}
                     </NavLink>
                   </li>
                 ))}

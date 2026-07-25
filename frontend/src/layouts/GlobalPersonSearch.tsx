@@ -2,6 +2,7 @@ import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Search, UserRound } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -9,6 +10,7 @@ import { searchPersonsByName } from "@/features/persons/personsApi"
 import { useDebouncedValue } from "@/lib/hooks/useDebounce"
 
 function GlobalPersonSearch() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [rawQuery, setRawQuery] = React.useState("")
   const [isOpen, setIsOpen] = React.useState(false)
@@ -37,14 +39,14 @@ function GlobalPersonSearch() {
               setRawQuery(event.target.value)
               setIsOpen(true)
             }}
-            placeholder="Search persons by name..."
+            placeholder={t("common.searchPersonsPlaceholder")}
             className="h-8 pl-8 text-xs"
           />
         </div>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-1.5" onOpenAutoFocus={(event) => event.preventDefault()}>
         {isFetching ? (
-          <p className="px-2 py-2 text-xs text-zinc-400">Searching...</p>
+          <p className="px-2 py-2 text-xs text-zinc-400">{t("common.searching")}</p>
         ) : matches && matches.length > 0 ? (
           <ul className="max-h-64 overflow-y-auto">
             {matches.map((person) => (
@@ -57,14 +59,14 @@ function GlobalPersonSearch() {
                   <UserRound className="size-3.5 shrink-0 text-zinc-400" />
                   <span className="truncate">{person.full_name}</span>
                   {!person.human_verified ? (
-                    <span className="ml-auto shrink-0 text-[10px] text-caution-600 dark:text-caution-500">unverified</span>
+                    <span className="ml-auto shrink-0 text-[10px] text-caution-600 dark:text-caution-500">{t("common.unverified")}</span>
                   ) : null}
                 </button>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="px-2 py-2 text-xs text-zinc-400">No matches for "{debouncedQuery}"</p>
+          <p className="px-2 py-2 text-xs text-zinc-400">{t("common.noMatchesFor", { query: debouncedQuery })}</p>
         )}
       </PopoverContent>
     </Popover>

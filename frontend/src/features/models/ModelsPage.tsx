@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { Cpu, ShieldCheck } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { ErrorState } from "@/components/data-states/ErrorState"
 import { LoadingSkeleton } from "@/components/data-states/LoadingSkeleton"
@@ -28,6 +29,7 @@ function ImportanceBars({ importance }: { importance: Record<string, number> }) 
 }
 
 function ModelCardView({ card }: { card: ModelCard }) {
+  const { t } = useTranslation()
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -53,15 +55,15 @@ function ModelCardView({ card }: { card: ModelCard }) {
         </div>
 
         <div className="text-xs text-zinc-500 dark:text-zinc-400">
-          <span className="text-zinc-400">Family:</span> {card.family}
+          <span className="text-zinc-400">{t("models.family")}:</span> {card.family}
           <span className="mx-1.5">·</span>
-          <span className="text-zinc-400">Serves:</span> {card.capability}
+          <span className="text-zinc-400">{t("models.serves")}:</span> {card.capability}
         </div>
 
         {card.feature_importance ? (
           <div>
             <p className="section-label mb-1.5">
-              Feature importance{card.feature_importance_method ? ` (${card.feature_importance_method})` : ""}
+              {t("models.featureImportance")}{card.feature_importance_method ? ` (${card.feature_importance_method})` : ""}
             </p>
             <ImportanceBars importance={card.feature_importance} />
           </div>
@@ -79,10 +81,10 @@ function ModelCardView({ card }: { card: ModelCard }) {
         <div className="rounded-md border border-affirm-500/30 bg-affirm-500/5 p-2.5">
           <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-affirm-700 dark:text-affirm-400">
             <ShieldCheck className="size-3.5" />
-            Fairness
+            {t("models.fairness")}
             {card.fairness.protected_attributes_used === false ? (
               <span className="ml-1 font-normal text-zinc-500">
-                — {card.fairness.protected_attributes.join(", ")} never modeled
+                — {t("models.neverModeled", { attributes: card.fairness.protected_attributes.join(", ") })}
               </span>
             ) : null}
           </p>
@@ -94,6 +96,7 @@ function ModelCardView({ card }: { card: ModelCard }) {
 }
 
 function ModelsPage() {
+  const { t } = useTranslation()
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["model-cards"],
     queryFn: fetchModelCards,
@@ -102,10 +105,9 @@ function ModelsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Model Transparency</h1>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("nav.modelTransparency")}</h1>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Every ML model's held-out quality, feature importance, and fairness posture — the evidence behind each
-          automated insight (capability #9).
+          {t("models.pageDesc")}
         </p>
       </div>
 

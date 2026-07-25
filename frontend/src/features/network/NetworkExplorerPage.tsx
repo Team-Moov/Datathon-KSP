@@ -2,6 +2,7 @@ import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Waypoints } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { ErrorState } from "@/components/data-states/ErrorState"
@@ -16,6 +17,7 @@ import { fetchEgoNetwork, fetchPredictedLinks } from "./networkApi"
 const NetworkGraph = React.lazy(() => import("@/components/charts/NetworkGraph").then((m) => ({ default: m.NetworkGraph })))
 
 function NetworkExplorerPage() {
+  const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selected, setSelected] = React.useState<PickedPerson | null>(null)
   const [depth, setDepth] = React.useState("2")
@@ -26,7 +28,7 @@ function NetworkExplorerPage() {
     if (hydratedRef.current) return
     hydratedRef.current = true
     const personId = searchParams.get("person")
-    if (personId) setSelected({ id: personId, name: searchParams.get("name") || "Selected person" })
+    if (personId) setSelected({ id: personId, name: searchParams.get("name") || t("network.selectedPerson") })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -75,16 +77,16 @@ function NetworkExplorerPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Network Explorer</h1>
+      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("nav.networkExplorer")}</h1>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-72 space-y-1">
-          <p className="section-label">Center person</p>
-          <PersonPicker selected={selected} onSelect={selectPerson} onClear={clearPerson} placeholder="Search by name…" />
+          <p className="section-label">{t("network.centerPerson")}</p>
+          <PersonPicker selected={selected} onSelect={selectPerson} onClear={clearPerson} placeholder={t("network.searchByName")} />
         </div>
 
         <div className="w-32 space-y-1">
-          <p className="section-label">Depth</p>
+          <p className="section-label">{t("network.depth")}</p>
           <Select value={depth} onValueChange={setDepth}>
             <SelectTrigger>
               <SelectValue />
@@ -92,7 +94,7 @@ function NetworkExplorerPage() {
             <SelectContent>
               {["1", "2", "3", "4"].map((value) => (
                 <SelectItem key={value} value={value}>
-                  {value} hop{value === "1" ? "" : "s"}
+                  {value} {value === "1" ? t("network.hop") : t("network.hops")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -103,14 +105,14 @@ function NetworkExplorerPage() {
       {!selectedPersonId ? (
         <Card>
           <CardContent>
-            <EmptyState icon={Waypoints} title="Select a person to explore their network" />
+            <EmptyState icon={Waypoints} title={t("network.selectPersonPrompt")} />
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle>Ego Network</CardTitle>
+              <CardTitle>{t("network.egoNetwork")}</CardTitle>
             </CardHeader>
             <CardContent>
               {egoQuery.isLoading ? (
@@ -118,7 +120,7 @@ function NetworkExplorerPage() {
               ) : egoQuery.isError ? (
                 <ErrorState message={extractApiErrorMessage(egoQuery.error)} onRetry={() => void egoQuery.refetch()} />
               ) : graphNodes.length === 0 ? (
-                <EmptyState title="No network data" description="This person has no recorded connections yet." />
+                <EmptyState title={t("network.noNetworkData")} description={t("network.noNetworkDataDesc")} />
               ) : (
                 <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
                   <NetworkGraph
@@ -134,13 +136,13 @@ function NetworkExplorerPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Predicted Links</CardTitle>
+              <CardTitle>{t("network.predictedLinks")}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {predictedLinksQuery.isLoading ? (
                 <LoadingSkeleton variant="list" rows={3} />
               ) : !predictedLinksQuery.data || predictedLinksQuery.data.length === 0 ? (
-                <EmptyState title="No predicted links" description="No unconfirmed connections surfaced for this person." />
+                <EmptyState title={t("network.noPredictedLinks")} description={t("network.noPredictedLinksDesc")} />
               ) : (
                 <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
                   {predictedLinksQuery.data.map((link) => (

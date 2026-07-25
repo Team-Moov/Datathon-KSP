@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Loader2, Search, Waypoints } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { ErrorState } from "@/components/data-states/ErrorState"
@@ -18,6 +19,20 @@ const NetworkGraph = React.lazy(() => import("@/components/charts/NetworkGraph")
 const NODE_LABEL_OPTIONS = ["Person", "Incident", "Account"]
 const EDGE_TYPE_OPTIONS = ["ACCUSED_IN", "VICTIM_IN", "WITNESSED", "ASSOCIATED_WITH", "TRANSACTED_WITH", "PREDICTED_LINK"]
 
+// These option strings are graph node/edge labels sent to the API verbatim —
+// only the displayed checkbox text is translated, the option value is not.
+const OPTION_LABEL_KEYS: Record<string, string> = {
+  Person: "globalNetwork.nodeTypes.person",
+  Incident: "globalNetwork.nodeTypes.incident",
+  Account: "globalNetwork.nodeTypes.account",
+  ACCUSED_IN: "globalNetwork.edgeTypes.accusedIn",
+  VICTIM_IN: "globalNetwork.edgeTypes.victimIn",
+  WITNESSED: "globalNetwork.edgeTypes.witnessed",
+  ASSOCIATED_WITH: "globalNetwork.edgeTypes.associatedWith",
+  TRANSACTED_WITH: "globalNetwork.edgeTypes.transactedWith",
+  PREDICTED_LINK: "globalNetwork.edgeTypes.predictedLink",
+}
+
 function CheckboxGroup({
   label,
   options,
@@ -29,6 +44,7 @@ function CheckboxGroup({
   selected: string[]
   onToggle: (value: string) => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-1.5">
       <p className="section-label">{label}</p>
@@ -41,7 +57,7 @@ function CheckboxGroup({
               onChange={() => onToggle(option)}
               className="size-3.5 accent-accent-600"
             />
-            {option.replace(/_/g, " ")}
+            {OPTION_LABEL_KEYS[option] ? t(OPTION_LABEL_KEYS[option]) : option.replace(/_/g, " ")}
           </label>
         ))}
       </div>
@@ -58,6 +74,7 @@ function CheckboxGroup({
  * same NetworkGraph, and clicking a node re-centers the filtered view on it.
  */
 function GlobalNetworkPage() {
+  const { t } = useTranslation()
   const [nodeLabels, setNodeLabels] = React.useState<string[]>([])
   const [edgeTypes, setEdgeTypes] = React.useState<string[]>([])
   const [districtId, setDistrictId] = React.useState("")
@@ -128,11 +145,11 @@ function GlobalNetworkPage() {
         } else if (event.type === "token" && event.content) {
           setNlNarration((previous) => previous + event.content)
         } else if (event.type === "error") {
-          setNlError(event.message ?? "Something went wrong.")
+          setNlError(event.message ?? t("globalNetwork.somethingWentWrong"))
         }
       }
     } catch (error) {
-      setNlError(error instanceof Error ? error.message : "Something went wrong.")
+      setNlError(error instanceof Error ? error.message : t("globalNetwork.somethingWentWrong"))
     } finally {
       setIsNlRunning(false)
     }
@@ -147,22 +164,21 @@ function GlobalNetworkPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Global Network Graph</h1>
+      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("nav.globalNetworkGraph")}</h1>
       <p className="max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-        Explore the whole network — persons, incidents, financial links — with filters, or ask in plain language
-        (routed through the same assistant that powers the chat page).
+        {t("globalNetwork.pageDesc")}
       </p>
 
       <Card>
         <CardHeader>
-          <CardTitle>Ask in plain language</CardTitle>
+          <CardTitle>{t("globalNetwork.askInPlainLanguage")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-end gap-3">
             <Input
               value={nlQuery}
               onChange={(event) => setNlQuery(event.target.value)}
-              placeholder='e.g. "show accused persons in district 1 connected by transactions"'
+              placeholder={t("globalNetwork.askPlaceholder")}
               className="flex-1"
               onKeyDown={(event) => {
                 if (event.key === "Enter") void runNaturalLanguageQuery()
@@ -170,11 +186,11 @@ function GlobalNetworkPage() {
             />
             <Button onClick={() => void runNaturalLanguageQuery()} disabled={!nlQuery.trim() || isNlRunning} className="gap-1.5">
               {isNlRunning ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-              Ask
+              {t("globalNetwork.ask")}
             </Button>
             {nlResult ? (
               <Button variant="outline" onClick={clearNaturalLanguageResult}>
-                Clear
+                {t("globalNetwork.clear")}
               </Button>
             ) : null}
           </div>
@@ -185,38 +201,38 @@ function GlobalNetworkPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Filters</CardTitle>
+          <CardTitle>{t("globalNetwork.filters")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <CheckboxGroup label="Node types" options={NODE_LABEL_OPTIONS} selected={nodeLabels} onToggle={toggleNodeLabel} />
-            <CheckboxGroup label="Edge types" options={EDGE_TYPE_OPTIONS} selected={edgeTypes} onToggle={toggleEdgeType} />
+            <CheckboxGroup label={t("globalNetwork.nodeTypesLabel")} options={NODE_LABEL_OPTIONS} selected={nodeLabels} onToggle={toggleNodeLabel} />
+            <CheckboxGroup label={t("globalNetwork.edgeTypesLabel")} options={EDGE_TYPE_OPTIONS} selected={edgeTypes} onToggle={toggleEdgeType} />
             <div className="space-y-1.5">
-              <Label htmlFor="graph-district">District ID</Label>
-              <Input id="graph-district" value={districtId} onChange={(event) => setDistrictId(event.target.value)} placeholder="Any" />
+              <Label htmlFor="graph-district">{t("globalNetwork.districtId")}</Label>
+              <Input id="graph-district" value={districtId} onChange={(event) => setDistrictId(event.target.value)} placeholder={t("globalNetwork.any")} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="graph-crimeno">Crime No. contains</Label>
+              <Label htmlFor="graph-crimeno">{t("globalNetwork.crimeNoContains")}</Label>
               <Input id="graph-crimeno" value={crimeNoContains} onChange={(event) => setCrimeNoContains(event.target.value)} placeholder="e.g. THEFT" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="graph-date-from">Reported from</Label>
+              <Label htmlFor="graph-date-from">{t("globalNetwork.reportedFrom")}</Label>
               <Input id="graph-date-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="graph-date-to">Reported to</Label>
+              <Label htmlFor="graph-date-to">{t("globalNetwork.reportedTo")}</Label>
               <Input id="graph-date-to" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="graph-limit">Node limit</Label>
+              <Label htmlFor="graph-limit">{t("globalNetwork.nodeLimit")}</Label>
               <Input id="graph-limit" value={limit} onChange={(event) => setLimit(event.target.value)} />
             </div>
           </div>
           {centerPersonId ? (
             <div className="flex items-center gap-2 text-xs text-zinc-500">
-              <span>Centered on person {centerPersonId.slice(0, 8)}…</span>
+              <span>{t("globalNetwork.centeredOnPerson", { id: centerPersonId.slice(0, 8) })}</span>
               <Button variant="outline" size="sm" onClick={() => setCenterPersonId(undefined)}>
-                Reset center
+                {t("globalNetwork.resetCenter")}
               </Button>
             </div>
           ) : null}
@@ -225,7 +241,7 @@ function GlobalNetworkPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Graph{nlResult ? " — natural-language result" : ""}</CardTitle>
+          <CardTitle>{t("globalNetwork.graph")}{nlResult ? ` — ${t("globalNetwork.nlResult")}` : ""}</CardTitle>
         </CardHeader>
         <CardContent>
           {nlResult ? (
@@ -237,7 +253,7 @@ function GlobalNetworkPage() {
           ) : filtersQuery.isError ? (
             <ErrorState message={extractApiErrorMessage(filtersQuery.error)} onRetry={() => void filtersQuery.refetch()} />
           ) : graphNodes.length === 0 ? (
-            <EmptyState icon={Waypoints} title="No matching nodes" description="Adjust the filters above, or ask a question in plain language." />
+            <EmptyState icon={Waypoints} title={t("globalNetwork.noMatchingNodes")} description={t("globalNetwork.noMatchingNodesDesc")} />
           ) : (
             <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>
               <NetworkGraph nodes={graphNodes} edges={graphEdges} height={520} onNodeSelect={(node) => setCenterPersonId(node.id)} />

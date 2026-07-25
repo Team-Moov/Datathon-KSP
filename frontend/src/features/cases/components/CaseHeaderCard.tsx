@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Pencil } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,6 +26,7 @@ interface CaseHeaderCardProps {
 }
 
 function CaseHeaderCard({ caseId, caseData }: CaseHeaderCardProps) {
+  const { t } = useTranslation()
   const { has } = usePermission()
   const queryClient = useQueryClient()
   const [isEditOpen, setIsEditOpen] = React.useState(false)
@@ -43,7 +45,7 @@ function CaseHeaderCard({ caseId, caseData }: CaseHeaderCardProps) {
     },
     onError: (error) => {
       if (isVersionConflict(error)) {
-        setConflictMessage("This case was edited by someone else since you loaded it. Reload to see the latest version before saving.")
+        setConflictMessage(t("caseHeader.versionConflict"))
         void queryClient.invalidateQueries({ queryKey: workspaceQueryKey(caseId) })
         return
       }
@@ -60,13 +62,14 @@ function CaseHeaderCard({ caseId, caseData }: CaseHeaderCardProps) {
             {caseData.disposition ? <Badge variant="neutral">{caseData.disposition}</Badge> : null}
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Reported {caseData.date_reported ?? "date unknown"} · District {caseData.district_id ?? "—"}
+            {t("caseHeader.reportedOn", { date: caseData.date_reported ?? t("caseHeader.dateUnknown") })} ·{" "}
+            {t("common.district")} {caseData.district_id ?? "—"}
           </p>
           {caseData.brief_facts ? (
             <p className="max-w-2xl text-sm text-zinc-700 dark:text-zinc-300">{caseData.brief_facts}</p>
           ) : (
             <p className="text-sm italic text-zinc-400 dark:text-zinc-600">
-              Brief facts are restricted for your access level.
+              {t("caseHeader.briefFactsRestricted")}
             </p>
           )}
         </div>
@@ -74,7 +77,7 @@ function CaseHeaderCard({ caseId, caseData }: CaseHeaderCardProps) {
         {has("edit_case") ? (
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setIsEditOpen(true)}>
             <Pencil className="size-3.5" />
-            Edit
+            {t("common.edit")}
           </Button>
         ) : null}
       </CardContent>
@@ -82,10 +85,10 @@ function CaseHeaderCard({ caseId, caseData }: CaseHeaderCardProps) {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit case brief</DialogTitle>
+            <DialogTitle>{t("caseHeader.editCaseBrief")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label htmlFor="brief-facts-editor">Brief facts</Label>
+            <Label htmlFor="brief-facts-editor">{t("caseHeader.briefFacts")}</Label>
             <textarea
               id="brief-facts-editor"
               value={draftBriefFacts}
@@ -97,10 +100,10 @@ function CaseHeaderCard({ caseId, caseData }: CaseHeaderCardProps) {
           {conflictMessage ? <p className="text-xs text-critical-500">{conflictMessage}</p> : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "Saving..." : "Save changes"}
+              {updateMutation.isPending ? t("caseHeader.saving") : t("caseHeader.saveChanges")}
             </Button>
           </DialogFooter>
         </DialogContent>

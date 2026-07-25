@@ -30,20 +30,21 @@ function parseAccountList(raw: string): string[] {
 }
 
 function AccountLookupTab({ detect }: { detect: (account: string) => Promise<SuspiciousTransactionAlert | null> }) {
+  const { t } = useTranslation()
   const [account, setAccount] = React.useState("")
   const mutation = useMutation({ mutationFn: () => detect(account.trim()) })
 
   return (
     <div className="space-y-4">
       <div className="flex items-end gap-3">
-        <Input value={account} onChange={(event) => setAccount(event.target.value)} placeholder="Account identifier" className="flex-1" />
+        <Input value={account} onChange={(event) => setAccount(event.target.value)} placeholder={t("financial.accountIdentifier")} className="flex-1" />
         <Button onClick={() => mutation.mutate()} disabled={!account.trim() || mutation.isPending}>
-          {mutation.isPending ? "Checking..." : "Check account"}
+          {mutation.isPending ? t("financial.checking") : t("financial.checkAccount")}
         </Button>
       </div>
       {mutation.isError ? <p className="text-xs text-critical-500">{extractApiErrorMessage(mutation.error)}</p> : null}
       {mutation.isSuccess && !mutation.data ? (
-        <EmptyState title="No alert triggered" description="This account doesn't match a known typology pattern." />
+        <EmptyState title={t("financial.noAlertTriggered")} description={t("financial.noAlertTriggeredDesc")} />
       ) : null}
       {mutation.data ? <FinancialAlertCard alert={mutation.data} /> : null}
     </div>
@@ -61,6 +62,7 @@ function MultiAccountTab({
   buttonLabel: string
   emptyDescription: string
 }) {
+  const { t } = useTranslation()
   const [accountsText, setAccountsText] = React.useState("")
   const accounts = parseAccountList(accountsText)
   const mutation = useMutation({ mutationFn: () => run(accounts) })
@@ -76,14 +78,14 @@ function MultiAccountTab({
           className="w-full rounded-md border border-zinc-300 bg-white p-2.5 text-sm text-zinc-900 outline-none focus-visible:border-accent-400 focus-visible:ring-2 focus-visible:ring-accent-400/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
         />
         <div className="flex items-center justify-between">
-          <span className="text-xs text-zinc-400">{accounts.length} account{accounts.length === 1 ? "" : "s"}</span>
+          <span className="text-xs text-zinc-400">{t("financial.accountCount", { count: accounts.length })}</span>
           <Button onClick={() => mutation.mutate()} disabled={accounts.length === 0 || mutation.isPending}>
-            {mutation.isPending ? "Running..." : buttonLabel}
+            {mutation.isPending ? t("financial.running") : buttonLabel}
           </Button>
         </div>
       </div>
       {mutation.isError ? <p className="text-xs text-critical-500">{extractApiErrorMessage(mutation.error)}</p> : null}
-      {mutation.isSuccess && mutation.data.length === 0 ? <EmptyState title="No alerts" description={emptyDescription} /> : null}
+      {mutation.isSuccess && mutation.data.length === 0 ? <EmptyState title={t("financial.noAlerts")} description={emptyDescription} /> : null}
       {mutation.data && mutation.data.length > 0 ? (
         <div className="space-y-3">
           {mutation.data.map((alert, index) => (
@@ -96,6 +98,7 @@ function MultiAccountTab({
 }
 
 function CyclesTab() {
+  const { t } = useTranslation()
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["financial-cycles"],
     queryFn: detectLayeringCycles,
@@ -103,7 +106,7 @@ function CyclesTab() {
 
   if (isLoading) return <LoadingSkeleton variant="card" rows={2} />
   if (isError) return <ErrorState message={extractApiErrorMessage(error)} onRetry={() => void refetch()} />
-  if (!data || data.length === 0) return <EmptyState icon={Banknote} title="No layering cycles detected" />
+  if (!data || data.length === 0) return <EmptyState icon={Banknote} title={t("financial.noLayeringCycles")} />
 
   return (
     <div className="space-y-3">
@@ -118,6 +121,7 @@ function CyclesTab() {
  * accounts → scan them in one click. Supports a ?person= deep link from the person
  * page / chat / an alert. */
 function ByPersonTab() {
+  const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selected, setSelected] = React.useState<PickedPerson | null>(null)
 
@@ -126,7 +130,7 @@ function ByPersonTab() {
     if (hydratedRef.current) return
     hydratedRef.current = true
     const personId = searchParams.get("person")
-    if (personId) setSelected({ id: personId, name: searchParams.get("name") || "Selected person" })
+    if (personId) setSelected({ id: personId, name: searchParams.get("name") || t("network.selectedPerson") })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -162,29 +166,29 @@ function ByPersonTab() {
   return (
     <div className="space-y-4">
       <div className="w-full max-w-sm space-y-1">
-        <p className="section-label">Person</p>
+        <p className="section-label">{t("financial.person")}</p>
         <PersonPicker selected={selected} onSelect={selectPerson} onClear={clearPerson} />
       </div>
 
       {!selected ? (
-        <EmptyState icon={Banknote} title="Pick a person" description="See the accounts tied to them, then scan for typologies." />
+        <EmptyState icon={Banknote} title={t("financial.pickPerson")} description={t("financial.pickPersonDesc")} />
       ) : accountsQuery.isLoading ? (
         <LoadingSkeleton variant="list" rows={3} />
       ) : accountsQuery.isError ? (
         <ErrorState message={extractApiErrorMessage(accountsQuery.error)} onRetry={() => void accountsQuery.refetch()} />
       ) : accounts.length === 0 ? (
-        <EmptyState title="No linked accounts" description="This person has no transactions on record to scan." />
+        <EmptyState title={t("financial.noLinkedAccounts")} description={t("financial.noLinkedAccountsDesc")} />
       ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-400">
-              {accounts.length} linked account{accounts.length === 1 ? "" : "s"}
+              {t("financial.linkedAccountsCount", { count: accounts.length })}
             </span>
             <Button
               onClick={() => scanMutation.mutate(accounts.map((a) => a.account))}
               disabled={scanMutation.isPending}
             >
-              {scanMutation.isPending ? "Scanning..." : "Scan all accounts"}
+              {scanMutation.isPending ? t("financial.scanning") : t("financial.scanAllAccounts")}
             </Button>
           </div>
           <ul className="flat-surface divide-y divide-zinc-100 rounded-md dark:divide-zinc-900">
@@ -192,7 +196,7 @@ function ByPersonTab() {
               <li key={entry.account} className="flex items-center justify-between px-3 py-2 text-sm">
                 <span className="font-mono text-zinc-700 dark:text-zinc-200">{entry.account}</span>
                 <span className="flex items-center gap-2 text-xs text-zinc-400">
-                  <span>{entry.txn_count} txns</span>
+                  <span>{t("financial.txnCount", { count: entry.txn_count })}</span>
                   <span
                     className={cn(
                       "rounded-full px-2 py-0.5 text-[10px]",
@@ -201,7 +205,7 @@ function ByPersonTab() {
                         : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800",
                     )}
                   >
-                    {entry.flagged ? "flagged" : "clean"}
+                    {entry.flagged ? t("financial.flagged") : t("financial.clean")}
                   </span>
                 </span>
               </li>
@@ -211,7 +215,7 @@ function ByPersonTab() {
             <p className="text-xs text-critical-500">{extractApiErrorMessage(scanMutation.error)}</p>
           ) : null}
           {scanMutation.isSuccess && scanMutation.data.length === 0 ? (
-            <EmptyState title="No alerts" description="No typology matched this person's accounts." />
+            <EmptyState title={t("financial.noAlerts")} description={t("financial.noTypologyMatchedPerson")} />
           ) : null}
           {scanMutation.data && scanMutation.data.length > 0 ? (
             <div className="space-y-3">
@@ -261,17 +265,17 @@ function FinancialCrimePage() {
             <TabsContent value="clusters">
               <MultiAccountTab
                 run={detectOrganizedClusters}
-                placeholder="Already-flagged account identifiers, one per line or comma-separated"
-                buttonLabel="Detect clusters"
-                emptyDescription="No organized cluster found across these accounts (need at least 2 with a transaction edge between them)."
+                placeholder={t("financial.clustersPlaceholder")}
+                buttonLabel={t("financial.detectClusters")}
+                emptyDescription={t("financial.noClusterFound")}
               />
             </TabsContent>
             <TabsContent value="scan">
               <MultiAccountTab
                 run={runFullScan}
-                placeholder="Account identifiers to scan, one per line or comma-separated"
-                buttonLabel="Run full scan"
-                emptyDescription="No typology matched any of these accounts."
+                placeholder={t("financial.scanPlaceholder")}
+                buttonLabel={t("financial.runFullScan")}
+                emptyDescription={t("financial.noTypologyMatched")}
               />
             </TabsContent>
           </Tabs>

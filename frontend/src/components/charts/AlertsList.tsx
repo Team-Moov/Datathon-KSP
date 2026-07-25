@@ -1,5 +1,6 @@
 import * as React from "react"
 import { AlertTriangle, Check, Users, X } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
 
@@ -37,8 +38,9 @@ function AlertsList({
   onDismiss?: (id: string) => void
   busyId?: string | null
 }) {
+  const { t } = useTranslation()
   if (alerts.length === 0) {
-    return <p className="px-1 py-2 text-xs text-zinc-400">No active early-warning alerts.</p>
+    return <p className="px-1 py-2 text-xs text-zinc-400">{t("alertsList.noActiveAlerts")}</p>
   }
   return (
     <ul className="space-y-2">
@@ -66,13 +68,13 @@ function AlertsList({
                     {alert.status === "acknowledged" ? (
                       <>
                         <span>·</span>
-                        <span className="text-zinc-500 dark:text-zinc-300">acknowledged</span>
+                        <span className="text-zinc-500 dark:text-zinc-300">{t("alertsList.acknowledged")}</span>
                       </>
                     ) : null}
                     {typeof alert.confidence === "number" ? (
                       <>
                         <span>·</span>
-                        <span>conf {(alert.confidence * 100).toFixed(0)}%</span>
+                        <span>{t("alertsList.conf")} {(alert.confidence * 100).toFixed(0)}%</span>
                       </>
                     ) : null}
                   </div>
@@ -85,7 +87,7 @@ function AlertsList({
                       type="button"
                       disabled={isBusy}
                       onClick={() => onAcknowledge(alert.id)}
-                      title="Acknowledge"
+                      title={t("alertsList.acknowledge")}
                       className="rounded p-1 text-zinc-500 hover:bg-black/5 hover:text-zinc-800 disabled:opacity-40 dark:hover:bg-white/5 dark:hover:text-zinc-100"
                     >
                       <Check className="size-3.5" />
@@ -96,7 +98,7 @@ function AlertsList({
                       type="button"
                       disabled={isBusy}
                       onClick={() => onDismiss(alert.id)}
-                      title="Dismiss"
+                      title={t("alertsList.dismiss")}
                       className="rounded p-1 text-zinc-500 hover:bg-black/5 hover:text-zinc-800 disabled:opacity-40 dark:hover:bg-white/5 dark:hover:text-zinc-100"
                     >
                       <X className="size-3.5" />

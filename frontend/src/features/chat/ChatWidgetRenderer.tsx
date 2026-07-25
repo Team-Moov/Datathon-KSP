@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import { LoadingSkeleton } from "@/components/data-states/LoadingSkeleton"
 import type { PredictedLink } from "@/components/charts/PredictedLinksList"
@@ -184,6 +185,7 @@ function ChatWidgetRenderer({
   widget: WidgetEntry
   onFollowUpQuery?: (query: string) => void
 }) {
+  const { t } = useTranslation()
   if (widget.widgetType === "force_directed_graph" && isGraphPayload(widget.data)) {
     const nodes = (widget.data.nodes ?? []).map((node) => ({
       id: node.id,
@@ -212,7 +214,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "person_search_results" && isArrayPayload<PersonSearchResult>(widget.data)) {
     return (
-      <WidgetFrame label="Matched persons">
+      <WidgetFrame label={t("chatWidgets.matchedPersons")}>
         <PersonSearchResultsList results={widget.data} />
       </WidgetFrame>
     )
@@ -220,7 +222,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "financial_accounts_list" && isArrayPayload<PersonAccount>(widget.data)) {
     return (
-      <WidgetFrame label="Linked financial accounts">
+      <WidgetFrame label={t("chatWidgets.linkedFinancialAccounts")}>
         <FinancialAccountsList accounts={widget.data} />
       </WidgetFrame>
     )
@@ -228,7 +230,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "district_list" && isArrayPayload<DistrictOption>(widget.data)) {
     return (
-      <WidgetFrame label="Districts">
+      <WidgetFrame label={t("chatWidgets.districts")}>
         <DistrictListCard districts={widget.data} />
       </WidgetFrame>
     )
@@ -236,7 +238,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "socio_correlation_matrix" && isSocioCorrelationPayload(widget.data)) {
     return (
-      <WidgetFrame label="Statistical correlation matrix">
+      <WidgetFrame label={t("chatWidgets.statisticalCorrelationMatrix")}>
         <SocioCorrelationMatrix data={widget.data} />
       </WidgetFrame>
     )
@@ -244,7 +246,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "victim_demographics" && isVictimDemographicsPayload(widget.data)) {
     return (
-      <WidgetFrame label="Victim demographics">
+      <WidgetFrame label={t("chatWidgets.victimDemographics")}>
         <VictimDemographicsChart data={widget.data} />
       </WidgetFrame>
     )
@@ -252,7 +254,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "urbanization_impact" && isArrayPayload<UrbanizationImpactItem>(widget.data)) {
     return (
-      <WidgetFrame label="Urbanization vs. crime velocity">
+      <WidgetFrame label={t("chatWidgets.urbanizationVsCrimeVelocity")}>
         <UrbanizationImpactChart data={widget.data} />
       </WidgetFrame>
     )
@@ -260,7 +262,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "policy_recommendations" && isPolicyRecommendationsPayload(widget.data)) {
     return (
-      <WidgetFrame label="Policy recommendations">
+      <WidgetFrame label={t("chatWidgets.policyRecommendations")}>
         <PolicyRecommendationsCard data={widget.data} />
       </WidgetFrame>
     )
@@ -268,7 +270,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "crime_head_list" && isArrayPayload<CrimeHeadOption>(widget.data)) {
     return (
-      <WidgetFrame label="Crime categories">
+      <WidgetFrame label={t("chatWidgets.crimeCategories")}>
         <CrimeHeadListCard crimeHeads={widget.data} />
       </WidgetFrame>
     )
@@ -276,7 +278,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "temporal_trends" && isTemporalTrendsPayload(widget.data)) {
     return (
-      <WidgetFrame label="Temporal & seasonal trends">
+      <WidgetFrame label={t("chatWidgets.temporalSeasonalTrends")}>
         <TemporalTrendsChart data={widget.data} />
       </WidgetFrame>
     )
@@ -284,7 +286,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "surveillance_priorities" && isSurveillancePrioritiesPayload(widget.data)) {
     return (
-      <WidgetFrame label="Surveillance priority checkpoints">
+      <WidgetFrame label={t("chatWidgets.surveillancePriorityCheckpoints")}>
         <SurveillancePriorityList data={widget.data} />
       </WidgetFrame>
     )
@@ -292,7 +294,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "predicted_links" && isArrayPayload<PredictedLink>(widget.data)) {
     return (
-      <WidgetFrame label="Predicted links — unverified">
+      <WidgetFrame label={t("chatWidgets.predictedLinksUnverified")}>
         <PredictedLinksList links={widget.data} />
       </WidgetFrame>
     )
@@ -300,7 +302,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "centrality_scores" && isCentralityPayload(widget.data)) {
     return (
-      <WidgetFrame label="Centrality (PageRank / betweenness)">
+      <WidgetFrame label={t("chatWidgets.centrality")}>
         <CentralityScoresList scores={widget.data} />
       </WidgetFrame>
     )
@@ -308,7 +310,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "multi_jurisdiction_offenders" && isArrayPayload<MultiJurisdictionOffender>(widget.data)) {
     return (
-      <WidgetFrame label="Multi-jurisdiction offenders">
+      <WidgetFrame label={t("chatWidgets.multiJurisdictionOffenders")}>
         <MultiJurisdictionOffendersList offenders={widget.data} />
       </WidgetFrame>
     )
@@ -316,14 +318,14 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "socio_trend" && isArrayPayload<SocioIndicatorRow>(widget.data)) {
     return (
-      <WidgetFrame label="Socio-economic indicators">
+      <WidgetFrame label={t("chatWidgets.socioEconomicIndicators")}>
         <TrendLineChart
           data={widget.data}
           xKey="year"
           seriesKeys={[
-            { key: "literacy_rate", label: "Literacy rate", color: "#5f6299" },
-            { key: "unemployment_rate", label: "Unemployment rate", color: "#b1503f" },
-            { key: "composite_stress_index", label: "Composite stress index", color: "#b8863f" },
+            { key: "literacy_rate", label: t("chatWidgets.literacyRate"), color: "#5f6299" },
+            { key: "unemployment_rate", label: t("chatWidgets.unemploymentRate"), color: "#b1503f" },
+            { key: "composite_stress_index", label: t("chatWidgets.compositeStressIndex"), color: "#b8863f" },
           ]}
           height={220}
         />
@@ -333,7 +335,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "gwr_coefficients" && isArrayPayload<GwrRun>(widget.data)) {
     return (
-      <WidgetFrame label="GWR — local socio-economic predictors of crime harm">
+      <WidgetFrame label={t("chatWidgets.gwrLocalPredictors")}>
         <GwrCoefficientsList runs={widget.data} />
       </WidgetFrame>
     )
@@ -341,7 +343,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "gwr_map" && isArrayPayload<GwrDistrictPoint>(widget.data)) {
     return (
-      <WidgetFrame label="GWR — statewide">
+      <WidgetFrame label={t("chatWidgets.gwrStatewide")}>
         <GwrCentroidMap points={widget.data} />
       </WidgetFrame>
     )
@@ -349,13 +351,13 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "crime_stats_trend" && isArrayPayload<CrimeStatRow>(widget.data)) {
     return (
-      <WidgetFrame label="Crime statistics">
+      <WidgetFrame label={t("chatWidgets.crimeStatistics")}>
         <TrendLineChart
           data={widget.data}
           xKey="year"
           seriesKeys={[
-            { key: "count", label: "Count", color: "#5f6299" },
-            { key: "chi_weighted_count", label: "CHI-weighted count", color: "#b1503f" },
+            { key: "count", label: t("chatWidgets.count"), color: "#5f6299" },
+            { key: "chi_weighted_count", label: t("chatWidgets.chiWeightedCount"), color: "#b1503f" },
           ]}
           height={220}
         />
@@ -367,13 +369,13 @@ function ChatWidgetRenderer({
     const alerts = Array.isArray(widget.data) ? widget.data : [widget.data]
     if (alerts.length === 0) {
       return (
-        <WidgetFrame label="Financial crime scan">
-          <p className="px-1 text-xs text-zinc-400">No alert triggered — this account/list doesn't match a known typology pattern.</p>
+        <WidgetFrame label={t("chatWidgets.financialCrimeScan")}>
+          <p className="px-1 text-xs text-zinc-400">{t("chatWidgets.noAlertTriggeredDesc")}</p>
         </WidgetFrame>
       )
     }
     return (
-      <WidgetFrame label="Financial crime alert(s)">
+      <WidgetFrame label={t("chatWidgets.financialCrimeAlerts")}>
         <div className="space-y-2">
           {alerts.map((alert, index) => (
             <FinancialAlertCard key={index} alert={alert} />
@@ -386,15 +388,15 @@ function ChatWidgetRenderer({
   if (widget.widgetType === "hotspot_map" && isArrayPayload<HotspotCell>(widget.data)) {
     if (widget.data.length === 0) {
       return (
-        <WidgetFrame label="Hotspot forecast">
-          <p className="px-1 text-xs text-zinc-400">Not enough historical incidents to fit a forecast.</p>
+        <WidgetFrame label={t("chatWidgets.hotspotForecast")}>
+          <p className="px-1 text-xs text-zinc-400">{t("chatWidgets.notEnoughHistoricalIncidents")}</p>
         </WidgetFrame>
       )
     }
     const centerLat = widget.data.reduce((sum, cell) => sum + cell.lat_center, 0) / widget.data.length
     const centerLng = widget.data.reduce((sum, cell) => sum + cell.lng_center, 0) / widget.data.length
     return (
-      <WidgetFrame label="Hotspot forecast">
+      <WidgetFrame label={t("chatWidgets.hotspotForecast")}>
         <HotspotMap cells={widget.data} centerLat={centerLat} centerLng={centerLng} />
       </WidgetFrame>
     )
@@ -402,7 +404,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "risk_profile_card" && isRiskProfilePayload(widget.data)) {
     return (
-      <WidgetFrame label="Risk profile">
+      <WidgetFrame label={t("chatWidgets.riskProfile")}>
         <RiskProfileCard result={widget.data} />
       </WidgetFrame>
     )
@@ -410,7 +412,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "case_timeline" && isCaseBriefPayload(widget.data)) {
     return (
-      <WidgetFrame label="Case brief">
+      <WidgetFrame label={t("chatWidgets.caseBrief")}>
         <CaseBriefCard brief={widget.data} />
       </WidgetFrame>
     )
@@ -418,7 +420,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "case_workspace" && isCaseWorkspacePayload(widget.data)) {
     return (
-      <WidgetFrame label="Case workspace">
+      <WidgetFrame label={t("chatWidgets.caseWorkspace")}>
         <CaseWorkspaceSummaryCard workspace={widget.data} />
       </WidgetFrame>
     )
@@ -426,7 +428,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "mo_linkage_clusters" && isArrayPayload<MoLinkageCluster>(widget.data)) {
     return (
-      <WidgetFrame label="MO linkage — candidate crime series (leads)">
+      <WidgetFrame label={t("chatWidgets.moLinkage")}>
         <MoLinkageList clusters={widget.data} />
       </WidgetFrame>
     )
@@ -434,7 +436,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "alerts_list" && isArrayPayload<AlertListItem>(widget.data)) {
     return (
-      <WidgetFrame label="Early-warning alerts">
+      <WidgetFrame label={t("nav.earlyWarningAlerts")}>
         <AlertsList alerts={widget.data} />
       </WidgetFrame>
     )
@@ -442,7 +444,7 @@ function ChatWidgetRenderer({
 
   if (widget.widgetType === "entities_list" && isEntitiesPayload(widget.data)) {
     return (
-      <WidgetFrame label="Extracted entities">
+      <WidgetFrame label={t("chatWidgets.extractedEntities")}>
         <EntitiesList entities={widget.data.entities} />
       </WidgetFrame>
     )

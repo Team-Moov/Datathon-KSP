@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useMutation } from "@tanstack/react-query"
 import { FileText, Loader2, ScanText, Tags, UploadCloud } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +15,7 @@ import { extractEntities, ocrDocument, promoteDocument, uploadDocument } from ".
 const EntitiesList = React.lazy(() => import("@/components/charts/EntitiesList").then((m) => ({ default: m.EntitiesList })))
 
 function UploadSection() {
+  const { t } = useTranslation()
   const [file, setFile] = React.useState<File | null>(null)
   const mutation = useMutation({ mutationFn: () => uploadDocument(file!) })
   const promoteMutation = useMutation({ mutationFn: (documentId: string) => promoteDocument(documentId) })
@@ -21,21 +23,20 @@ function UploadSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Upload &amp; ingest</CardTitle>
+        <CardTitle>{t("documents.uploadIngest")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Runs the full ingestion pipeline for any supported format (FIR PDF, chargesheet, history-sheet, statement
-          audio, news HTML, CSV/XLSX). News lands in staging and needs explicit promotion (§2.2 — never auto-merged).
+          {t("documents.uploadDesc")}
         </p>
         <div className="flex items-end gap-3">
           <div className="flex-1 space-y-1.5">
-            <Label htmlFor="doc-upload">File</Label>
+            <Label htmlFor="doc-upload">{t("documents.file")}</Label>
             <Input id="doc-upload" type="file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
           </div>
           <Button onClick={() => mutation.mutate()} disabled={!file || mutation.isPending} className="gap-1.5">
             {mutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <UploadCloud className="size-4" />}
-            Upload
+            {t("documents.upload")}
           </Button>
         </div>
         {mutation.isError ? <p className="text-xs text-critical-500">{extractApiErrorMessage(mutation.error)}</p> : null}
@@ -43,10 +44,10 @@ function UploadSection() {
           <div className="flat-surface space-y-2 rounded-md p-3 text-xs">
             <div className="flex items-center justify-between">
               <span className="font-mono text-zinc-700 dark:text-zinc-300">{mutation.data.original_filename}</span>
-              {mutation.data.staging_only ? <Badge variant="caution">Staged — needs promotion</Badge> : <Badge variant="affirm">Ingested</Badge>}
+              {mutation.data.staging_only ? <Badge variant="caution">{t("documents.stagedNeedsPromotion")}</Badge> : <Badge variant="affirm">{t("documents.ingested")}</Badge>}
             </div>
             <p className="text-zinc-500">
-              {mutation.data.source_type} · {mutation.data.file_format} · confidence {Math.round(mutation.data.confidence_score * 100)}%
+              {mutation.data.source_type} · {mutation.data.file_format} · {t("evidence.confidence")} {Math.round(mutation.data.confidence_score * 100)}%
             </p>
             {mutation.data.staging_only ? (
               <Button
@@ -55,7 +56,7 @@ function UploadSection() {
                 onClick={() => promoteMutation.mutate(mutation.data!.id)}
                 disabled={promoteMutation.isPending || promoteMutation.isSuccess}
               >
-                {promoteMutation.isSuccess ? "Promoted" : promoteMutation.isPending ? "Promoting..." : "Promote to verified"}
+                {promoteMutation.isSuccess ? t("documents.promoted") : promoteMutation.isPending ? t("documents.promoting") : t("documents.promoteToVerified")}
               </Button>
             ) : null}
           </div>
@@ -66,6 +67,7 @@ function UploadSection() {
 }
 
 function OcrSection({ onTextExtracted }: { onTextExtracted: (text: string) => void }) {
+  const { t } = useTranslation()
   const [file, setFile] = React.useState<File | null>(null)
   const [language, setLanguage] = React.useState("")
   const mutation = useMutation({ mutationFn: () => ocrDocument(file!, language.trim() || undefined) })
@@ -73,34 +75,34 @@ function OcrSection({ onTextExtracted }: { onTextExtracted: (text: string) => vo
   return (
     <Card>
       <CardHeader>
-        <CardTitle>OCR a file</CardTitle>
+        <CardTitle>{t("documents.ocrAFile")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Local mode only reads digital-text PDFs; scanned images/handwriting need Zia OCR (OCR_PROVIDER=zia).
+          {t("documents.ocrDesc")}
         </p>
         <div className="flex items-end gap-3">
           <div className="flex-1 space-y-1.5">
-            <Label htmlFor="ocr-upload">File</Label>
+            <Label htmlFor="ocr-upload">{t("documents.file")}</Label>
             <Input id="ocr-upload" type="file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
           </div>
           <div className="w-28 space-y-1.5">
-            <Label htmlFor="ocr-language">Language</Label>
+            <Label htmlFor="ocr-language">{t("common.language")}</Label>
             <Input id="ocr-language" value={language} onChange={(event) => setLanguage(event.target.value)} placeholder="kn" />
           </div>
           <Button onClick={() => mutation.mutate()} disabled={!file || mutation.isPending} className="gap-1.5">
             {mutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
-            Run OCR
+            {t("documents.runOcr")}
           </Button>
         </div>
         {mutation.isError ? <p className="text-xs text-critical-500">{extractApiErrorMessage(mutation.error)}</p> : null}
         {mutation.data ? (
           <div className="flat-surface space-y-2 rounded-md p-3 text-xs">
             <div className="flex items-center justify-between text-[10px] text-zinc-400">
-              <span>{mutation.data.provider} · confidence {Math.round(mutation.data.confidence * 100)}%</span>
+              <span>{mutation.data.provider} · {t("evidence.confidence")} {Math.round(mutation.data.confidence * 100)}%</span>
               {mutation.data.text ? (
                 <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => onTextExtracted(mutation.data!.text)}>
-                  Send to entity extraction ↓
+                  {t("documents.sendToEntityExtraction")}
                 </Button>
               ) : null}
             </div>
@@ -108,7 +110,7 @@ function OcrSection({ onTextExtracted }: { onTextExtracted: (text: string) => vo
             {mutation.data.text ? (
               <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">{mutation.data.text}</p>
             ) : (
-              <EmptyState icon={FileText} title="No text extracted" />
+              <EmptyState icon={FileText} title={t("documents.noTextExtracted")} />
             )}
           </div>
         ) : null}
@@ -118,24 +120,25 @@ function OcrSection({ onTextExtracted }: { onTextExtracted: (text: string) => vo
 }
 
 function NerSection({ text, onTextChange }: { text: string; onTextChange: (text: string) => void }) {
+  const { t } = useTranslation()
   const mutation = useMutation({ mutationFn: () => extractEntities(text) })
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Extract entities</CardTitle>
+        <CardTitle>{t("documents.extractEntities")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <textarea
           value={text}
           onChange={(event) => onTextChange(event.target.value)}
-          placeholder="Paste narrative text, or send OCR output here..."
+          placeholder={t("documents.pasteTextPlaceholder")}
           rows={5}
           className="w-full rounded-md border border-zinc-300 bg-white p-2.5 text-sm text-zinc-900 outline-none focus-visible:border-accent-400 focus-visible:ring-2 focus-visible:ring-accent-400/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
         />
         <Button onClick={() => mutation.mutate()} disabled={!text.trim() || mutation.isPending} className="gap-1.5">
           {mutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Tags className="size-4" />}
-          Extract entities
+          {t("documents.extractEntities")}
         </Button>
         {mutation.isError ? <p className="text-xs text-critical-500">{extractApiErrorMessage(mutation.error)}</p> : null}
         {mutation.data ? (
@@ -151,14 +154,14 @@ function NerSection({ text, onTextChange }: { text: string; onTextChange: (text:
 /** Frontend surface for the Catalyst-backed document tools (Zia OCR/NER,
  * ingestion pipeline) — the endpoints existed but had never had a page. */
 function DocumentsPage() {
+  const { t } = useTranslation()
   const [nerText, setNerText] = React.useState("")
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Documents</h1>
+      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("documents.title")}</h1>
       <p className="max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-        Upload evidence for full ingestion, run OCR on a scanned/digital file, or extract named entities from text —
-        provider is configurable (OCR_PROVIDER/NLP_PROVIDER: local, zia, or gemini for NER).
+        {t("documents.pageDesc")}
       </p>
 
       <UploadSection />
