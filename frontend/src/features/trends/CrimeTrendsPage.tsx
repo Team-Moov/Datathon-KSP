@@ -156,28 +156,28 @@ function CrimeTrendsPage() {
       <div className="flex overflow-x-auto gap-1 border-b border-zinc-200 dark:border-zinc-800 pb-2">
         <button
           onClick={() => setActiveTab("hotspots")}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "hotspots" ? "bg-indigo-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "hotspots" ? "bg-accent-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
         >
           <MapPinned className="w-3.5 h-3.5" />
           <span>{t("trends.spatialHotspots")}</span>
         </button>
         <button
           onClick={() => setActiveTab("temporal")}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "temporal" ? "bg-indigo-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "temporal" ? "bg-accent-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
         >
           <CalendarClock className="w-3.5 h-3.5" />
           <span>{t("trends.temporalSeasonality")}</span>
         </button>
         <button
           onClick={() => setActiveTab("mo")}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "mo" ? "bg-indigo-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "mo" ? "bg-accent-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
         >
           <Fingerprint className="w-3.5 h-3.5" />
           <span>{t("trends.moSerialClusters")}</span>
         </button>
         <button
           onClick={() => setActiveTab("surveillance")}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "surveillance" ? "bg-indigo-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "surveillance" ? "bg-accent-600 text-white shadow-sm" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
         >
           <ShieldAlert className="w-3.5 h-3.5" />
           <span>{t("trends.surveillancePriority")}</span>
@@ -207,8 +207,8 @@ function CrimeTrendsPage() {
                 {chronicVsAcute ? (
                   <div className="flex items-center gap-4 rounded-md bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 text-xs">
                     <span className="section-label">{t("trends.chronicVsAcute")}</span>
-                    <span className="font-medium text-indigo-600 dark:text-indigo-400">{t("trends.chronicBaseline")}: {chronicVsAcute.chronicPct}%</span>
-                    <span className="font-medium text-amber-600 dark:text-amber-400">{t("trends.acuteNearRepeat")}: {chronicVsAcute.acutePct}%</span>
+                    <span className="font-medium text-accent-600 dark:text-accent-400">{t("trends.chronicBaseline")}: {chronicVsAcute.chronicPct}%</span>
+                    <span className="font-medium text-caution-600 dark:text-caution-500">{t("trends.acuteNearRepeat")}: {chronicVsAcute.acutePct}%</span>
                   </div>
                 ) : null}
                 <React.Suspense fallback={<LoadingSkeleton variant="card" rows={1} />}>

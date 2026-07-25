@@ -527,6 +527,20 @@
     "pasteTextPlaceholder": "Paste narrative text, or send OCR output here...",
     "pageDesc": "Upload evidence for full ingestion, run OCR on a scanned/digital file, or extract named entities from text — provider is configurable (OCR_PROVIDER/NLP_PROVIDER: local, zia, or gemini for NER)."
   },
+  "districtList": {
+    "noDistrictsFound": "No districts found.",
+    "unemployment": "Unemployment {{pct}}%",
+    "noIndicatorData": "No indicator data",
+    "stress": "Stress {{value}}"
+  },
+  "policyRecommendations": {
+    "title": "Criminological Policy Diagnostic",
+    "description": "Automated preventive interventions grounded in criminological theory and district socio-economic risk factors.",
+    "actionItems": "Targeted Preventive Action Items",
+    "priority": "Priority",
+    "grounding": "Grounding",
+    "expectedImpact": "Expected Impact"
+  },
   "caseTimeline": {
     "timeline": "Timeline",
     "noStageEvents": "No stage events recorded yet",

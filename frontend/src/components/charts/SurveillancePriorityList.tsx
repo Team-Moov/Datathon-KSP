@@ -19,7 +19,7 @@ export interface SurveillancePrioritiesData {
 
 const TIER_STYLES: Record<SurveillanceCheckpoint["priority_tier"], string> = {
   High: "bg-critical-500/10 text-critical-600 dark:text-critical-400",
-  Medium: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  Medium: "bg-caution-500/10 text-caution-600 dark:text-caution-500",
   Low: "bg-zinc-500/10 text-zinc-500 dark:text-zinc-400",
 }
 

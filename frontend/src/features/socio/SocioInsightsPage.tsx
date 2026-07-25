@@ -179,7 +179,7 @@ function SocioInsightsPage() {
           onClick={() => setActiveTab("overview")}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
             activeTab === "overview"
-              ? "bg-indigo-600 text-white shadow-sm"
+              ? "bg-accent-600 text-white shadow-sm"
               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           }`}
         >
@@ -191,7 +191,7 @@ function SocioInsightsPage() {
           onClick={() => setActiveTab("demographics")}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
             activeTab === "demographics"
-              ? "bg-indigo-600 text-white shadow-sm"
+              ? "bg-accent-600 text-white shadow-sm"
               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           }`}
         >
@@ -203,7 +203,7 @@ function SocioInsightsPage() {
           onClick={() => setActiveTab("correlations")}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
             activeTab === "correlations"
-              ? "bg-indigo-600 text-white shadow-sm"
+              ? "bg-accent-600 text-white shadow-sm"
               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           }`}
         >
@@ -215,7 +215,7 @@ function SocioInsightsPage() {
           onClick={() => setActiveTab("gwr")}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
             activeTab === "gwr"
-              ? "bg-indigo-600 text-white shadow-sm"
+              ? "bg-accent-600 text-white shadow-sm"
               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           }`}
         >
@@ -227,7 +227,7 @@ function SocioInsightsPage() {
           onClick={() => setActiveTab("urbanization")}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
             activeTab === "urbanization"
-              ? "bg-indigo-600 text-white shadow-sm"
+              ? "bg-accent-600 text-white shadow-sm"
               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           }`}
         >
@@ -239,7 +239,7 @@ function SocioInsightsPage() {
           onClick={() => setActiveTab("policy")}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
             activeTab === "policy"
-              ? "bg-indigo-600 text-white shadow-sm"
+              ? "bg-accent-600 text-white shadow-sm"
               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           }`}
         >

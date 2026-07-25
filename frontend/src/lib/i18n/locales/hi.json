@@ -527,6 +527,20 @@
     "pasteTextPlaceholder": "कथा पाठ पेस्ट करें, या OCR आउटपुट यहां भेजें...",
     "pageDesc": "पूर्ण इनजेशन के लिए साक्ष्य अपलोड करें, स्कैन/डिजिटल फ़ाइल पर OCR चलाएं, या टेक्स्ट से नामित इकाइयां निकालें।"
   },
+  "districtList": {
+    "noDistrictsFound": "कोई जिला नहीं मिला।",
+    "unemployment": "बेरोजगारी {{pct}}%",
+    "noIndicatorData": "कोई सूचक डेटा नहीं",
+    "stress": "तनाव {{value}}"
+  },
+  "policyRecommendations": {
+    "title": "अपराधशास्त्रीय नीति निदान",
+    "description": "अपराधशास्त्रीय सिद्धांत और जिला सामाजिक-आर्थिक जोखिम कारकों पर आधारित स्वचालित निवारक हस्तक्षेप।",
+    "actionItems": "लक्षित निवारक कार्य मद",
+    "priority": "प्राथमिकता",
+    "grounding": "आधार",
+    "expectedImpact": "अपेक्षित प्रभाव"
+  },
   "caseTimeline": {
     "timeline": "समयरेखा",
     "noStageEvents": "अभी तक कोई चरण घटना दर्ज नहीं",

@@ -15,13 +15,13 @@ export function SocioCorrelationMatrix({ data }: SocioCorrelationMatrixProps) {
 
   return (
     <div className="space-y-4">
-      <Card className="border-indigo-100 dark:border-indigo-950/50 bg-gradient-to-br from-white to-indigo-50/20 dark:from-zinc-900 dark:to-indigo-950/10 shadow-sm">
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base font-semibold flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
                 <span>{t("socioCorrelation.statisticalCorrelationMatrix")}</span>
-                <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300">
+                <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-accent-500/15 text-accent-700 dark:text-accent-300">
                   {t("socioCorrelation.sampleSize", { count: data.sample_size })}
                 </span>
               </CardTitle>
@@ -45,7 +45,7 @@ export function SocioCorrelationMatrix({ data }: SocioCorrelationMatrixProps) {
                 <tr>
                   <th className="py-2.5 px-3 font-semibold">{t("socioCorrelation.socioEconomicIndicator")}</th>
                   {!showChiOnly && <th className="py-2.5 px-3 font-semibold text-center">{"Raw Count ($r_{raw}$)"}</th>}
-                  <th className="py-2.5 px-3 font-semibold text-center text-indigo-600 dark:text-indigo-400">{"CHI Harm ($r_{CHI}$)"}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center text-accent-600 dark:text-accent-400">{"CHI Harm ($r_{CHI}$)"}</th>
                   <th className="py-2.5 px-3 font-semibold text-center">{"Significance ($p$-val)"}</th>
                   {!showChiOnly && <th className="py-2.5 px-3 font-semibold text-right">{t("socioCorrelation.harmAlignment")}</th>}
                 </tr>
@@ -64,17 +64,17 @@ export function SocioCorrelationMatrix({ data }: SocioCorrelationMatrixProps) {
                           {item.r_raw.toFixed(2)}
                         </td>
                       )}
-                      <td className="py-3 px-3 text-center font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50/30 dark:bg-indigo-950/20">
+                      <td className="py-3 px-3 text-center font-semibold text-accent-600 dark:text-accent-400 bg-accent-500/5">
                         {item.r_chi.toFixed(2)}
                       </td>
                       <td className="py-3 px-3 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-affirm-500/15 text-affirm-600 dark:text-affirm-500">
                           {item.significance} (p={item.p_val_chi})
                         </span>
                       </td>
                       {!showChiOnly && (
                         <td className="py-3 px-3 text-right font-medium">
-                          <span className={isPositiveDelta ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
+                          <span className={isPositiveDelta ? "text-affirm-600 dark:text-affirm-500" : "text-caution-600 dark:text-caution-500"}>
                             {isPositiveDelta ? `+${delta.toFixed(2)}` : delta.toFixed(2)} {t("socioCorrelation.harmDelta")}
                           </span>
                         </td>
@@ -87,21 +87,21 @@ export function SocioCorrelationMatrix({ data }: SocioCorrelationMatrixProps) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-            <div className="p-3 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 flex items-start gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-lg bg-accent-500/5 border border-accent-500/20 flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-accent-600 dark:text-accent-400 shrink-0 mt-0.5" />
               <div>
-                <div className="text-xs font-semibold text-indigo-900 dark:text-indigo-200">{t("socioCorrelation.chiHarmImpactFinding")}</div>
-                <p className="text-[11px] text-indigo-700 dark:text-indigo-300/80 mt-0.5">
+                <div className="text-xs font-semibold text-accent-800 dark:text-accent-200">{t("socioCorrelation.chiHarmImpactFinding")}</div>
+                <p className="text-[11px] text-accent-700 dark:text-accent-300/80 mt-0.5">
                   {data.chi_vs_raw_delta}
                 </p>
               </div>
             </div>
 
-            <div className="p-3 rounded-lg bg-amber-50/50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/40 flex items-start gap-2.5">
-              <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-lg bg-caution-500/5 border border-caution-500/20 flex items-start gap-2.5">
+              <Info className="w-4 h-4 text-caution-600 dark:text-caution-500 shrink-0 mt-0.5" />
               <div>
-                <div className="text-xs font-semibold text-amber-900 dark:text-amber-200">{t("socioCorrelation.policyTakeaway")}</div>
-                <p className="text-[11px] text-amber-700 dark:text-amber-300/80 mt-0.5">
+                <div className="text-xs font-semibold text-caution-700 dark:text-caution-500">{t("socioCorrelation.policyTakeaway")}</div>
+                <p className="text-[11px] text-caution-700/80 dark:text-caution-500/80 mt-0.5">
                   {data.key_takeaway}
                 </p>
               </div>

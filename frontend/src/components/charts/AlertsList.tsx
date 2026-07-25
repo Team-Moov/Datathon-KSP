@@ -18,7 +18,7 @@ export interface AlertListItem {
 
 const SEVERITY_STYLES: Record<string, string> = {
   high: "border-caution-500/50 bg-caution-500/10 text-caution-600 dark:text-caution-500",
-  medium: "border-amber-400/40 bg-amber-400/10 text-amber-600 dark:text-amber-400",
+  medium: "border-caution-500/25 bg-caution-500/5 text-caution-600/80 dark:text-caution-500/80",
   low: "border-zinc-300 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400",
 }
 

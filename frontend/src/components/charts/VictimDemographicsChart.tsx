@@ -15,7 +15,7 @@ export function VictimDemographicsChart({ data }: VictimDemographicsChartProps) 
       <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
-            <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <Users className="w-4 h-4 text-accent-600 dark:text-accent-400" />
             <span>{t("victimDemographics.title")}</span>
           </CardTitle>
           <CardDescription className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -37,7 +37,7 @@ export function VictimDemographicsChart({ data }: VictimDemographicsChartProps) 
                 >
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{group.cohort}</span>
-                    <span className="text-xs px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-semibold">
+                    <span className="text-xs px-2 py-0.5 rounded bg-accent-500/15 text-accent-700 dark:text-accent-300 font-semibold">
                       {t("victimDemographics.share", { pct: group.overall_pct })}
                     </span>
                   </div>
@@ -47,7 +47,7 @@ export function VictimDemographicsChart({ data }: VictimDemographicsChartProps) 
                       <span className="font-semibold text-zinc-800 dark:text-zinc-200">{group.cyber_pct}%</span>
                     </div>
                     <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1 rounded-full overflow-hidden">
-                      <div className="bg-indigo-500 h-full" style={{ width: `${group.cyber_pct}%` }} />
+                      <div className="bg-accent-500 h-full" style={{ width: `${group.cyber_pct}%` }} />
                     </div>
 
                     <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
@@ -55,7 +55,7 @@ export function VictimDemographicsChart({ data }: VictimDemographicsChartProps) 
                       <span className="font-semibold text-zinc-800 dark:text-zinc-200">{group.theft_pct}%</span>
                     </div>
                     <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1 rounded-full overflow-hidden">
-                      <div className="bg-emerald-500 h-full" style={{ width: `${group.theft_pct}%` }} />
+                      <div className="bg-caution-500 h-full" style={{ width: `${group.theft_pct}%` }} />
                     </div>
 
                     <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
@@ -63,7 +63,7 @@ export function VictimDemographicsChart({ data }: VictimDemographicsChartProps) 
                       <span className="font-semibold text-zinc-800 dark:text-zinc-200">{group.violent_pct}%</span>
                     </div>
                     <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1 rounded-full overflow-hidden">
-                      <div className="bg-rose-500 h-full" style={{ width: `${group.violent_pct}%` }} />
+                      <div className="bg-critical-500 h-full" style={{ width: `${group.violent_pct}%` }} />
                     </div>
                   </div>
                 </div>
@@ -87,8 +87,8 @@ export function VictimDemographicsChart({ data }: VictimDemographicsChartProps) 
                       </span>
                     </div>
                     <div className="flex h-2 w-full rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-                      <div className="bg-blue-500 h-full" style={{ width: `${item.male_pct}%` }} title={t("victimDemographics.male")} />
-                      <div className="bg-purple-500 h-full" style={{ width: `${item.female_pct}%` }} title={t("victimDemographics.female")} />
+                      <div className="bg-accent-600 h-full" style={{ width: `${item.male_pct}%` }} title={t("victimDemographics.male")} />
+                      <div className="bg-accent-300 h-full" style={{ width: `${item.female_pct}%` }} title={t("victimDemographics.female")} />
                     </div>
                   </div>
                 ))}
@@ -107,7 +107,7 @@ export function VictimDemographicsChart({ data }: VictimDemographicsChartProps) 
                       <div className="text-[11px] text-zinc-500 dark:text-zinc-400">{t("victimDemographics.risk")}: {item.primary_risk}</div>
                     </div>
                     <div className="text-right">
-                      <span className="inline-block px-2 py-0.5 text-[11px] font-bold rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                      <span className="inline-block px-2 py-0.5 text-[11px] font-bold rounded bg-caution-500/15 text-caution-600 dark:text-caution-500">
                         {t("victimDemographics.score")}: {item.vulnerability_score.toFixed(2)}
                       </span>
                     </div>
@@ -118,11 +118,11 @@ export function VictimDemographicsChart({ data }: VictimDemographicsChartProps) 
           </div>
 
           {/* Resource Allocation Recommendation */}
-          <div className="p-3 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+          <div className="p-3 rounded-lg bg-affirm-500/5 border border-affirm-500/20 flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-affirm-600 dark:text-affirm-500 shrink-0 mt-0.5" />
             <div>
-              <div className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">{t("victimDemographics.resourceAllocationDirective")}</div>
-              <p className="text-[11px] text-emerald-700 dark:text-emerald-300/80 mt-0.5">
+              <div className="text-xs font-semibold text-affirm-700 dark:text-affirm-500">{t("victimDemographics.resourceAllocationDirective")}</div>
+              <p className="text-[11px] text-affirm-700/80 dark:text-affirm-500/80 mt-0.5">
                 {data.police_resource_recommendation}
               </p>
             </div>
