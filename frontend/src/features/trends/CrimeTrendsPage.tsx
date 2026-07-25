@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import { CalendarClock, Fingerprint, MapPinned, ShieldAlert } from "lucide-react"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
@@ -34,6 +35,7 @@ const DEFAULT_CENTER_LNG = 77.5946
 type ActiveTab = "hotspots" | "temporal" | "mo" | "surveillance"
 
 function CrimeTrendsPage() {
+  const { t } = useTranslation()
   const [districtId, setDistrictId] = React.useState("")
   const [crimeHeadId, setCrimeHeadId] = React.useState("")
   const [targetDate, setTargetDate] = React.useState(() => new Date().toISOString().slice(0, 10))
@@ -102,10 +104,9 @@ function CrimeTrendsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Crime Trends &amp; Hotspot Forecast</h1>
+      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("trends.title")}</h1>
       <p className="max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-        Hawkes/ETAS self-exciting forecast, real temporal seasonality, MO-linkage series, and forecast-derived
-        surveillance priorities — decomposed into chronic background risk and acute near-repeat risk.
+        {t("trends.description")}
       </p>
 
       <Card>

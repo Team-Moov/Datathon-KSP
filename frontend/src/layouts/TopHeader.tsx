@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,8 +57,9 @@ function TopHeader() {
     <header className="glass-surface sticky top-0 z-30 flex h-14 items-center justify-between gap-4 px-4">
       <Breadcrumbs />
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <GlobalPersonSearch />
+        <LanguageSwitcher compact />
         <ThemeToggle />
 
         {currentUser ? (

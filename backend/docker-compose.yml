@@ -44,7 +44,8 @@ services:
       test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USER:-neo4j} -p '${NEO4J_PASSWORD}' 'RETURN 1'"]
       interval: 15s
       timeout: 10s
-      retries: 5
+      retries: 20
+      start_period: 60s
 
   # ── Redis ─────────────────────────────────────────────────────────────────
   redis:

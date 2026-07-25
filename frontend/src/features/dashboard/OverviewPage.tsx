@@ -1,5 +1,6 @@
 import { FolderSearch, MessagesSquare, ScrollText, Waypoints } from "lucide-react"
 import { Link } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { EmptyState } from "@/components/data-states/EmptyState"
@@ -10,26 +11,27 @@ import { usePermission } from "@/lib/hooks/usePermission"
 import { RANK_LABELS } from "@/lib/types/permissions"
 import { useDashboardMetrics } from "./useDashboardMetrics"
 
-const QUICK_ACTIONS = [
-  { label: "Open case register", to: "/cases", icon: ScrollText, requiredPermission: "view_case_basic" as const },
-  { label: "Investigator assistant", to: "/chat", icon: MessagesSquare },
-  { label: "Network explorer", to: "/network", icon: Waypoints, requiredPermission: "view_network_basic" as const },
-  { label: "Person search", to: "/persons", icon: FolderSearch },
-]
-
 function OverviewPage() {
+  const { t } = useTranslation()
   const { currentUser } = useAuth()
   const { has } = usePermission()
   const { recentCases, activeInvestigationCount, isLoading, isError, errorMessage, refetch } = useDashboardMetrics()
+
+  const QUICK_ACTIONS = [
+    { label: t("dashboard.quickActions.caseRegister"), to: "/cases", icon: ScrollText, requiredPermission: "view_case_basic" as const },
+    { label: t("dashboard.quickActions.investigatorAssistant"), to: "/chat", icon: MessagesSquare },
+    { label: t("dashboard.quickActions.networkExplorer"), to: "/network", icon: Waypoints, requiredPermission: "view_network_basic" as const },
+    { label: t("dashboard.quickActions.personSearch"), to: "/persons", icon: FolderSearch },
+  ]
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          Welcome back, {currentUser?.full_name.split(" ")[0]}
+          {t("dashboard.welcome", { firstName: currentUser?.full_name.split(" ")[0] })}
         </h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Signed in as {currentUser ? RANK_LABELS[currentUser.role] : ""}
+          {t("dashboard.signedInAs", { role: currentUser ? RANK_LABELS[currentUser.role] : "" })}
           {currentUser?.badge_number ? ` · ${currentUser.badge_number}` : ""}
         </p>
       </div>
@@ -53,17 +55,17 @@ function OverviewPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recently Reported Cases</CardTitle>
+          <CardTitle>{t("dashboard.recentCases")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
             <LoadingSkeleton variant="list" rows={5} />
           ) : isError ? (
-            <ErrorState message={errorMessage ?? "Couldn't load recent cases."} onRetry={() => void refetch()} />
+            <ErrorState message={errorMessage ?? t("dashboard.noCaptionDesc")} onRetry={() => void refetch()} />
           ) : recentCases.length === 0 ? (
             <EmptyState
-              title="No cases in view"
-              description="Cases reported within your jurisdiction will appear here as they're registered."
+              title={t("dashboard.noCaption")}
+              description={t("dashboard.noCaptionDesc")}
             />
           ) : (
             <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
@@ -83,7 +85,7 @@ function OverviewPage() {
         </CardContent>
       </Card>
 
-      <p className="section-label">{activeInvestigationCount} case{activeInvestigationCount === 1 ? "" : "s"} in current view</p>
+      <p className="section-label">{t("dashboard.casesInView", { plural: activeInvestigationCount === 1 ? "" : "s", count: activeInvestigationCount })}</p>
     </div>
   )
 }

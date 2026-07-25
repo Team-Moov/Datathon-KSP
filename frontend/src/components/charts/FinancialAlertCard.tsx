@@ -1,3 +1,10 @@
+import { Info } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { FinancialFlowDiagram } from "@/components/charts/FinancialFlowDiagram"
 import { Badge } from "@/components/ui/badge"
 
@@ -18,7 +25,21 @@ function FinancialAlertCard({ alert }: { alert: SuspiciousTransactionAlert }) {
     <div className="flat-surface space-y-3 rounded-md p-4">
       <div className="flex items-center justify-between">
         <Badge variant="critical">{alert.typology}</Badge>
-        <span className="text-xs text-zinc-500">{Math.round(alert.confidence * 100)}% confidence</span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-zinc-500">{Math.round(alert.confidence * 100)}% confidence</span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+                  <Info className="w-3 h-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="text-xs">Model confidence score indicating the probability that this alert matches a known suspicious transaction pattern (0-100%)</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </div>
       <FinancialFlowDiagram accountsInvolved={alert.accounts_involved} />
       <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">

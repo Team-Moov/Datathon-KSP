@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { ShieldHalf } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
 import { Button } from "@/components/ui/button"
@@ -14,16 +15,20 @@ import { submitLoginCredentials, submitMfaCode } from "./authApi"
 import { useAuth } from "./AuthProvider"
 import { MfaChallengePage } from "./MfaChallengePage"
 
-const credentialsFormSchema = z.object({
-  email: z.string().email("Enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
-})
+function getCredentialsFormSchema(t: (key: string) => string) {
+  return z.object({
+    email: z.string().email(t("auth.invalidEmail")),
+    password: z.string().min(1, t("auth.passwordRequired")),
+  })
+}
 
-type CredentialsFormValues = z.infer<typeof credentialsFormSchema>
+type CredentialsFormValues = z.infer<ReturnType<typeof getCredentialsFormSchema>>
 
 function LoginPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { applyTokenPair } = useAuth()
+  const credentialsFormSchema = getCredentialsFormSchema(t)
   const [pendingChallenge, setPendingChallenge] = React.useState<MfaChallenge | null>(null)
   const [serverError, setServerError] = React.useState<string | null>(null)
 
@@ -48,7 +53,7 @@ function LoginPage() {
       }
       await completeSession(result)
     } catch (error) {
-      setServerError(extractApiErrorMessage(error, "Incorrect email or password."))
+      setServerError(extractApiErrorMessage(error, t("auth.incorrectCredentials")))
     }
   }
 
@@ -65,8 +70,8 @@ function LoginPage() {
             <ShieldHalf className="size-5 text-accent-600 dark:text-accent-300" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Karnataka Crime Intelligence</p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">Restricted access — authorized personnel only</p>
+            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{t("auth.title")}</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">{t("auth.subtitle")}</p>
           </div>
         </div>
 
@@ -80,12 +85,12 @@ function LoginPage() {
           ) : (
             <form onSubmit={handleSubmit(onSubmitCredentials)} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="login-email">Email</Label>
+                <Label htmlFor="login-email">{t("auth.email")}</Label>
                 <Input id="login-email" type="email" autoComplete="username" {...register("email")} />
                 {errors.email ? <p className="text-xs text-critical-500">{errors.email.message}</p> : null}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="login-password">Password</Label>
+                <Label htmlFor="login-password">{t("auth.password")}</Label>
                 <Input id="login-password" type="password" autoComplete="current-password" {...register("password")} />
                 {errors.password ? <p className="text-xs text-critical-500">{errors.password.message}</p> : null}
               </div>
@@ -93,7 +98,7 @@ function LoginPage() {
               {serverError ? <p className="text-xs text-critical-500">{serverError}</p> : null}
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Signing in..." : "Sign in"}
+                {isSubmitting ? t("auth.signingIn") : t("auth.signIn")}
               </Button>
             </form>
           )}

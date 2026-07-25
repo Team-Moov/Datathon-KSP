@@ -1,0 +1,185 @@
+{
+  "auth": {
+    "title": "Karnataka Crime Intelligence",
+    "subtitle": "Restricted access — authorized personnel only",
+    "email": "Email",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "invalidEmail": "Enter a valid email address",
+    "passwordRequired": "Password is required",
+    "incorrectCredentials": "Incorrect email or password."
+  },
+  "dashboard": {
+    "welcome": "Welcome back, {{firstName}}",
+    "signedInAs": "Signed in as {{role}}",
+    "badge": "Badge: {{badge}}",
+    "quickActions": {
+      "caseRegister": "Open case register",
+      "investigatorAssistant": "Investigator assistant",
+      "networkExplorer": "Network explorer",
+      "personSearch": "Person search"
+    },
+    "recentCases": "Recently Reported Cases",
+    "noCaption": "No cases in view",
+    "noCaptionDesc": "Cases reported within your jurisdiction will appear here as they're registered.",
+    "casesInView": "case{{plural}} in current view"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "close": "Close",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "delete": "Delete",
+    "edit": "Edit",
+    "save": "Save",
+    "noData": "No data available",
+    "addFilter": "Add filter",
+    "district": "District",
+    "targetDistrict": "Target District"
+  },
+  "socio": {
+    "title": "Sociological Crime Insights & Policy Platform",
+    "description": "Place-level criminological analytics grounded in Social Disorganization Theory (Shaw & McKay). District aggregate indicators are strictly firewalled from individual person records.",
+    "metrics": {
+      "compositeStressScore": "Composite Stress Score",
+      "compositeStressScoreInfo": "Composite measure of socioeconomic stress including poverty, unemployment, and family instability indicators",
+      "literacyRate": "Literacy Rate",
+      "literacyRateInfo": "Percentage of population with basic literacy skills in the district",
+      "unemploymentRate": "Unemployment Rate",
+      "unemploymentRateInfo": "Percentage of workforce actively seeking employment but unable to find work",
+      "urbanizationLevel": "Urbanization Level",
+      "urbanizationLevelInfo": "Percentage of population living in urban areas versus rural"
+    },
+    "tabs": {
+      "overview": "Socio-Economic Trends",
+      "demographics": "Victim Demographics",
+      "correlations": "Harm Correlation Matrix",
+      "gwr": "GWR Spatial Model",
+      "urbanization": "Urban Growth Velocity",
+      "policy": "Policy Diagnostic"
+    },
+    "trends": "District Socio-Economic Time Series",
+    "noIndicatorData": "No indicator data available for this district",
+    "demographics": "Victim Demographics Analysis",
+    "correlationMatrix": "Harm Correlation Matrix",
+    "spatialModel": "Geographically Weighted Regression — District Coefficients",
+    "noGwrData": "No GWR runs available for this district",
+    "noGwrMapData": "No GWR map data available",
+    "gwrMapHeatmap": "Statewide GWR Coefficient Heatmap Centroids",
+    "urbanGrowth": "Urban Growth Velocity Impact",
+    "notEnoughUrbanData": "Not enough multi-year data",
+    "policyDiagnostic": "Policy Diagnostic",
+    "insufficientData": "Not enough data for a correlation matrix"
+  },
+  "financial": {
+    "title": "Financial Crime Detection",
+    "subtitle": "Transaction Typology Analysis",
+    "tabs": {
+      "byPerson": "By Person",
+      "structuring": "Structuring",
+      "funnel": "Funnel Account",
+      "cycles": "Layering Cycles",
+      "clusters": "Organized Clusters",
+      "scan": "Full Scan"
+    },
+    "person": "Person",
+    "pickPerson": "Pick a person",
+    "pickPersonDesc": "See the accounts tied to them, then scan for typologies.",
+    "noLinkedAccounts": "No linked accounts",
+    "noLinkedAccountsDesc": "This person has no transactions on record to scan.",
+    "linkedAccounts": "linked account{{plural}}",
+    "scanAllAccounts": "Scan all accounts",
+    "scanning": "Scanning...",
+    "noAlerts": "No alerts",
+    "accountIdentifier": "Account identifier",
+    "checkAccount": "Check account",
+    "noAlertTriggered": "No alert triggered",
+    "noAlertTriggeredDesc": "This account doesn't match a known typology pattern.",
+    "detectClusters": "Detect clusters",
+    "runFullScan": "Run full scan",
+    "noTypologyMatched": "No typology matched any of these accounts."
+  },
+  "trends": {
+    "title": "Crime Trends & Hotspot Forecast",
+    "description": "Hawkes/ETAS self-exciting forecast, real temporal seasonality, MO-linkage series, and forecast-derived surveillance priorities — decomposed into chronic background risk and acute near-repeat risk.",
+    "scope": "Scope",
+    "crimeCategory": "Crime category",
+    "targetDate": "Target Date",
+    "spatialHotspots": "Spatial Hotspots",
+    "temporalSeasonality": "Temporal Seasonality",
+    "moSerialClusters": "MO Serial Clusters",
+    "surveillancePriority": "Surveillance Priority",
+    "hawkesForecast": "Hawkes/ETAS Hotspot Forecast",
+    "chronicVsAcute": "Chronic vs. acute risk",
+    "chronicBaseline": "Chronic (baseline)",
+    "acuteNearRepeat": "Acute (near-repeat)",
+    "runForecast": "Run forecast",
+    "forecasting": "Forecasting...",
+    "noForecastYet": "No forecast yet",
+    "noForecastYetDesc": "Run a forecast to see the hotspot map for this district and crime type.",
+    "dayOfWeek": "Day-of-Week, Monthly & Hour-of-Day Trends",
+    "notEnoughCaseData": "Not enough case data",
+    "notEnoughCaseDataDesc": "This district/crime-type combination has no dated cases yet.",
+    "moBasedLinkage": "MO-Based Serial Case Linkage",
+    "noMoSeries": "No MO series found",
+    "noMoSeriesDesc": "No candidate same-offender series above the similarity threshold for this crime type.",
+    "surveillancePriorities": "Surveillance Priority Checkpoints",
+    "survRankingDesc": "Top-risk grid cells from the real hotspot forecast, ranked. Not a patrol shift roster — no beat, shift, or unit-coverage data exists in this system to base one on; this ranks and labels real forecast output.",
+    "rankPriorities": "Rank priorities",
+    "ranking": "Ranking...",
+    "noRankingYet": "No ranking yet",
+    "noRankingYetDesc": "Rank priorities to see the top-risk checkpoints for this district and crime type."
+  },
+  "cases": {
+    "title": "Case Register",
+    "recentCases": "Recently Reported Cases",
+    "noCaption": "No cases in view",
+    "noCaptionDesc": "Cases reported within your jurisdiction will appear here as they're registered.",
+    "casesInView": "case{{plural}} in current view",
+    "workspace": "Case Workspace",
+    "crimeNumber": "Crime #",
+    "dateReported": "Date Reported"
+  },
+  "risk": {
+    "title": "Risk Profiling",
+    "description": "Central-Eight-informed, CHI-weighted risk assessment for investigative attention only — never a standalone decision. Protected demographic attributes are never used as model features.",
+    "computeAssessment": "Compute Assessment",
+    "recompute": "Recompute",
+    "noAssessment": "No assessment computed",
+    "assessmentDesc": "Pick a person to compute their risk profile for investigative guidance."
+  },
+  "alerts": {
+    "title": "Alerts",
+    "description": "System alerts and notifications"
+  },
+  "network": {
+    "title": "Network Explorer",
+    "globalNetwork": "Global Network Explorer"
+  },
+  "persons": {
+    "title": "Person Search",
+    "detail": "Person Details",
+    "search": "Search persons"
+  },
+  "chat": {
+    "title": "Investigator Assistant",
+    "description": "AI-powered investigation support"
+  },
+  "admin": {
+    "title": "Administration",
+    "users": "User Management",
+    "auditLog": "Audit Log",
+    "systemJobs": "System Jobs"
+  },
+  "models": {
+    "title": "Models",
+    "description": "Machine learning models and configurations"
+  },
+  "documents": {
+    "title": "Documents",
+    "description": "Case documents and evidence"
+  }
+}

@@ -2,6 +2,7 @@ import * as React from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Banknote } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { ErrorState } from "@/components/data-states/ErrorState"
@@ -226,23 +227,24 @@ function ByPersonTab() {
 }
 
 function FinancialCrimePage() {
+  const { t } = useTranslation()
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Financial Crime Detection</h1>
+      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("financial.title")}</h1>
 
       <Card>
         <CardHeader>
-          <CardTitle>Transaction Typology Analysis</CardTitle>
+          <CardTitle>{t("financial.subtitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="by-person">
             <TabsList>
-              <TabsTrigger value="by-person">By Person</TabsTrigger>
-              <TabsTrigger value="structuring">Structuring</TabsTrigger>
-              <TabsTrigger value="funnel">Funnel Account</TabsTrigger>
-              <TabsTrigger value="cycles">Layering Cycles</TabsTrigger>
-              <TabsTrigger value="clusters">Organized Clusters</TabsTrigger>
-              <TabsTrigger value="scan">Full Scan</TabsTrigger>
+              <TabsTrigger value="by-person">{t("financial.tabs.byPerson")}</TabsTrigger>
+              <TabsTrigger value="structuring">{t("financial.tabs.structuring")}</TabsTrigger>
+              <TabsTrigger value="funnel">{t("financial.tabs.funnel")}</TabsTrigger>
+              <TabsTrigger value="cycles">{t("financial.tabs.cycles")}</TabsTrigger>
+              <TabsTrigger value="clusters">{t("financial.tabs.clusters")}</TabsTrigger>
+              <TabsTrigger value="scan">{t("financial.tabs.scan")}</TabsTrigger>
             </TabsList>
             <TabsContent value="by-person">
               <ByPersonTab />

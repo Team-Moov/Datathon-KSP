@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import {
   BarChart3,
   Building2,
@@ -14,6 +15,7 @@ import { EmptyState } from "@/components/data-states/EmptyState"
 import { ErrorState } from "@/components/data-states/ErrorState"
 import { LoadingSkeleton } from "@/components/data-states/LoadingSkeleton"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { MetricWithInfo } from "@/components/MetricWithInfo"
 import { extractApiErrorMessage } from "@/lib/api/httpClient"
 
 import {
@@ -45,6 +47,7 @@ const GwrCentroidMap = React.lazy(() =>
 type ActiveTab = "overview" | "demographics" | "correlations" | "gwr" | "urbanization" | "policy"
 
 function SocioInsightsPage() {
+  const { t } = useTranslation()
   const [districtId, setDistrictId] = React.useState<string>("1")
   const [activeTab, setActiveTab] = React.useState<ActiveTab>("overview")
 
@@ -106,29 +109,29 @@ function SocioInsightsPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 p-6 rounded-2xl text-white shadow-lg">
+      <div className="space-y-4">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <UsersRound className="w-6 h-6 text-indigo-300" />
-            <h1 className="text-xl font-bold tracking-tight">Sociological Crime Insights & Policy Platform</h1>
+            <UsersRound className="w-6 h-6 text-accent-600 dark:text-accent-300" />
+            <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Sociological Crime Insights & Policy Platform</h1>
           </div>
-          <p className="text-xs text-indigo-200/90 max-w-2xl leading-relaxed">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
             Place-level criminological analytics grounded in Social Disorganization Theory (Shaw & McKay). District aggregate indicators are strictly firewalled from individual person records.
           </p>
         </div>
 
         {/* District Selector Control */}
-        <div className="bg-white/10 backdrop-blur-md border border-white/20 p-3 rounded-xl flex items-center gap-3">
-          <Compass className="w-5 h-5 text-indigo-300 shrink-0" />
+        <div className="flat-surface border border-zinc-200 dark:border-zinc-800 p-3 rounded-lg flex items-center gap-3">
+          <Compass className="w-5 h-5 text-accent-600 dark:text-accent-300 shrink-0" />
           <div className="space-y-0.5">
-            <label htmlFor="district-select" className="text-[10px] font-semibold uppercase tracking-wider text-indigo-200">
+            <label htmlFor="district-select" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
               Target District
             </label>
             <select
               id="district-select"
               value={districtId}
               onChange={(e) => setDistrictId(e.target.value)}
-              className="bg-zinc-900/90 text-white text-xs font-semibold rounded-md px-3 py-1.5 border border-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs font-semibold rounded-md px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-accent-400/50"
             >
               {districtsQuery.data && districtsQuery.data.length > 0 ? (
                 districtsQuery.data.map((d) => (
@@ -147,30 +150,26 @@ function SocioInsightsPage() {
       {/* District KPI Summary Header */}
       {selectedDistrict && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm space-y-1">
-            <span className="text-[11px] font-medium text-zinc-500">Composite Stress Score</span>
-            <div className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-              {selectedDistrict.composite_stress_index !== null ? selectedDistrict.composite_stress_index.toFixed(2) : "No data"}
-            </div>
-          </div>
-          <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm space-y-1">
-            <span className="text-[11px] font-medium text-zinc-500">Literacy Rate</span>
-            <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-              {selectedDistrict.literacy_rate !== null ? `${selectedDistrict.literacy_rate.toFixed(1)}%` : "No data"}
-            </div>
-          </div>
-          <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm space-y-1">
-            <span className="text-[11px] font-medium text-zinc-500">Unemployment Rate</span>
-            <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
-              {selectedDistrict.unemployment_rate !== null ? `${selectedDistrict.unemployment_rate.toFixed(1)}%` : "No data"}
-            </div>
-          </div>
-          <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm space-y-1">
-            <span className="text-[11px] font-medium text-zinc-500">Urbanization Level</span>
-            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-              {selectedDistrict.urbanization_pct !== null ? `${selectedDistrict.urbanization_pct.toFixed(1)}%` : "No data"}
-            </div>
-          </div>
+          <MetricWithInfo
+            label={t("socio.metrics.compositeStressScore")}
+            value={selectedDistrict.composite_stress_index !== null ? selectedDistrict.composite_stress_index.toFixed(2) : t("common.noData")}
+            info={t("socio.metrics.compositeStressScoreInfo")}
+          />
+          <MetricWithInfo
+            label={t("socio.metrics.literacyRate")}
+            value={selectedDistrict.literacy_rate !== null ? `${selectedDistrict.literacy_rate.toFixed(1)}%` : t("common.noData")}
+            info={t("socio.metrics.literacyRateInfo")}
+          />
+          <MetricWithInfo
+            label={t("socio.metrics.unemploymentRate")}
+            value={selectedDistrict.unemployment_rate !== null ? `${selectedDistrict.unemployment_rate.toFixed(1)}%` : t("common.noData")}
+            info={t("socio.metrics.unemploymentRateInfo")}
+          />
+          <MetricWithInfo
+            label={t("socio.metrics.urbanizationLevel")}
+            value={selectedDistrict.urbanization_pct !== null ? `${selectedDistrict.urbanization_pct.toFixed(1)}%` : t("common.noData")}
+            info={t("socio.metrics.urbanizationLevelInfo")}
+          />
         </div>
       )}
 
