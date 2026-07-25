@@ -408,7 +408,8 @@
     "connectingEllipsis": "ಸಂಪರ್ಕಿಸುತ್ತಿದೆ…",
     "endVoice": "ಧ್ವನಿ ಕೊನೆಗೊಳಿಸಿ",
     "voice": "ಧ್ವನಿ",
-    "send": "ಕಳುಹಿಸಿ"
+    "send": "ಕಳುಹಿಸಿ",
+    "resetChat": "ಚಾಟ್ ಮರುಹೊಂದಿಸಿ"
   },
   "chatWidgets": {
     "matchedPersons": "ಹೊಂದಾಣಿಕೆಯಾದ ವ್ಯಕ್ತಿಗಳು",
@@ -615,5 +616,15 @@
     "useDifferentAccount": "ಬೇರೆ ಖಾತೆ ಬಳಸಿ",
     "sending": "ಕಳುಹಿಸುತ್ತಿರುವೆ...",
     "resendCode": "ಕೋಡ್ ಮರುಕಳುಹಿಸಿ"
+  },
+  "chatTrace": {
+    "showDetails": "ವಿವರಗಳನ್ನು ತೋರಿಸಿ",
+    "hideDetails": "ವಿವರಗಳನ್ನು ಮರೆಮಾಡಿ",
+    "howGenerated": "ಈ ಉತ್ತರ ಹೇಗೆ ರಚಿಸಲಾಯಿತು?",
+    "originalQuery": "ಮೂಲ ಪ್ರಶ್ನೆ",
+    "toolsInvoked": "ಬಳಸಿದ ಸಾಧನಗಳು",
+    "noToolsCalled": "ಈ ಪ್ರತಿಕ್ರಿಯೆಗೆ ಯಾವುದೇ ನಿರ್ಣಾಯಕ ಸಾಧನಗಳನ್ನು ಕರೆಯಲಾಗಿಲ್ಲ.",
+    "toolLabel": "ಸಾಧನ",
+    "durationMs": "{{ms}} ms"
   }
 }
