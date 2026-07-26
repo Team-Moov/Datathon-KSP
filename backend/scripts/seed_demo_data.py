@@ -210,7 +210,7 @@ async def seed() -> None:
         await _seed_secondary_case(session, mys_station.id, mysuru.id, crime_head.id, crime_sub_head.id, gravity.id, case_status.id)
 
         await session.commit()
-        await _sync_to_graph(case, person_a, person_b, victim, document)
+        await _sync_to_graph(session, case, person_a, person_b, victim, document)
 
         # Trigger GWR run so coefficients exist in DB
         try:
@@ -361,6 +361,81 @@ async def _seed_primary_case(
         human_reviewed=True,
     ))
 
+    # A funnel/mule pattern on person_b's own account — five distinct source
+    # accounts feed in within a 2-day window (funnel's fan-in), no prior
+    # activity on the mule account in the 60 days before that (the dormancy
+    # check detect_funnel_account requires), then ~90% of it leaves again
+    # within days (the rapid-emptying half of the pattern).
+    mule_account = "ACCT-4471-0093-7712"
+    funnel_sources = [
+        "ACCT-2200-1183-9014", "ACCT-3391-4402-1187", "ACCT-5512-2200-3398",
+        "ACCT-6603-3311-4409", "ACCT-7714-4422-5510",
+    ]
+    funnel_inflow_date = _TODAY - timedelta(days=6)
+    total_in = 0
+    for i, source in enumerate(funnel_sources):
+        amount = 180_000 + i * 15_000
+        total_in += amount
+        session.add(FinancialTransaction(
+            from_account=source, to_account=mule_account,
+            amount=amount, transaction_date=funnel_inflow_date + timedelta(hours=i * 4), transaction_type="NEFT",
+            linked_person_id=person_b.id, linked_incident_id=case.id,
+            alert_type=FinancialAlertType.FUNNEL_ACCOUNT, alert_confidence=0.68,
+            alert_details={"typology": "funnel", "role": "inflow", "note": "seed demo data"},
+        ))
+    session.add(FinancialTransaction(
+        from_account=mule_account, to_account="ACCT-8825-5533-6621",
+        amount=round(total_in * 0.9), transaction_date=funnel_inflow_date + timedelta(days=1), transaction_type="IMPS",
+        linked_person_id=person_b.id, linked_incident_id=case.id,
+        alert_type=FinancialAlertType.FUNNEL_ACCOUNT, alert_confidence=0.68,
+        alert_details={"typology": "funnel", "role": "withdrawal", "note": "seed demo data"},
+    ))
+
+    # A layering chain also tied to person_b — money hops through three
+    # intermediary accounts, shrinking slightly each hop, over several days,
+    # then loops back to its origin. detect_cycles_in_graph specifically
+    # requires a closed loop (MATCH path = (a)-[:TRANSACTED_WITH*2..]->(a)) --
+    # a linear, non-looping chain would never be found by it, so the last
+    # hop deliberately returns to layering_chain[0].
+    layering_chain = [
+        "ACCT-1001-2002-3003", "ACCT-2002-3003-4004",
+        "ACCT-3003-4004-5005", "ACCT-4004-5005-6006",
+        "ACCT-1001-2002-3003",  # loop back to origin
+    ]
+    layering_start = _TODAY - timedelta(days=20)
+    layering_amount = 1_800_000
+    for i in range(len(layering_chain) - 1):
+        layering_amount = round(layering_amount * 0.95)
+        session.add(FinancialTransaction(
+            from_account=layering_chain[i], to_account=layering_chain[i + 1],
+            amount=layering_amount, transaction_date=layering_start + timedelta(days=i * 3), transaction_type="RTGS",
+            linked_person_id=person_b.id, linked_incident_id=case.id,
+            alert_type=FinancialAlertType.LAYERING, alert_confidence=0.65,
+            alert_details={"typology": "layering", "hop": i + 1, "note": "seed demo data"},
+        ))
+
+    criminal_history_b = CriminalHistory(
+        person_id=person_b.id, prior_incident_ids=[],
+        mo_pattern_summary="Named in two financial-crime patterns (funnel account, layering) alongside the vehicle theft case.",
+        human_verified=True,
+    )
+    session.add(criminal_history_b)
+    await session.flush()
+
+    # Higher associate_risk_avg than person_a — this reflects the design
+    # doc's rule that a confirmed FinancialTransaction.linked_person_id is
+    # direct case evidence, not ecological/demographic inference, so it's
+    # allowed to strengthen this specific feature (§9.4/§7.4).
+    session.add(RiskScore(
+        criminal_history_id=criminal_history_b.id, model_version="seed-v1", score=0.71,
+        chi_weighted_harm=2.0, network_centrality=0.35, mo_escalation_score=0.25, associate_risk_avg=0.55,
+        shap_decomposition={
+            "chi_weighted_harm": 0.16, "network_centrality": 0.12,
+            "mo_escalation_score": 0.08, "associate_risk_avg": 0.20,
+        },
+        human_reviewed=True,
+    ))
+
     return case, person_a, person_b, victim, document
 
 
@@ -403,7 +478,7 @@ async def _seed_secondary_case(session, unit_id, district_id, crime_head_id, cri
     session.add(PersonCaseRole(person_id=victim2.id, case_id=case.id, role=PersonRole.VICTIM))
 
 
-async def _sync_to_graph(case, person_a, person_b, victim, document) -> None:
+async def _sync_to_graph(session, case, person_a, person_b, victim, document) -> None:
     graph_sync = GraphSyncService()
     await graph_sync.sync_document(
         {
@@ -419,6 +494,32 @@ async def _sync_to_graph(case, person_a, person_b, victim, document) -> None:
         document,
     )
     await graph_sync.upsert_financial_edge(str(person_a.id), str(person_b.id), str(uuid.uuid4()), 95000)
+
+    # Push every FinancialTransaction on this case into Neo4j as an
+    # Account-level TRANSACTED_WITH graph -- detect_cycles_in_graph and
+    # detect_organized_clusters both query Account nodes there (see
+    # financial_crime.py), and nothing else in this script writes that graph.
+    # Without this, the structuring/funnel/layering demo rows above sit in
+    # Postgres just fine but stay invisible to the two Neo4j-backed detectors.
+    txns = (
+        await session.execute(select(FinancialTransaction).where(FinancialTransaction.linked_incident_id == case.id))
+    ).scalars().all()
+    for txn in txns:
+        await graph_db.execute_query(
+            """
+            MERGE (a:Account {account_no: $from_acc})
+            MERGE (b:Account {account_no: $to_acc})
+            MERGE (a)-[r:TRANSACTED_WITH {transaction_id: $txn_id}]->(b)
+            SET r.amount = $amount, r.date = $date,
+                r.linked_person_id = $pid, r.linked_incident_id = $cid,
+                r.updated_at = datetime()
+            """,
+            {
+                "from_acc": txn.from_account, "to_acc": txn.to_account,
+                "txn_id": str(txn.id), "amount": float(txn.amount), "date": str(txn.transaction_date),
+                "pid": str(txn.linked_person_id), "cid": str(txn.linked_incident_id),
+            },
+        )
 
 
 if __name__ == "__main__":

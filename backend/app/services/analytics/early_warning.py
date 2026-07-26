@@ -29,6 +29,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert
 from app.models.enums import AlertSeverity, AlertStatus, AlertType
+from app.models.financial import FinancialTransaction
+from app.services.analytics.financial_crime import FinancialCrimeService
 from app.services.analytics.network_analysis import NetworkAnalysisService
 
 log = structlog.get_logger(__name__)
@@ -36,6 +38,13 @@ log = structlog.get_logger(__name__)
 # Below these, a finding is too weak to be worth an investigator's attention.
 _MIN_JURISDICTIONS = 2
 _MIN_COMMUNITY_SIZE = 5
+
+_FINANCIAL_TYPOLOGY_LABELS = {
+    "structuring": "Structuring pattern",
+    "funnel_account": "Funnel/mule account",
+    "layering": "Layering (circular fund flow)",
+    "organized_cluster": "Organized financial ring",
+}
 
 
 def _members_hash(person_ids: List[str]) -> str:
@@ -50,16 +59,66 @@ class EarlyWarningService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.network = NetworkAnalysisService()
+        self.financial = FinancialCrimeService(db)
 
     async def scan(self) -> Dict[str, Any]:
         """Run every detector, persist genuinely new alerts, return a summary."""
         candidates: List[Alert] = []
         candidates.extend(await self._scan_repeat_offenders())
         candidates.extend(await self._scan_organized_groups())
+        candidates.extend(await self._scan_financial_str())
 
         inserted = await self._persist_new(candidates)
         log.info("early-warning scan complete", candidates=len(candidates), inserted=inserted)
         return {"candidates": len(candidates), "inserted": inserted}
+
+    async def _scan_financial_str(self) -> List[Alert]:
+        """FINANCIAL alert type -- the extension point this module's docstring
+        already named. Reuses FinancialCrimeService.run_full_scan() (structuring
+        + funnel + layering-cycles + organized-cluster) rather than duplicating
+        any detection logic here; this method only converts its STR-shaped
+        output into persisted, deduped Alert rows -- same shape every other
+        early-warning detector already produces, so the UI needs no
+        financial-specific rendering path."""
+        rows = (
+            await self.db.execute(
+                select(FinancialTransaction.from_account, FinancialTransaction.to_account)
+            )
+        ).all()
+        accounts = sorted({a for row in rows for a in row if a})
+        if not accounts:
+            return []
+
+        str_alerts = await self.financial.run_full_scan(accounts)
+
+        alerts: List[Alert] = []
+        for str_alert in str_alerts:
+            typology = str_alert["typology"]
+            accounts_involved = sorted(str_alert.get("accounts_involved", []))
+            confidence = float(str_alert.get("confidence") or 0.0)
+            severity = (
+                AlertSeverity.HIGH if confidence >= 0.85
+                else AlertSeverity.MEDIUM if confidence >= 0.6
+                else AlertSeverity.LOW
+            )
+            label = _FINANCIAL_TYPOLOGY_LABELS.get(typology, typology.replace("_", " ").title())
+            fingerprint_key = ",".join(accounts_involved) or typology
+            alerts.append(
+                Alert(
+                    alert_type=AlertType.FINANCIAL,
+                    severity=severity,
+                    title=f"{label}: {len(accounts_involved)} account(s) flagged",
+                    description=(
+                        f"{str_alert.get('recommended_action', 'Review flagged financial activity.')} "
+                        f"Typology: {label}."
+                    ),
+                    evidence=str_alert,
+                    source_tool="FinancialCrimeService.run_full_scan",
+                    confidence=confidence,
+                    signature=f"financial:{typology}:{hashlib.sha1(fingerprint_key.encode()).hexdigest()[:16]}",
+                )
+            )
+        return alerts
 
     async def _scan_repeat_offenders(self) -> List[Alert]:
         offenders = await self.network.get_multi_jurisdiction_offenders()
