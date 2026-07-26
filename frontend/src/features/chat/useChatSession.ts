@@ -153,7 +153,7 @@ export function useChatSession() {
           }))
         }
       }
-    } catch (error) {
+    } catch {
       if (!abortController.signal.aborted) {
         updateAssistantTurn(assistantTurnId, (turn) => ({
           ...turn,

@@ -262,8 +262,8 @@ function ConversationBubble({
           </div>
         ) : null}
 
-        {/* Tool-call trace panel — only shown for completed assistant turns */}
-        {!isUser && !turn.isStreaming && (
+        {/* Tool-call trace panel — only shown for completed assistant turns that actually invoked tools */}
+        {!isUser && !turn.isStreaming && turn.trace.length > 0 && (
           <TracePanel trace={turn.trace} originalQuery={originalQuery} />
         )}
       </div>
