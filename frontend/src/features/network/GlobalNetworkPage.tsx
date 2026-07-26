@@ -17,7 +17,7 @@ import { fetchGraphSubset, type EgoNetworkResult } from "./networkApi"
 const NetworkGraph = React.lazy(() => import("@/components/charts/NetworkGraph").then((m) => ({ default: m.NetworkGraph })))
 
 const NODE_LABEL_OPTIONS = ["Person", "Incident", "Account"]
-const EDGE_TYPE_OPTIONS = ["ACCUSED_IN", "VICTIM_IN", "WITNESSED", "ASSOCIATED_WITH", "TRANSACTED_WITH", "PREDICTED_LINK"]
+const EDGE_TYPE_OPTIONS = ["ACCUSED_IN", "VICTIM_IN", "WITNESSED", "ASSOCIATED_WITH", "TRANSACTED_WITH", "PREDICTED_LINK", "HAS_ACCOUNT"]
 
 // These option strings are graph node/edge labels sent to the API verbatim —
 // only the displayed checkbox text is translated, the option value is not.
@@ -31,6 +31,7 @@ const OPTION_LABEL_KEYS: Record<string, string> = {
   ASSOCIATED_WITH: "globalNetwork.edgeTypes.associatedWith",
   TRANSACTED_WITH: "globalNetwork.edgeTypes.transactedWith",
   PREDICTED_LINK: "globalNetwork.edgeTypes.predictedLink",
+  HAS_ACCOUNT: "globalNetwork.edgeTypes.hasAccount",
 }
 
 function CheckboxGroup({
@@ -116,11 +117,15 @@ function GlobalNetworkPage() {
   const graphNodes = (displayedResult?.nodes ?? []).map((node) => ({
     id: node.id,
     label:
-      typeof node.properties.name === "string"
-        ? (node.properties.name as string)
-        : typeof node.properties.crime_no === "string"
-          ? (node.properties.crime_no as string)
-          : node.id,
+      typeof node.properties.account_no === "string"
+        ? (node.properties.account_no as string)
+        : typeof node.properties.name === "string"
+          ? (node.properties.name as string)
+          : typeof node.properties.crime_no === "string"
+            ? (node.properties.crime_no as string)
+            : node.id,
+    type: node.labels?.[0] || "Person",
+    properties: node.properties,
     communityId: typeof node.properties.community_id === "number" ? (node.properties.community_id as number) : undefined,
   }))
   const graphEdges = (displayedResult?.edges ?? []).map((edge) => ({

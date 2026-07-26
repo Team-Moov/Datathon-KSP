@@ -31,8 +31,18 @@ function parseAccountList(raw: string): string[] {
 
 function AccountLookupTab({ detect }: { detect: (account: string) => Promise<SuspiciousTransactionAlert | null> }) {
   const { t } = useTranslation()
-  const [account, setAccount] = React.useState("")
+  const [searchParams] = useSearchParams()
+  const accountParam = searchParams.get("account") || ""
+  const [account, setAccount] = React.useState(accountParam)
   const mutation = useMutation({ mutationFn: () => detect(account.trim()) })
+
+  React.useEffect(() => {
+    if (accountParam) {
+      setAccount(accountParam)
+      mutation.mutate()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountParam])
 
   return (
     <div className="space-y-4">
@@ -232,6 +242,16 @@ function ByPersonTab() {
 
 function FinancialCrimePage() {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get("tab") || "by-person"
+
+  function handleTabChange(value: string) {
+    setSearchParams((prev) => {
+      prev.set("tab", value)
+      return prev
+    })
+  }
+
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("financial.title")}</h1>
@@ -241,7 +261,7 @@ function FinancialCrimePage() {
           <CardTitle>{t("financial.subtitle")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="by-person">
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsList>
               <TabsTrigger value="by-person">{t("financial.tabs.byPerson")}</TabsTrigger>
               <TabsTrigger value="structuring">{t("financial.tabs.structuring")}</TabsTrigger>

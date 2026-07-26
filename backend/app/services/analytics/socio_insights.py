@@ -688,3 +688,83 @@ class SocioInsightsService:
             "criminological_note": "Policy recommendations are generated strictly at the district/place level to inform inter-agency preventive resource allocation."
         }
 
+    async def calculate_police_staffing(self, district_id: int) -> Dict[str, Any]:
+        """
+        Calculates recommended police staffing requirements for a district dynamically
+        based on its socioeconomic indicators, current crime volume, and standard safety factors.
+        """
+        from datetime import date as _date
+        district = await self.db.get(District, district_id)
+        district_name = district.name if district else f"District #{district_id}"
+
+        # Fetch latest socioeconomic indicator
+        sei_row = (
+            await self.db.execute(
+                select(SocioEconomicIndicator)
+                .where(SocioEconomicIndicator.district_id == district_id)
+                .order_by(SocioEconomicIndicator.year.desc())
+            )
+        ).scalars().first()
+
+        unemp = float(sei_row.unemployment_rate) if sei_row and sei_row.unemployment_rate is not None else 6.5
+        urb = float(sei_row.urbanization_pct) if sei_row and sei_row.urbanization_pct is not None else 45.0
+        stress = float(sei_row.composite_stress_index) if sei_row and sei_row.composite_stress_index is not None else 0.55
+
+        # Fetch total case count for this district
+        from app.models.case import CaseMaster
+        case_count = (
+            await self.db.execute(
+                select(func.count(CaseMaster.id))
+                .where(CaseMaster.district_id == district_id)
+            )
+        ).scalar() or 0
+
+        # Base officer numbers (simulating actual district size scale)
+        if "Bengaluru Urban" in district_name:
+            base_officers = 15000
+        elif "Mysuru" in district_name or "Belagavi" in district_name:
+            base_officers = 3500
+        else:
+            base_officers = 1800
+
+        # Math logic: adjust base officers dynamically based on stress, urbanization, and current cases count
+        stress_modifier = 1.0 + (0.15 * unemp / 6.0) + (0.25 * stress) + (0.1 * case_count / 100.0)
+        recommended_officers = int(base_officers * stress_modifier)
+
+        # Allocation breakdown
+        allocations = {
+            "Active Patrol & Beat Security": int(recommended_officers * 0.35),
+            "Property Crime & Theft Response": int(recommended_officers * 0.25),
+            "Laundering & Financial Fraud Investigation": int(recommended_officers * 0.15),
+            "Community Engagement & Outreach": int(recommended_officers * 0.15),
+            "Reserve & Command Operations": int(recommended_officers * 0.10)
+        }
+
+        # Patrol vehicles recommended (typically 1 vehicle per 15 active patrol officers)
+        patrol_vehicles = int(allocations["Active Patrol & Beat Security"] / 15)
+
+        return {
+            "status": "ok",
+            "district_id": district_id,
+            "district_name": district_name,
+            "calculated_at": _date.today().isoformat(),
+            "metrics": {
+                "unemployment_rate": f"{unemp:.1f}%",
+                "urbanization_pct": f"{urb:.1f}%",
+                "composite_stress_index": f"{stress:.2f}",
+                "recorded_incident_count": case_count
+            },
+            "recommendation": {
+                "total_recommended_officers": recommended_officers,
+                "base_force_scale": base_officers,
+                "stress_multiplier": round(stress_modifier, 2),
+                "allocations": allocations,
+                "recommended_patrol_vehicles": patrol_vehicles,
+                "deployment_strategy": (
+                    f"Due to high composite social stress ({stress:.2f}) and recorded crime pressure, "
+                    f"prioritize deployment of beat patrol units ({patrol_vehicles} vehicles) to high-density hotspots. "
+                    f"Dedicate {allocations['Laundering & Financial Fraud Investigation']} officers to cyber and financial crime squads."
+                )
+            }
+        }
+

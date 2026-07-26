@@ -35,7 +35,7 @@ import asyncio
 import json
 import random
 import uuid
-from datetime import date, timedelta
+from datetime import date, timedelta, time
 from pathlib import Path
 
 import structlog
@@ -52,6 +52,7 @@ from app.models.enums import PersonRole, Sex
 from app.models.person import PersonCaseRole
 from app.models.socio import CrimeStatAggregate
 from app.models.unit import District, State, Unit, UnitType
+from app.models.offender import CriminalHistory, RiskScore
 
 # Same 8 districts seed_demo_data.py already establishes (Karnataka/state
 # code KA) -- reused by name so this pool lands on the *same* District rows
@@ -295,6 +296,7 @@ async def _seed_background_crime(session, districts, units_by_district, person_i
                         gravity_offence_id=gravity.id,
                         date_reported=report_date,
                         incident_from_date=report_date,
+                        incident_time=time(rng.randint(0, 23), rng.choice([0, 15, 30, 45])),
                         latitude=round(base_lat + rng.uniform(-0.12, 0.12), 6),
                         longitude=round(base_lon + rng.uniform(-0.12, 0.12), 6),
                         brief_facts=f"Synthetic {head_name.lower()} case providing realistic background crime volume.",
@@ -429,6 +431,48 @@ async def _get_or_create_pool(session, n_persons: int = 60, n_cases: int = 30, p
             new_people.append(Person(**person_kwargs))
         session.add_all(new_people)
         await session.flush()
+
+        mo_summaries = [
+            "Intercepts transit delivery trucks by tailgating in high-density traffic corridors.",
+            "Uses spoofed caller-ID numbers pretending to be bank agents to extract OTP credentials.",
+            "Deposits structural cash sums below mandatory reporting limits across multiple bank branches.",
+            "Unlocks parked light commercial trucks using custom keys in industrial zones.",
+            "Procures bank account details from local day-laborers to route suspicious UPI wire payments.",
+            "Breaks locks of residential properties during early morning hours to steal household valuables.",
+            "Uses fraudulent digital billing accounts to divert merchant credit payouts.",
+            "Launches malicious social engineering attacks targeting elder trust accounts via remote-access apps.",
+            "Enters locked commercial complexes using crowbars on back doors to dismantle cash registers.",
+            "Recruits local youths as money mules to funnel illegal betting returns to offshore destinations."
+        ]
+        for p in new_people:
+            mo_pattern = rng.choice(mo_summaries)
+            hist = CriminalHistory(
+                person_id=p.id,
+                prior_incident_ids=[],
+                mo_pattern_summary=mo_pattern,
+                human_verified=True,
+            )
+            session.add(hist)
+            await session.flush()
+            
+            score_val = round(rng.uniform(0.15, 0.85), 2)
+            session.add(RiskScore(
+                criminal_history_id=hist.id,
+                model_version="seed-v1",
+                score=score_val,
+                chi_weighted_harm=round(rng.uniform(1.0, 6.0), 1),
+                network_centrality=round(rng.uniform(0.05, 0.9), 2),
+                mo_escalation_score=round(rng.uniform(0.1, 0.8), 2),
+                associate_risk_avg=round(rng.uniform(0.1, 0.8), 2),
+                shap_decomposition={
+                    "chi_weighted_harm": round(score_val * 0.4, 2),
+                    "network_centrality": round(score_val * 0.3, 2),
+                    "mo_escalation_score": round(score_val * 0.2, 2),
+                    "associate_risk_avg": round(score_val * 0.1, 2),
+                },
+                human_reviewed=True,
+            ))
+        await session.flush()
         persons.extend(p.id for p in new_people)
 
     crime_head, crime_sub_head = await _get_or_create_financial_crime_head(session)
@@ -553,6 +597,7 @@ async def _get_or_create_pool(session, n_persons: int = 60, n_cases: int = 30, p
                     gravity_offence_id=crime_sub_head.gravity_offence_id,
                     date_reported=report_date,
                     incident_from_date=report_date,
+                    incident_time=time(rng.randint(0, 23), rng.choice([0, 15, 30, 45])),
                     latitude=round(lat, 6),
                     longitude=round(lon, 6),
                     brief_facts="Synthetic financial-crime case generated for typology-driven detection testing.",
@@ -782,6 +827,48 @@ async def _sync_to_neo4j(rows: list[dict]) -> None:
                     "pid": str(row["linked_person_id"]),
                     "cid": str(row["linked_incident_id"]),
                 },
+            )
+            
+            # Link Person to both accounts in transaction to show account nodes in graph explorer
+            if row["linked_person_id"]:
+                pid = str(row["linked_person_id"])
+                await graph_db.execute_query(
+                    """
+                    MERGE (p:Person {id: $pid})
+                    MERGE (a:Account {account_no: $from_acc})
+                    MERGE (p)-[r:HAS_ACCOUNT]->(a)
+                    SET r.updated_at = datetime()
+                    """,
+                    {"pid": pid, "from_acc": row["from_account"]},
+                )
+                await graph_db.execute_query(
+                    """
+                    MERGE (p:Person {id: $pid})
+                    MERGE (a:Account {account_no: $to_acc})
+                    MERGE (p)-[r:HAS_ACCOUNT]->(a)
+                    SET r.updated_at = datetime()
+                    """,
+                    {"pid": pid, "to_acc": row["to_account"]},
+                )
+
+        # Seed synthetic PREDICTED_LINK relationships
+        unique_pids = sorted(list({str(row["linked_person_id"]) for row in rows if row["linked_person_id"]}))
+        print(f"Seeding synthetic PREDICTED_LINK relationships for {len(unique_pids)} suspects...")
+        for i in range(0, len(unique_pids) - 1, 4):
+            pid1 = unique_pids[i]
+            pid2 = unique_pids[i + 1]
+            await graph_db.execute_query(
+                """
+                MERGE (a:Person {id: $pid1})
+                MERGE (b:Person {id: $pid2})
+                MERGE (a)-[r:PREDICTED_LINK]-(b)
+                SET r.confidence = $confidence,
+                    r.model_version = 'GCN-LinkPredict-v2',
+                    r.source_tool = 'Co-Offending & Structured Transfer Linker',
+                    r.evidence = 'Shared IP logins and common structured cash recipients within 48h',
+                    r.updated_at = datetime()
+                """,
+                {"pid1": pid1, "pid2": pid2, "confidence": round(0.52 + (i % 5) * 0.08, 2)},
             )
 
         account_to_persons: dict[str, set[str]] = defaultdict(set)

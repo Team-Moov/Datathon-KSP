@@ -105,3 +105,21 @@ export async function initiateReportExport(caseId: string, options: ReportExport
   )
   return response.data as Blob
 }
+
+// ── Dashboard stats ───────────────────────────────────────────────────────────
+
+export interface CaseStats {
+  total_cases: number
+  recent_cases_7d: number
+  suspect_count: number
+  crime_distribution: { name: string; value: number }[]
+}
+
+/**
+ * Lightweight aggregate counts used by the Overview dashboard.
+ * Backed by the deterministic /cases/stats endpoint — no hardcoded numbers.
+ */
+export async function fetchCaseStats(): Promise<CaseStats> {
+  const response = await httpClient.get<CaseStats>("/cases/stats")
+  return response.data
+}

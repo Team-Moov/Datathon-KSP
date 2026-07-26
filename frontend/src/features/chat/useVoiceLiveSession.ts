@@ -77,6 +77,7 @@ export function useVoiceLiveSession(
         role: "assistant",
         content: "",
         toolActivity: [],
+        trace: [],
         widgets: [],
         suggestions: [],
         isAiUnavailable: false,

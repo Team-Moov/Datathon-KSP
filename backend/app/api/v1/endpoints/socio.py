@@ -118,3 +118,14 @@ async def get_policy_recommendations(
     """Automated criminological diagnostic & policy intervention recommendations for a district."""
     return await SocioInsightsService(db).get_policy_recommendations(district_id)
 
+
+@router.get("/calculate-staffing/{district_id}", response_model=Dict[str, Any])
+async def calculate_police_staffing(
+    district_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.VIEW_AGGREGATE_ANALYTICS)),
+):
+    """Calculates recommended police staffing requirements for a district dynamically."""
+    return await SocioInsightsService(db).calculate_police_staffing(district_id)
+
+

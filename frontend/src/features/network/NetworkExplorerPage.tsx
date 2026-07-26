@@ -66,7 +66,14 @@ function NetworkExplorerPage() {
 
   const graphNodes = (egoQuery.data?.nodes ?? []).map((node) => ({
     id: node.id,
-    label: typeof node.properties.name === "string" ? node.properties.name : node.id,
+    label:
+      typeof node.properties.account_no === "string"
+        ? node.properties.account_no
+        : typeof node.properties.name === "string"
+          ? node.properties.name
+          : node.id,
+    type: node.labels?.[0] || "Person",
+    properties: node.properties,
   }))
   const graphEdges = (egoQuery.data?.edges ?? []).map((edge) => ({
     id: edge.id,
