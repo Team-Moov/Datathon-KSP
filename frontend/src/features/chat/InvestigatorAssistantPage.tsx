@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Download, Loader2, Mic, MicOff, MessagesSquare, SendHorizontal, Volume2, WifiOff, X } from "lucide-react"
+import { ChevronDown, ChevronUp, Download, Loader2, Mic, MicOff, MessagesSquare, RotateCcw, SendHorizontal, Volume2, WifiOff, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
@@ -8,7 +8,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils"
 import type { ChatLanguage } from "./chatApi"
 import { ChatWidgetRenderer } from "./ChatWidgetRenderer"
-import { type ConversationTurn, useChatSession } from "./useChatSession"
+import { type ConversationTurn, type TraceEntry, useChatSession } from "./useChatSession"
+
+// Human-readable labels for each tool name. Keys are the raw function names
+// from the backend tool catalog. Unlisted tools fall back to the raw name
+// with underscores replaced by spaces.
+const TOOL_LABELS: Record<string, string> = {
+  get_graph_subset: "Fetch network subgraph",
+  compute_centrality: "Compute centrality scores",
+  detect_organized_groups: "Detect organized groups",
+  predict_links: "Predict network links",
+  multi_jurisdiction_offenders: "Find multi-jurisdiction offenders",
+  run_hawkes_forecast: "Run Hawkes/ETAS forecast",
+  get_temporal_trends: "Fetch temporal seasonality data",
+  rank_surveillance_priorities: "Rank surveillance priorities",
+  detect_financial_structuring: "Detect financial structuring",
+  detect_funnel_accounts: "Detect funnel/mule accounts",
+  detect_layering_cycles: "Detect layering cycles",
+  detect_financial_clusters: "Detect organized financial clusters",
+  compute_risk_score: "Compute person risk score",
+  search_persons: "Search persons by name",
+  get_case_details: "Fetch case details",
+  get_mo_linkage: "Find MO-linked cases",
+  get_socio_economic_indicators: "Fetch socio-economic indicators",
+  get_correlation_matrix: "Compute correlation matrix",
+  get_gwr_results: "Fetch GWR spatial model results",
+  get_victim_demographics: "Fetch victim demographics",
+  get_urbanization_impact: "Fetch urbanization impact data",
+  get_policy_recommendations: "Generate policy recommendations",
+  get_crime_statistics: "Fetch crime statistics",
+  scan_financial_typologies: "Full financial typology scan",
+}
 
 // ── Animated waveform bars shown when Gemini is speaking ─────────────────────
 function SpeakingWaveform() {
@@ -86,7 +116,7 @@ function VoiceBanner({
   )
 }
 
-// ── Tool activity chips ───────────────────────────────────────────────────────
+// ── Tool activity chips (during streaming) ────────────────────────────────────
 function ToolActivityChips({ activity }: { activity: ConversationTurn["toolActivity"] }) {
   if (activity.length === 0) return null
   return (
@@ -104,20 +134,89 @@ function ToolActivityChips({ activity }: { activity: ConversationTurn["toolActiv
   )
 }
 
+// ── Tool-call trace panel (after response completes) ─────────────────────────
+function TracePanel({
+  trace,
+  originalQuery,
+}: {
+  trace: TraceEntry[]
+  originalQuery: string | undefined
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = React.useState(false)
+
+  // Only show the panel for assistant turns that have at least one recorded
+  // tool result, or explicitly had no tools called (to confirm that too).
+  // Don't show it while streaming is still in progress (caller gates this).
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
+        aria-expanded={open}
+      >
+        {open ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+        {open ? t("chatTrace.hideDetails") : t("chatTrace.showDetails")}
+      </button>
+
+      {open && (
+        <div className="mt-2 rounded-md border border-zinc-200 bg-zinc-50/80 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900/60">
+          {/* Original query */}
+          {originalQuery && (
+            <div className="mb-2.5">
+              <p className="mb-0.5 font-medium text-zinc-500 dark:text-zinc-400">
+                {t("chatTrace.originalQuery")}
+              </p>
+              <p className="text-zinc-700 dark:text-zinc-300">{originalQuery}</p>
+            </div>
+          )}
+
+          {/* Tool invocations */}
+          <p className="mb-1.5 font-medium text-zinc-500 dark:text-zinc-400">
+            {t("chatTrace.toolsInvoked")}
+          </p>
+          {trace.length === 0 ? (
+            <p className="text-zinc-400 dark:text-zinc-600 italic">{t("chatTrace.noToolsCalled")}</p>
+          ) : (
+            <ol className="space-y-1">
+              {trace.map((entry, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "size-1.5 rounded-full shrink-0",
+                      entry.status === "ok" ? "bg-emerald-500" : "bg-red-500",
+                    )}
+                  />
+                  <span className="text-zinc-700 dark:text-zinc-300">
+                    {TOOL_LABELS[entry.tool] ?? entry.tool.replace(/_/g, " ")}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── A single chat bubble ──────────────────────────────────────────────────────
 function ConversationBubble({
   turn,
   onFollowUpQuery,
+  originalQuery,
 }: {
   turn: ConversationTurn
   onFollowUpQuery?: (query: string) => void
+  originalQuery?: string
 }) {
   const { t } = useTranslation()
   const isUser = turn.role === "user"
   return (
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
       <div className={cn("max-w-2xl space-y-2", isUser ? "" : "w-full")}>
-        {!isUser ? <ToolActivityChips activity={turn.toolActivity} /> : null}
+        {!isUser && turn.isStreaming ? <ToolActivityChips activity={turn.toolActivity} /> : null}
 
         <div
           className={cn(
@@ -162,6 +261,11 @@ function ConversationBubble({
             ))}
           </div>
         ) : null}
+
+        {/* Tool-call trace panel — only shown for completed assistant turns */}
+        {!isUser && !turn.isStreaming && (
+          <TracePanel trace={turn.trace} originalQuery={originalQuery} />
+        )}
       </div>
     </div>
   )
@@ -182,6 +286,7 @@ function InvestigatorAssistantPage() {
     isVoiceSpeaking,
     startVoiceSession,
     stopVoiceSession,
+    resetChat,
   } = useChatSession()
   const [draftMessage, setDraftMessage] = React.useState("")
   const [isExporting, setIsExporting] = React.useState(false)
@@ -243,6 +348,17 @@ function InvestigatorAssistantPage() {
             <Button
               type="button"
               variant="outline"
+              onClick={resetChat}
+              disabled={turns.length === 0}
+              className="gap-1.5"
+              title={t("chat.resetChat")}
+            >
+              <RotateCcw className="size-4" />
+              <span className="sr-only sm:not-sr-only">{t("chat.resetChat")}</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
               onClick={handleExport}
               disabled={turns.length === 0 || isExporting}
               className="gap-1.5"
@@ -270,10 +386,17 @@ function InvestigatorAssistantPage() {
               description={t("chat.emptyStateDesc")}
             />
           ) : (
-            turns.map((turn) => (
+            turns.map((turn, index) => (
               <ConversationBubble
                 key={turn.id}
                 turn={turn}
+                // Pass the preceding user message as the original query so
+                // the trace panel can confirm what was interpreted.
+                originalQuery={
+                  turn.role === "assistant" && index > 0 && turns[index - 1].role === "user"
+                    ? turns[index - 1].content
+                    : undefined
+                }
                 onFollowUpQuery={isAwaitingResponse ? undefined : (query) => void submitUserMessage(query)}
               />
             ))

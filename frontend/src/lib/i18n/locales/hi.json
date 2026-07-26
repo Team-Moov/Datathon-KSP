@@ -407,7 +407,8 @@
     "connectingEllipsis": "कनेक्ट हो रहा है…",
     "endVoice": "आवाज़ समाप्त करें",
     "voice": "आवाज़",
-    "send": "भेजें"
+    "send": "भेजें",
+    "resetChat": "चैट रीसेट करें"
   },
   "chatWidgets": {
     "matchedPersons": "मेल खाने वाले व्यक्ति",
@@ -604,5 +605,15 @@
     "useDifferentAccount": "एक अलग खाता उपयोग करें",
     "sending": "भेजा जा रहा है...",
     "resendCode": "कोड पुनः भेजें"
+  },
+  "chatTrace": {
+    "showDetails": "विवरण दिखाएं",
+    "hideDetails": "विवरण छुपाएं",
+    "howGenerated": "यह उत्तर कैसे उत्पन्न हुआ?",
+    "originalQuery": "मूल प्रश्न",
+    "toolsInvoked": "उपयोग किए गए उपकरण",
+    "noToolsCalled": "इस प्रतिक्रिया के लिए कोई नियतात्मक उपकरण नहीं बुलाए गए।",
+    "toolLabel": "उपकरण",
+    "durationMs": "{{ms}} ms"
   }
 }

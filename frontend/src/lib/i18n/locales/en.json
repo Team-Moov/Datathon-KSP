@@ -407,7 +407,8 @@
     "connectingEllipsis": "Connecting…",
     "endVoice": "End voice",
     "voice": "Voice",
-    "send": "Send"
+    "send": "Send",
+    "resetChat": "Reset Chat"
   },
   "chatWidgets": {
     "matchedPersons": "Matched persons",
@@ -604,5 +605,15 @@
     "useDifferentAccount": "Use a different account",
     "sending": "Sending...",
     "resendCode": "Resend code"
+  },
+  "chatTrace": {
+    "showDetails": "Show details",
+    "hideDetails": "Hide details",
+    "howGenerated": "How was this answer generated?",
+    "originalQuery": "Original query",
+    "toolsInvoked": "Tools invoked",
+    "noToolsCalled": "No deterministic tools were called for this response.",
+    "toolLabel": "Tool",
+    "durationMs": "{{ms}} ms"
   }
 }
