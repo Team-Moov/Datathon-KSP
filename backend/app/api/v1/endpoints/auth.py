@@ -5,15 +5,17 @@ Authentication endpoints — password + simulated MFA, token issuance/refresh/lo
 
 from datetime import datetime, timedelta, timezone
 import re
+import secrets
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_audit_event
+from app.core.catalyst_request_auth import get_catalyst_identity
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.geo_policy import is_login_permitted
@@ -72,8 +74,13 @@ class CurrentUserOut(BaseModel):
     badge_number: Optional[str]
     district_id: Optional[int]
     unit_id: Optional[int]
+    needs_role_selection: bool
 
     model_config = {"from_attributes": True}
+
+
+class SelectRoleRequest(BaseModel):
+    role: Role
 
 
 class MfaRequiredResponse(BaseModel):
@@ -172,6 +179,58 @@ async def login(
     )
 
 
+@router.post("/catalyst/exchange", response_model=TokenResponse)
+async def exchange_catalyst_identity(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Trades a Catalyst-verified end-user identity for our own access/refresh
+    token pair — see app/core/catalyst_request_auth.py for how that identity
+    is verified (only trustworthy on AppSail; this is the sole place a
+    Catalyst identity is trusted anywhere in the backend). Everything after
+    this point — /me, /refresh, /logout, every protected route — is
+    unchanged: it keeps validating our own JWT exactly as before.
+
+    New users are provisioned with role=CONSTABLE and needs_role_selection=True
+    — Catalyst's generic roles don't express our police-rank RBAC, so instead
+    of an admin having to promote every social-login signup by hand, the user
+    picks their own role once via POST /auth/select-role right after this
+    (RequireAuthenticatedSession on the frontend routes them there
+    automatically). This is a deliberate demo/onboarding tradeoff, not a
+    production RBAC pattern — self-service role assignment (including
+    DSP/SP/DGP) has no approval step. Tightening this later just means
+    changing select_role's accepted roles or requiring admin approval before
+    needs_role_selection flips off.
+    """
+    identity = get_catalyst_identity(request)
+
+    repo = UserRepository(db)
+    user = await repo.get_by_email(identity.email)
+    if user is None:
+        user = User(
+            email=identity.email,
+            # Catalyst owns credential verification for this user now — this
+            # hash is unreachable (never used by /token) but the column is
+            # NOT NULL, so a random value fills it rather than a guessable one.
+            hashed_password=hash_password(secrets.token_urlsafe(32)),
+            full_name=identity.email.split("@", 1)[0],
+            role=Role.CONSTABLE,
+            needs_role_selection=True,
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+        await log_audit_event(
+            db, action="auth.catalyst_user_provisioned", resource_type="user", resource_id=str(user.id), user_id=user.id,
+        )
+
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account inactive")
+
+    return await _issue_tokens(db, user)
+
+
 @router.get("/me", response_model=CurrentUserOut)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """
@@ -179,6 +238,33 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
     gating) from just the stored tokens — there's no other way to recover this
     after a page reload without re-authenticating.
     """
+    return CurrentUserOut.model_validate(current_user)
+
+
+@router.post("/select-role", response_model=CurrentUserOut)
+async def select_role(
+    payload: SelectRoleRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    One-time role pick for Catalyst social-login signups — see the note on
+    exchange_catalyst_identity for why this exists and its tradeoffs. Only
+    callable while needs_role_selection is True; once set, only an admin can
+    change it further, via the existing PATCH /admin/users/{id}/role.
+    """
+    if not current_user.needs_role_selection:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role has already been selected")
+
+    previous_role = current_user.role.value
+    current_user.role = payload.role
+    current_user.needs_role_selection = False
+    await db.flush()
+    await db.refresh(current_user)
+    await log_audit_event(
+        db, action="auth.role_self_selected", resource_type="user", resource_id=str(current_user.id),
+        user_id=current_user.id, payload={"previous_role": previous_role, "selected_role": payload.role.value},
+    )
     return CurrentUserOut.model_validate(current_user)
 
 

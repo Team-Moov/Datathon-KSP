@@ -12,7 +12,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <BrowserRouter>
+        {/* import.meta.env.BASE_URL mirrors vite.config.ts's `base` — "/" in
+            dev, "/app/" in production builds, since Catalyst Web Client
+            Hosting serves the app under that subpath, not the domain root. */}
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <AuthProvider>
             <TooltipProvider delayDuration={200}>
               {children}

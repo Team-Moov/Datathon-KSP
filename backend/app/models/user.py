@@ -28,5 +28,12 @@ class User(Base):
 
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    needs_role_selection: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    """True only for users self-provisioned via Catalyst social login (see
+    /auth/catalyst/exchange) who haven't picked their RBAC role yet — they're
+    created as CONSTABLE and gated to /auth/select-role until they do. Every
+    other creation path (/auth/register, admin-created) leaves this False,
+    since those already assign a real role up front."""
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

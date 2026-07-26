@@ -15,13 +15,19 @@ function FullScreenSpinnerFallback() {
   )
 }
 
-/** Blocks unauthenticated users at the layout boundary rather than per-page. */
+/**
+ * Blocks unauthenticated users at the layout boundary rather than per-page.
+ * Also catches Catalyst social-login signups that haven't picked their RBAC
+ * role yet (see backend/app/api/v1/endpoints/auth.py's exchange_catalyst_identity)
+ * and routes them to /auth/select-role before they can reach anything else.
+ */
 function RequireAuthenticatedSession({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isSessionLoading } = useAuth()
+  const { isAuthenticated, isSessionLoading, currentUser } = useAuth()
   const location = useLocation()
 
   if (isSessionLoading) return <FullScreenSpinnerFallback />
   if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />
+  if (currentUser?.needs_role_selection) return <Navigate to="/auth/select-role" replace />
   return <>{children}</>
 }
 

@@ -42,9 +42,23 @@ async def _step_0002_add_incident_time(conn) -> None:
     )
 
 
+async def _step_0003_add_needs_role_selection(conn) -> None:
+    """
+    Catalyst social-login signups (see /auth/catalyst/exchange) provision a
+    user with no way to know their real police rank up front — they land here
+    as CONSTABLE and pick their actual role once via /auth/select-role.
+    Existing rows default to FALSE (they already have a real role; no
+    retroactive gating).
+    """
+    await conn.execute(
+        text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS needs_role_selection BOOLEAN NOT NULL DEFAULT FALSE")
+    )
+
+
 UPGRADE_STEPS: List[Tuple[int, Callable[..., Awaitable[None]]]] = [
     (1, _step_0001_baseline),
     (2, _step_0002_add_incident_time),
+    (3, _step_0003_add_needs_role_selection),
 ]
 
 

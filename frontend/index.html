@@ -8,6 +8,19 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Zoho Catalyst Web SDK — only resolves once this app is served through
+      Catalyst Web Client Hosting (that's what serves /__catalyst/sdk/init.js;
+      see https://docs.catalyst.zoho.com/en/sdk/web/v4/overview). In any other
+      environment (local Vite dev, a non-Catalyst host) init.js 404s — the SDK
+      script itself still loads and defines `window.catalyst`, but without
+      init.js's project config, catalyst.auth.signIn() fails silently inside
+      its own iframe rather than throwing here. window.__catalystInitFailed
+      is the honest signal: standard <script onerror>, not a guess about SDK
+      internals — src/lib/catalyst/catalystAuth.ts checks it before mounting.
+    -->
+    <script src="https://static.zohocdn.com/catalyst/sdk/js/4.4.0/catalystWebSDK.js"></script>
+    <script src="/__catalyst/sdk/init.js" onerror="window.__catalystInitFailed = true"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

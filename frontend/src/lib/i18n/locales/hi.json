@@ -3,12 +3,15 @@
     "title": "कर्नाटक क्राइम इंटेलिजेंस",
     "subtitle": "प्रतिबंधित पहुंच — केवल अधिकृत कर्मचारी",
     "email": "ईमेल",
-    "password": "पासवर्ड",
-    "signIn": "साइन इन करें",
-    "signingIn": "साइन इन किया जा रहा है...",
-    "invalidEmail": "एक वैध ईमेल पता दर्ज करें",
-    "passwordRequired": "पासवर्ड आवश्यक है",
-    "incorrectCredentials": "गलत ईमेल या पासवर्ड।"
+    "catalystSigningIn": "साइन इन किया जा रहा है…",
+    "catalystNoSession": "कोई सक्रिय Catalyst सत्र नहीं मिला। कृपया फिर से साइन इन करें।",
+    "catalystExchangeFailed": "साइन-इन पूरा नहीं हो सका। कृपया पुनः प्रयास करें।",
+    "catalystUnavailable": "इस वातावरण में साइन-इन उपलब्ध नहीं है। कृपया प्लेटफ़ॉर्म को उसके डिप्लॉय किए गए URL से एक्सेस करें।",
+    "roleSelectionTitle": "अपनी भूमिका चुनें",
+    "roleSelectionSubtitle": "अपने पद से मेल खाती भूमिका चुनें — व्यवस्थापक इसे बाद में बदल सकता है।",
+    "roleSelectionConfirm": "भूमिका की पुष्टि करें",
+    "roleSelectionSubmitting": "सहेजा जा रहा है…",
+    "roleSelectionFailed": "आपकी भूमिका सहेजी नहीं जा सकी। कृपया पुनः प्रयास करें।"
   },
   "dashboard": {
     "welcome": "स्वागत है, {{firstName}}",
@@ -590,19 +593,5 @@
     "searchByName": "नाम से एक व्यक्ति खोजें…",
     "chooseDifferentPerson": "एक अलग व्यक्ति चुनें",
     "noMatches": "कोई मेल नहीं।"
-  },
-  "mfa": {
-    "enterSixDigitCode": "6-अंकीय कोड दर्ज करें",
-    "codeDidntWork": "वह कोड काम नहीं आया — जांचें और फिर से प्रयास करें।",
-    "couldntSendCode": "नया कोड नहीं भेजा जा सका।",
-    "verifyItsYou": "सत्यापित करें कि यह आप हैं",
-    "devModeNotice": "विकास मोड — वास्तविक डिलीवरी अभी तक कॉन्फ़िगर नहीं की गई है। आपका कोड है",
-    "enterCodeSent": "अपने पंजीकृत डिवाइस पर भेजा गया कोड दर्ज करें। यह {{minutes}} मिनट में समाप्त हो जाता है।",
-    "verificationCode": "सत्यापन कोड",
-    "verifying": "सत्यापित किया जा रहा है...",
-    "verifyAndContinue": "सत्यापित करें और जारी रखें",
-    "useDifferentAccount": "एक अलग खाता उपयोग करें",
-    "sending": "भेजा जा रहा है...",
-    "resendCode": "कोड पुनः भेजें"
   }
 }

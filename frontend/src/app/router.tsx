@@ -5,6 +5,12 @@ import { DashboardLayout } from "@/layouts/DashboardLayout"
 import { FullScreenSpinnerFallback, RequireAuthenticatedSession, RequirePermission } from "./RouteGuards"
 
 const LoginPage = React.lazy(() => import("@/features/auth/LoginPage").then((m) => ({ default: m.LoginPage })))
+const CatalystCallbackPage = React.lazy(() =>
+  import("@/features/auth/CatalystCallbackPage").then((m) => ({ default: m.CatalystCallbackPage })),
+)
+const RoleSelectionPage = React.lazy(() =>
+  import("@/features/auth/RoleSelectionPage").then((m) => ({ default: m.RoleSelectionPage })),
+)
 const OverviewPage = React.lazy(() =>
   import("@/features/dashboard/OverviewPage").then((m) => ({ default: m.OverviewPage })),
 )
@@ -60,6 +66,11 @@ function AppRouter() {
     <React.Suspense fallback={<FullScreenSpinnerFallback />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/catalyst-callback" element={<CatalystCallbackPage />} />
+        {/* Not wrapped in RequireAuthenticatedSession — that guard redirects
+            needs_role_selection users to this exact route, which would loop.
+            RoleSelectionPage does its own "must be logged in" check instead. */}
+        <Route path="/auth/select-role" element={<RoleSelectionPage />} />
 
         <Route
           element={

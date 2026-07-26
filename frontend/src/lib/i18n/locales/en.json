@@ -3,12 +3,15 @@
     "title": "Karnataka Crime Intelligence",
     "subtitle": "Restricted access — authorized personnel only",
     "email": "Email",
-    "password": "Password",
-    "signIn": "Sign in",
-    "signingIn": "Signing in...",
-    "invalidEmail": "Enter a valid email address",
-    "passwordRequired": "Password is required",
-    "incorrectCredentials": "Incorrect email or password."
+    "catalystSigningIn": "Signing you in…",
+    "catalystNoSession": "No active Catalyst session was found. Please sign in again.",
+    "catalystExchangeFailed": "Could not complete sign-in. Please try again.",
+    "catalystUnavailable": "Sign-in is unavailable in this environment. Please access the platform through its deployed URL.",
+    "roleSelectionTitle": "Select your role",
+    "roleSelectionSubtitle": "Choose the role that matches your position — an administrator can change this later.",
+    "roleSelectionConfirm": "Confirm role",
+    "roleSelectionSubmitting": "Saving…",
+    "roleSelectionFailed": "Could not save your role. Please try again."
   },
   "dashboard": {
     "welcome": "Welcome back, {{firstName}}",
@@ -590,19 +593,5 @@
     "searchByName": "Search a person by name…",
     "chooseDifferentPerson": "Choose a different person",
     "noMatches": "No matches."
-  },
-  "mfa": {
-    "enterSixDigitCode": "Enter the 6-digit code",
-    "codeDidntWork": "That code didn't work — check it and try again.",
-    "couldntSendCode": "Couldn't send a new code.",
-    "verifyItsYou": "Verify it's you",
-    "devModeNotice": "Development mode — real delivery isn't configured yet. Your code is",
-    "enterCodeSent": "Enter the code sent to your registered device. It expires in {{minutes}} minutes.",
-    "verificationCode": "Verification code",
-    "verifying": "Verifying...",
-    "verifyAndContinue": "Verify and continue",
-    "useDifferentAccount": "Use a different account",
-    "sending": "Sending...",
-    "resendCode": "Resend code"
   }
 }

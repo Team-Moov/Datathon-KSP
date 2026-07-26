@@ -66,6 +66,7 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1              # pinned — passlib 1.7.4's version probe breaks on bcrypt>=4.1
 tenacity==8.5.0           # retry/backoff for Vertex AI calls
+zcatalyst-sdk==1.4.0      # per-request Catalyst identity verification on AppSail — see app/core/catalyst_request_auth.py
 
 # ── Secure report sharing ─────────────────────────────────────────────────────
 reportlab==4.2.2          # PDF generation + watermarking

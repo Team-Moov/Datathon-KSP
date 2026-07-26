@@ -15,25 +15,13 @@ export interface AuthenticatedUser {
   badge_number: string | null
   district_id: number | null
   unit_id: number | null
+  needs_role_selection: boolean
 }
 
 export interface TokenPair {
   access_token: string
   refresh_token: string
   token_type: "bearer"
-}
-
-export interface MfaChallenge {
-  mfa_required: true
-  challenge_id: string
-  expires_in_minutes: number
-  simulated_code: string | null
-}
-
-export type LoginResult = TokenPair | MfaChallenge
-
-export function isMfaChallenge(result: LoginResult): result is MfaChallenge {
-  return "mfa_required" in result
 }
 
 export interface CaseSummary {

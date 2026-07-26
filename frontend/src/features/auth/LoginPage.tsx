@@ -1,109 +1,64 @@
 import * as React from "react"
-import { zodResolver } from "@hookform/resolvers/zod"
 import { ShieldHalf } from "lucide-react"
-import { useForm } from "react-hook-form"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { extractApiErrorMessage } from "@/lib/api/httpClient"
-import { isMfaChallenge, type MfaChallenge, type TokenPair } from "@/lib/types/api"
-import { submitLoginCredentials, submitMfaCode } from "./authApi"
+import { mountCatalystSignIn } from "@/lib/catalyst/catalystAuth"
 import { useAuth } from "./AuthProvider"
-import { MfaChallengePage } from "./MfaChallengePage"
 
-function getCredentialsFormSchema(t: (key: string) => string) {
-  return z.object({
-    email: z.string().email(t("auth.invalidEmail")),
-    password: z.string().min(1, t("auth.passwordRequired")),
-  })
-}
+const CATALYST_LOGIN_ELEMENT_ID = "catalyst-login"
 
-type CredentialsFormValues = z.infer<ReturnType<typeof getCredentialsFormSchema>>
-
+/**
+ * Authentication is exclusively Catalyst's embedded login iFrame — there is
+ * no password form here. It only mounts once this app is served through
+ * Catalyst Web Client Hosting (see src/lib/catalyst/catalystAuth.ts); local
+ * Vite dev and any other hosting show the "unavailable" notice below instead
+ * of a blank box.
+ */
 function LoginPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { applyTokenPair } = useAuth()
-  const credentialsFormSchema = getCredentialsFormSchema(t)
-  const [pendingChallenge, setPendingChallenge] = React.useState<MfaChallenge | null>(null)
-  const [serverError, setServerError] = React.useState<string | null>(null)
+  const { isAuthenticated } = useAuth()
+  const [catalystUnavailable, setCatalystUnavailable] = React.useState(false)
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<CredentialsFormValues>({ resolver: zodResolver(credentialsFormSchema) })
-
-  async function completeSession(tokens: TokenPair) {
-    await applyTokenPair(tokens)
-    navigate("/", { replace: true })
-  }
-
-  async function onSubmitCredentials(values: CredentialsFormValues) {
-    setServerError(null)
-    try {
-      const result = await submitLoginCredentials(values.email, values.password)
-      if (isMfaChallenge(result)) {
-        setPendingChallenge(result)
-        return
-      }
-      await completeSession(result)
-    } catch (error) {
-      setServerError(extractApiErrorMessage(error, t("auth.incorrectCredentials")))
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/", { replace: true })
+      return
     }
-  }
-
-  async function onMfaVerified(challengeId: string, code: string) {
-    const tokens = await submitMfaCode(challengeId, code)
-    await completeSession(tokens)
-  }
+    try {
+      mountCatalystSignIn(CATALYST_LOGIN_ELEMENT_ID, {
+        service_url: "/auth/catalyst-callback",
+        // Zoho's default embedded-signin.css centers a fixed 520px card —
+        // this is our copy of that same file with a full-bleed override
+        // appended after it, per the documented "style after the last line"
+        // convention. Must be an absolute URL: it's fetched by the iframe's
+        // own document (a different origin), not by this page.
+        css_url: `${window.location.origin}${import.meta.env.BASE_URL}embedded-signin.css`,
+      })
+    } catch (error) {
+      console.debug("Catalyst embedded sign-in unavailable:", error)
+      setCatalystUnavailable(true)
+    }
+  }, [isAuthenticated, navigate])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-100 px-4 dark:bg-zinc-950">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <div className="glass-surface flex size-11 items-center justify-center rounded-lg">
-            <ShieldHalf className="size-5 text-accent-600 dark:text-accent-300" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{t("auth.title")}</p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">{t("auth.subtitle")}</p>
-          </div>
+    <div className="flex min-h-screen flex-col bg-zinc-100 dark:bg-zinc-950">
+      <div className="flex shrink-0 flex-col items-center gap-2 px-4 pt-10 pb-6 text-center">
+        <div className="glass-surface flex size-11 items-center justify-center rounded-lg">
+          <ShieldHalf className="size-5 text-accent-600 dark:text-accent-300" />
         </div>
-
-        <div className="glass-surface rounded-lg p-6">
-          {pendingChallenge ? (
-            <MfaChallengePage
-              challenge={pendingChallenge}
-              onVerified={onMfaVerified}
-              onBackToCredentials={() => setPendingChallenge(null)}
-            />
-          ) : (
-            <form onSubmit={handleSubmit(onSubmitCredentials)} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="login-email">{t("auth.email")}</Label>
-                <Input id="login-email" type="email" autoComplete="username" {...register("email")} />
-                {errors.email ? <p className="text-xs text-critical-500">{errors.email.message}</p> : null}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="login-password">{t("auth.password")}</Label>
-                <Input id="login-password" type="password" autoComplete="current-password" {...register("password")} />
-                {errors.password ? <p className="text-xs text-critical-500">{errors.password.message}</p> : null}
-              </div>
-
-              {serverError ? <p className="text-xs text-critical-500">{serverError}</p> : null}
-
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? t("auth.signingIn") : t("auth.signIn")}
-              </Button>
-            </form>
-          )}
+        <div>
+          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{t("auth.title")}</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">{t("auth.subtitle")}</p>
         </div>
       </div>
+
+      {catalystUnavailable ? (
+        <p className="text-center text-xs text-critical-500">{t("auth.catalystUnavailable")}</p>
+      ) : (
+        <div id={CATALYST_LOGIN_ELEMENT_ID} className="min-h-0 flex-1" />
+      )}
     </div>
   )
 }
