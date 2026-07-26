@@ -76,6 +76,12 @@ export async function getCatalystProjectUser(): Promise<CatalystProjectUser | nu
   }
 }
 
+/**
+ * ⚠️ CURRENTLY UNUSED — paired with backend/app/core/catalyst_request_auth.py,
+ * which needs AppSail-injected headers this token would carry. Kept for if
+ * the backend moves back onto AppSail; CatalystCallbackPage.tsx sends
+ * getCatalystProjectUser()'s identity directly instead for now.
+ */
 export async function generateCatalystAuthToken(): Promise<string> {
   const response = await getCatalyst().auth.generateAuthToken()
   return response.access_token

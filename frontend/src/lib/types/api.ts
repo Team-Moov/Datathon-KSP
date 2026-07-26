@@ -34,6 +34,11 @@ export interface CaseSummary {
   source_type: string
   brief_facts: string | null
   version: number
+  // Not currently returned by the case-listing endpoint — optional so
+  // OverviewPage.tsx's `|| "Unknown District"` fallback both type-checks and
+  // matches actual runtime behavior (always undefined today).
+  district_name?: string
+  crime_group?: string
 }
 
 export interface CaseStageEventOut {

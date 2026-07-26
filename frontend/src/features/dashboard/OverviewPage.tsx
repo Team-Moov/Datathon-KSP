@@ -16,6 +16,7 @@ import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useQuery } from "@tanstack/react-query"
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts"
+import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { EmptyState } from "@/components/data-states/EmptyState"
@@ -427,8 +428,8 @@ function OverviewPage() {
                     outerRadius={72}
                     paddingAngle={3}
                     dataKey="value"
-                    label={({ name, percent }) =>
-                      percent > 0.08 ? `${(percent * 100).toFixed(0)}%` : ""
+                    label={({ percent }) =>
+                      percent !== undefined && percent > 0.08 ? `${(percent * 100).toFixed(0)}%` : ""
                     }
                     labelLine={false}
                   >
@@ -443,7 +444,10 @@ function OverviewPage() {
                       borderRadius: "6px",
                     }}
                     itemStyle={{ color: "#f4f4f5", fontSize: "11px" }}
-                    formatter={(value: number, name: string) => [`${value} cases`, name]}
+                    formatter={(value: ValueType | undefined, name: NameType | undefined) => [
+                      `${value ?? 0} cases`,
+                      name ?? "",
+                    ]}
                   />
                   <Legend
                     verticalAlign="bottom"

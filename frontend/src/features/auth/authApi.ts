@@ -11,19 +11,22 @@ export async function submitLogout(refreshToken: string): Promise<void> {
   await httpClient.post("/auth/logout", { refresh_token: refreshToken })
 }
 
+export interface CatalystIdentityPayload {
+  email: string
+  zuid?: string
+  first_name?: string
+  last_name?: string
+}
+
 /**
- * Trades a Catalyst-generated auth token (catalyst.auth.generateAuthToken())
- * for our own access/refresh token pair. See
- * backend/app/core/catalyst_request_auth.py for how the backend verifies
- * this — it never trusts the token itself, only what Catalyst's platform
- * validates it into on the way in.
+ * Trades a Catalyst identity for our own access/refresh token pair.
+ * ⚠️ This identity is CLIENT-ASSERTED — the backend does not independently
+ * re-verify it against Catalyst's servers on this deployment (GCP, not
+ * AppSail). See backend/app/api/v1/endpoints/auth.py's exchange_catalyst_identity
+ * docstring for the full tradeoff and why.
  */
-export async function exchangeCatalystIdentity(catalystToken: string): Promise<TokenPair> {
-  const response = await httpClient.post<TokenPair>(
-    "/auth/catalyst/exchange",
-    {},
-    { headers: { Authorization: catalystToken } },
-  )
+export async function exchangeCatalystIdentity(identity: CatalystIdentityPayload): Promise<TokenPair> {
+  const response = await httpClient.post<TokenPair>("/auth/catalyst/exchange", identity)
   return response.data
 }
 

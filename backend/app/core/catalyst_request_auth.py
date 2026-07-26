@@ -1,6 +1,14 @@
 """
 Per-request Catalyst end-user identity verification — AppSail only.
 
+⚠️ CURRENTLY UNUSED: the backend moved off AppSail to GCP, where the
+X-ZC-* headers this relies on are never injected (that's AppSail-platform
+plumbing, not something Catalyst attaches anywhere else). /auth/catalyst/exchange
+in app/api/v1/endpoints/auth.py now trusts a client-asserted identity instead —
+see that endpoint's docstring for the tradeoff. Kept here, working and
+documented, for if this backend ever moves back onto AppSail: swap that
+endpoint back to calling get_catalyst_identity(request) and the gap closes.
+
 Used exclusively by POST /auth/catalyst/exchange. Every other route keeps
 validating our own JWT via get_current_user() in security.py, unchanged.
 

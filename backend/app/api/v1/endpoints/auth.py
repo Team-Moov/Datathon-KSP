@@ -9,13 +9,12 @@ import secrets
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_audit_event
-from app.core.catalyst_request_auth import get_catalyst_identity
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.geo_policy import is_login_permitted
@@ -179,18 +178,39 @@ async def login(
     )
 
 
+class CatalystExchangeRequest(BaseModel):
+    email: EmailStr
+    zuid: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+
 @router.post("/catalyst/exchange", response_model=TokenResponse)
 async def exchange_catalyst_identity(
-    request: Request,
+    payload: CatalystExchangeRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Trades a Catalyst-verified end-user identity for our own access/refresh
-    token pair — see app/core/catalyst_request_auth.py for how that identity
-    is verified (only trustworthy on AppSail; this is the sole place a
-    Catalyst identity is trusted anywhere in the backend). Everything after
-    this point — /me, /refresh, /logout, every protected route — is
-    unchanged: it keeps validating our own JWT exactly as before.
+    Trades a Catalyst identity for our own access/refresh token pair.
+
+    ⚠️ KNOWN GAP — deliberate, not accidental: this identity is CLIENT-ASSERTED,
+    not independently verified server-side. The frontend reads it from
+    catalyst.userManagement.getCurrentProjectUser() (a legitimate Catalyst SDK
+    call, but one that runs in the browser) and POSTs it here as-is; nothing
+    on this backend re-checks it against Catalyst's servers. A malicious
+    client could claim to be any email.
+
+    Why: the one mechanism that WOULD close this gap —
+    zcatalyst_sdk.initialize(req) reading AppSail-injected X-ZC-* headers, see
+    app/core/catalyst_request_auth.py — only works when this backend runs on
+    Catalyst's own AppSail platform. It doesn't on GCP (or anywhere else);
+    those headers are AppSail-specific platform plumbing, not something
+    Catalyst attaches to requests in general. catalyst_request_auth.py is
+    kept, unused, for exactly the scenario where this backend moves back onto
+    AppSail — swap this endpoint back to using get_catalyst_identity(request)
+    then, and this whole docstring's warning goes away.
+
+    Acceptable for a demo; not for anything handling real police data.
 
     New users are provisioned with role=CONSTABLE and needs_role_selection=True
     — Catalyst's generic roles don't express our police-rank RBAC, so instead
@@ -203,18 +223,21 @@ async def exchange_catalyst_identity(
     changing select_role's accepted roles or requiring admin approval before
     needs_role_selection flips off.
     """
-    identity = get_catalyst_identity(request)
-
     repo = UserRepository(db)
-    user = await repo.get_by_email(identity.email)
+    user = await repo.get_by_email(payload.email)
     if user is None:
+        full_name = (
+            f"{payload.first_name} {payload.last_name}".strip()
+            if payload.first_name or payload.last_name
+            else payload.email.split("@", 1)[0]
+        )
         user = User(
-            email=identity.email,
+            email=payload.email,
             # Catalyst owns credential verification for this user now — this
             # hash is unreachable (never used by /token) but the column is
             # NOT NULL, so a random value fills it rather than a guessable one.
             hashed_password=hash_password(secrets.token_urlsafe(32)),
-            full_name=identity.email.split("@", 1)[0],
+            full_name=full_name,
             role=Role.CONSTABLE,
             needs_role_selection=True,
         )

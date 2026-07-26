@@ -5,10 +5,6 @@ function truncateAccountLabel(account: string): string {
   return account.length > 18 ? `${account.slice(0, 8)}...${account.slice(-4)}` : account
 }
 
-interface FinancialFlowDiagramProps {
-  accountsInvolved: string[]
-}
-
 function FinancialFlowDiagram({ accountsInvolved }: { accountsInvolved: string[] }) {
   const [copiedIndex, setCopiedIndex] = React.useState<number | null>(null)
 
