@@ -14,9 +14,13 @@ import { extractApiErrorMessage } from "@/lib/api/httpClient"
 import { useDebouncedValue } from "@/lib/hooks/useDebounce"
 import { searchPersonsByName } from "./personsApi"
 
+import { useSearchParams } from "react-router-dom"
+
 function PersonSearchPage() {
   const { t } = useTranslation()
-  const [rawQuery, setRawQuery] = React.useState("")
+  const [searchParams] = useSearchParams()
+  const queryParam = searchParams.get("query") || searchParams.get("search") || ""
+  const [rawQuery, setRawQuery] = React.useState(queryParam)
   const debouncedQuery = useDebouncedValue(rawQuery, 300)
   const hasQuery = debouncedQuery.trim().length >= 2
 

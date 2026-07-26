@@ -151,15 +151,22 @@ class HawkesETASService:
             results, key=lambda r: (r.predicted_rate, r.near_repeat_component), reverse=True
         )
         top = ranked[:top_n]
-        max_rate = ranked[0].predicted_rate if ranked else 0.0
 
-        def _tier(rate: float) -> str:
-            if max_rate <= 0:
-                return "Low"
-            ratio = rate / max_rate
-            if ratio >= 0.66:
+        def _tier(rank: int) -> str:
+            """Label a ranked result by its percentile, not an arbitrary rate.
+
+            A quiet period can produce a valid but nearly-flat Hawkes baseline.
+            Comparing every cell with the maximum then makes the labels look
+            arbitrary (or all Low after values round to zero).  The priority
+            list is explicitly an ordered allocation aid, so percentile bands
+            preserve the real calculated ordering without inventing risk.
+            """
+            if len(top) == 1:
                 return "High"
-            if ratio >= 0.33:
+            percentile = (rank - 1) / (len(top) - 1)
+            if percentile < 0.3:
+                return "High"
+            if percentile < 0.7:
                 return "Medium"
             return "Low"
 
@@ -171,7 +178,7 @@ class HawkesETASService:
                 "predicted_rate": r.predicted_rate,
                 "background_component": r.background_component,
                 "near_repeat_component": r.near_repeat_component,
-                "priority_tier": _tier(r.predicted_rate),
+                "priority_tier": _tier(i + 1),
                 "dominant_driver": (
                     "Chronic (socio-economic baseline)"
                     if r.background_component >= r.near_repeat_component

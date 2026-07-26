@@ -19,7 +19,10 @@ log = structlog.get_logger(__name__)
 # bind labels/relationship types as query parameters, so anything reaching
 # the query string has to be validated against a fixed set first.
 _ALLOWED_NODE_LABELS = {"Person", "Incident", "Account"}
-_ALLOWED_EDGE_TYPES = {"ACCUSED_IN", "VICTIM_IN", "WITNESSED", "ASSOCIATED_WITH", "TRANSACTED_WITH", "PREDICTED_LINK"}
+_ALLOWED_EDGE_TYPES = {
+    "ACCUSED_IN", "VICTIM_IN", "WITNESSED", "ASSOCIATED_WITH",
+    "TRANSACTED_WITH", "PREDICTED_LINK", "HAS_ACCOUNT",
+}
 
 
 class NetworkAnalysisService:
@@ -255,15 +258,34 @@ class NetworkAnalysisService:
         else:
             rel_pattern = "|".join(selected_edge_types)
             query = f"""
-            MATCH (a)-[r:{rel_pattern}]-(b)
-            RETURN [a, b] AS nodes, [r] AS rels
+            MATCH (p:Person)
+            OPTIONAL MATCH (p)-[r:{rel_pattern}]-(b)
+            RETURN [p, b] AS nodes, [r] AS rels
             LIMIT $fetch_limit
             """
-            # Fetch generously, then filter/truncate in Python below — simple
-            # and correct, rather than one query trying to express every
-            # filter combination (label sets, district, date range) at once.
-            results = await graph_db.execute_query(query, {"fetch_limit": max(limit * 6, 1500)})
+            results = await graph_db.execute_query(query, {"fetch_limit": max(limit * 6, 1800)})
             raw = self.graph_sync._serialize_graph(results)
+
+            # If node count is still under limit, fetch additional graph edges
+            if len(raw.get("nodes", [])) < limit:
+                supp_query = f"""
+                MATCH (a)-[r:{rel_pattern}]-(b)
+                RETURN [a, b] AS nodes, [r] AS rels
+                LIMIT $fetch_limit
+                """
+                supp_res = await graph_db.execute_query(supp_query, {"fetch_limit": limit * 2})
+                supp_raw = self.graph_sync._serialize_graph(supp_res)
+                # Merge nodes and edges
+                existing_node_ids = {n["id"] for n in raw.get("nodes", [])}
+                for node in supp_raw.get("nodes", []):
+                    if node["id"] not in existing_node_ids:
+                        raw.get("nodes", []).append(node)
+                        existing_node_ids.add(node["id"])
+                existing_edge_ids = {e["id"] for e in raw.get("edges", [])}
+                for edge in supp_raw.get("edges", []):
+                    if edge["id"] not in existing_edge_ids:
+                        raw.get("edges", []).append(edge)
+                        existing_edge_ids.add(edge["id"])
 
         def node_passes(node: Dict[str, Any]) -> bool:
             labels = set(node.get("labels", []))
@@ -282,7 +304,11 @@ class NetworkAnalysisService:
                     return False
             return True
 
-        kept_nodes = [n for n in raw.get("nodes", []) if node_passes(n)][:limit]
+        # Prioritize Person nodes first, then Incident, then Account so no people are starved out by accounts
+        all_passing = [n for n in raw.get("nodes", []) if node_passes(n)]
+        all_passing.sort(key=lambda n: 0 if "Person" in n.get("labels", []) else 1 if "Incident" in n.get("labels", []) else 2)
+
+        kept_nodes = all_passing[:limit]
         kept_ids = {n["id"] for n in kept_nodes}
         kept_edges = [
             e
