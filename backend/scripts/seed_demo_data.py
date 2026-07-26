@@ -520,6 +520,50 @@ async def _sync_to_graph(session, case, person_a, person_b, victim, document) ->
                 "pid": str(txn.linked_person_id), "cid": str(txn.linked_incident_id),
             },
         )
+        if txn.linked_person_id:
+            await graph_db.execute_query(
+                """
+                MERGE (p:Person {id: $pid})
+                MERGE (a:Account {account_no: $from_acc})
+                MERGE (b:Account {account_no: $to_acc})
+                MERGE (p)-[:HAS_ACCOUNT]->(a)
+                MERGE (p)-[:HAS_ACCOUNT]->(b)
+                """,
+                {
+                    "pid": str(txn.linked_person_id),
+                    "from_acc": txn.from_account,
+                    "to_acc": txn.to_account,
+                },
+            )
+
+    # Seed predicted links in Neo4j for demo suspects
+    print("Seeding PREDICTED_LINK relationships in Neo4j...")
+    await graph_db.execute_query(
+        """
+        MERGE (a:Person {id: $a_id})
+        MERGE (b:Person {id: $b_id})
+        MERGE (a)-[r:PREDICTED_LINK]-(b)
+        SET r.confidence = 0.85,
+            r.model_version = 'GCN-LinkPredict-v2',
+            r.source_tool = 'Co-Offending & Structured Transfer Linker',
+            r.evidence = 'Shared IP logins and common structured cash recipients within 48h',
+            r.updated_at = datetime()
+        """,
+        {"a_id": str(person_a.id), "b_id": str(person_b.id)},
+    )
+    await graph_db.execute_query(
+        """
+        MERGE (a:Person {id: $a_id})
+        MERGE (b:Person {id: $b_id})
+        MERGE (a)-[r:PREDICTED_LINK]-(b)
+        SET r.confidence = 0.62,
+            r.model_version = 'Spatial-LinkPredict-v2',
+            r.source_tool = 'Spatial Co-location Model',
+            r.evidence = 'Co-located at 3 crime scene grids during incident times',
+            r.updated_at = datetime()
+        """,
+        {"a_id": str(person_b.id), "b_id": str(victim.id)},
+    )
 
 
 if __name__ == "__main__":

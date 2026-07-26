@@ -219,8 +219,20 @@ class NetworkAnalysisService:
         Letting a model generate raw Cypher against a live graph would be a
         real injection/DoS risk every other tool here was designed to avoid.
         """
-        selected_edge_types = [t for t in (edge_types or []) if t in _ALLOWED_EDGE_TYPES] or list(_ALLOWED_EDGE_TYPES)
-        selected_node_labels = [label for label in (node_labels or []) if label in _ALLOWED_NODE_LABELS] or None
+        # If the caller supplies explicit edge types, use them (whitelist-filtered).
+        # If nothing is supplied, include all allowed edge types so Person, Incident,
+        # and Account nodes (with HAS_ACCOUNT / TRANSACTED_WITH links) are returned.
+        if edge_types:
+            selected_edge_types = [t for t in edge_types if t in _ALLOWED_EDGE_TYPES]
+        else:
+            selected_edge_types = list(_ALLOWED_EDGE_TYPES)
+
+        if node_labels:
+            selected_node_labels = [label for label in node_labels if label in _ALLOWED_NODE_LABELS]
+            if "Account" in selected_node_labels and not any(t in selected_edge_types for t in ["HAS_ACCOUNT", "TRANSACTED_WITH"]):
+                selected_edge_types.extend(["HAS_ACCOUNT", "TRANSACTED_WITH"])
+        else:
+            selected_node_labels = list(_ALLOWED_NODE_LABELS)
 
         # district_id isn't a graph property (Incident nodes only carry
         # crime_no/date_reported) — resolved via Postgres first, then applied

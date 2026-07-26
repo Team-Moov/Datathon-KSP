@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import type { ChatLanguage } from "./chatApi"
 import { ChatWidgetRenderer } from "./ChatWidgetRenderer"
 import { type ConversationTurn, type TraceEntry, useChatSession } from "./useChatSession"
+import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer"
 
 // Human-readable labels for each tool name. Keys are the raw function names
 // from the backend tool catalog. Unlisted tools fall back to the raw name
@@ -234,7 +235,7 @@ function ConversationBubble({
               <span>{turn.content}</span>
             </div>
           ) : turn.content ? (
-            <p className="whitespace-pre-wrap">{turn.content}</p>
+            <MarkdownRenderer content={turn.content} />
           ) : turn.isStreaming ? (
             <span className="inline-flex items-center gap-1 text-zinc-400">
               <Loader2 className="size-3.5 animate-spin" /> {t("chat.thinking")}

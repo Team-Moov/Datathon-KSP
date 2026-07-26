@@ -54,6 +54,64 @@ class CaseUpdateRequest(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+@router.get("/stats", response_model=dict)
+async def get_case_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Lightweight aggregate counts for the Overview dashboard.
+    Returns total cases, recent filings (last 7 days), suspect count,
+    and a per-crime-head breakdown — all sourced from the live DB so the
+    Overview page never shows hardcoded data.
+    """
+    from datetime import timedelta
+    from sqlalchemy import func, select as _select, text as _text
+    from app.models.case import CaseMaster
+    from app.models.person import PersonCaseRole
+
+    repo = CaseRepository(db)
+    base_q = repo.scope_to_user(_select(CaseMaster), current_user)
+
+    # Total cases visible to this user
+    total_q = _select(func.count()).select_from(base_q.subquery())
+    total_cases: int = (await db.execute(total_q)).scalar_one() or 0
+
+    # Cases filed in the last 7 days
+    cutoff = date.today() - timedelta(days=7)
+    recent_q = _select(func.count()).select_from(
+        repo.scope_to_user(
+            _select(CaseMaster).where(CaseMaster.date_reported >= cutoff), current_user
+        ).subquery()
+    )
+    recent_cases: int = (await db.execute(recent_q)).scalar_one() or 0
+
+    # Distinct suspects (persons in accused roles)
+    accused_q = _select(func.count(func.distinct(PersonCaseRole.person_id))).where(
+        PersonCaseRole.role == "accused"
+    )
+    suspect_count: int = (await db.execute(accused_q)).scalar_one() or 0
+
+    # Per-crime-head breakdown (top 6) with real names from reference table
+    breakdown_q = _text("""
+        SELECT COALESCE(ch.name, 'Unknown') AS crime_head, COUNT(*) AS case_count
+        FROM case_master cm
+        LEFT JOIN crime_head ch ON ch.id = cm.crime_head_id
+        GROUP BY cm.crime_head_id, ch.name
+        ORDER BY case_count DESC
+        LIMIT 6
+    """)
+    rows = (await db.execute(breakdown_q)).all()
+    crime_distribution = [{"name": row[0], "value": int(row[1])} for row in rows]
+
+    return {
+        "total_cases": total_cases,
+        "recent_cases_7d": recent_cases,
+        "suspect_count": suspect_count,
+        "crime_distribution": crime_distribution,
+    }
+
+
 @router.get("/{crime_no}", response_model=CaseOut)
 async def get_case(
     crime_no: str,

@@ -74,7 +74,14 @@ which time window): ask a short clarifying question rather than guessing when
 more than one reasonable interpretation exists and the tool call would
 otherwise be a guess.
 
-Sensitive-field rule: never mention or infer ReligionID or CasteID in analysis outputs."""
+Sensitive-field rule: never mention or infer ReligionID or CasteID in analysis outputs.
+
+Resource allocation and staffing: When asked about police requirements, patrol needs, or resource
+allocation for a district, call calculate_police_staffing with the resolved district_id. This tool
+produces a data-driven officer count and vehicle estimate from real socioeconomic indicators (stress
+index, unemployment, urbanization) and recorded incident volume. Always call get_districts first if
+you need to resolve a district name to an id. Always present the underlying metrics (stress index,
+case count, unemployment) that drove the recommendation so the investigator understands the basis."""
 
 # Gemini's OpenAPI-subset Schema uses an enum Type rather than JSON-schema's plain
 # string, so the existing plain-dict tool schemas (kept as-is below, unchanged in
@@ -504,6 +511,7 @@ class ConversationService:
             "get_victim_demographics": lambda: self.socio_svc.get_victim_demographics(args.get("district_id")),
             "get_urbanization_impact": lambda: self.socio_svc.get_urbanization_impact(),
             "get_policy_recommendations": lambda: self.socio_svc.get_policy_recommendations(args["district_id"]),
+            "calculate_police_staffing": lambda: self.socio_svc.calculate_police_staffing(args["district_id"]),
             "get_case_workspace": lambda: self._get_case_workspace_tool(args["case_id"]),
             "extract_document_text": lambda: self._extract_document_text_tool(args["document_id"]),
             "extract_entities": lambda: self._extract_entities_tool(args["text"]),
@@ -788,6 +796,7 @@ class ConversationService:
             "get_crime_heads": "crime_head_list",
             "get_temporal_trends": "temporal_trends",
             "get_surveillance_priorities": "surveillance_priorities",
+            "calculate_police_staffing": "police_staffing_recommendation",
         }
         widget_type = widget_map.get(tool_name)
         if widget_type:
@@ -971,6 +980,11 @@ class ConversationService:
             {
                 "name": "get_policy_recommendations",
                 "description": "Automated, criminologically-grounded preventive policy recommendations for a district, driven by its real unemployment/urbanization/literacy/stress readings — priority-ranked with theoretical grounding and expected impact.",
+                "parameters": {"type": "object", "properties": {"district_id": {"type": "integer"}}, "required": ["district_id"]},
+            },
+            {
+                "name": "calculate_police_staffing",
+                "description": "Calculate recommended active police staffing requirements and patrol vehicle allocations for a district dynamically based on its socioeconomic indicators, current crime volume, and stress factors. Use get_districts first to resolve a district name to a district_id.",
                 "parameters": {"type": "object", "properties": {"district_id": {"type": "integer"}}, "required": ["district_id"]},
             },
             {

@@ -12,12 +12,15 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/features/auth/AuthProvider"
 import { extractApiErrorMessage } from "@/lib/api/httpClient"
 import { roleHasPermission } from "@/lib/types/permissions"
+import { cn } from "@/lib/utils"
 import {
   acknowledgeAlert,
   dismissAlert,
   fetchAlerts,
+  fetchAlertsSummary,
   triggerAlertScan,
   type AlertType,
+  type AlertStatus,
 } from "./alertsApi"
 
 function AlertsPage() {
@@ -30,17 +33,27 @@ function AlertsPage() {
   const { currentUser } = useAuth()
   const queryClient = useQueryClient()
   const [typeFilter, setTypeFilter] = React.useState<AlertType | "all">("all")
+  const [statusFilter, setStatusFilter] = React.useState<AlertStatus>("new")
   const [busyId, setBusyId] = React.useState<string | null>(null)
 
   const canScan = roleHasPermission(currentUser?.role, "manage_analytics_jobs")
 
   const alertsQuery = useQuery({
-    queryKey: ["alerts", typeFilter],
-    queryFn: () => fetchAlerts(typeFilter === "all" ? undefined : { alert_type: typeFilter }),
+    queryKey: ["alerts", typeFilter, statusFilter],
+    queryFn: () => fetchAlerts({
+      alert_type: typeFilter === "all" ? undefined : typeFilter,
+      status: statusFilter,
+    }),
+  })
+
+  const summaryQuery = useQuery({
+    queryKey: ["alerts-summary"],
+    queryFn: fetchAlertsSummary,
   })
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["alerts"] })
+    void queryClient.invalidateQueries({ queryKey: ["alerts-summary"] })
   }
 
   const ackMutation = useMutation({
@@ -74,7 +87,7 @@ function AlertsPage() {
         <div>
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("nav.earlyWarningAlerts")}</h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {t("alerts.pageDesc")}
+            Proactive alerts for multi-jurisdiction suspects, co-offending rings, and financial crime patterns.
           </p>
         </div>
         {canScan ? (
@@ -91,21 +104,83 @@ function AlertsPage() {
         ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        {TYPE_FILTERS.map((filter) => (
+      {/* Tabs Folder bar */}
+      <div className="border-b border-zinc-200 dark:border-zinc-800/80 flex flex-col sm:flex-row justify-between items-stretch sm:items-end gap-3">
+        <div className="flex space-x-1 border-b sm:border-b-0 border-zinc-100 dark:border-zinc-900">
           <button
-            key={filter.value}
             type="button"
-            onClick={() => setTypeFilter(filter.value)}
-            className={
-              typeFilter === filter.value
-                ? "rounded-full bg-accent-600 px-3 py-1 text-xs text-white"
-                : "rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-500 hover:text-zinc-800 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
-            }
+            onClick={() => setStatusFilter("new")}
+            className={cn(
+              "px-4 py-2 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5",
+              statusFilter === "new"
+                ? "border-accent-600 text-accent-600 dark:text-accent-400 dark:border-accent-400"
+                : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-100"
+            )}
           >
-            {filter.label}
+            <span>Inbox / New Leads</span>
+            {summaryQuery.data && (
+              <span className={cn(
+                "px-1.5 py-0.5 text-[10px] rounded-full shrink-0 font-bold",
+                statusFilter === "new" ? "bg-accent-100 text-accent-850 dark:bg-accent-950 dark:text-accent-300" : "bg-zinc-100 text-zinc-550 dark:bg-zinc-800 dark:text-zinc-400"
+              )}>
+                {summaryQuery.data.new}
+              </span>
+            )}
           </button>
-        ))}
+
+          <button
+            type="button"
+            onClick={() => setStatusFilter("acknowledged")}
+            className={cn(
+              "px-4 py-2 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5",
+              statusFilter === "acknowledged"
+                ? "border-accent-600 text-accent-600 dark:text-accent-400 dark:border-accent-400"
+                : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-100"
+            )}
+          >
+            <span>Accepted Portfolio</span>
+            {summaryQuery.data && (
+              <span className={cn(
+                "px-1.5 py-0.5 text-[10px] rounded-full shrink-0 font-bold",
+                statusFilter === "acknowledged" ? "bg-accent-100 text-accent-850 dark:bg-accent-950 dark:text-accent-300" : "bg-zinc-100 text-zinc-550 dark:bg-zinc-800 dark:text-zinc-400"
+              )}>
+                {summaryQuery.data.active_total - summaryQuery.data.new}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStatusFilter("dismissed")}
+            className={cn(
+              "px-4 py-2 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5",
+              statusFilter === "dismissed"
+                ? "border-accent-600 text-accent-600 dark:text-accent-400 dark:border-accent-400"
+                : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-100"
+            )}
+          >
+            <span>Dismissed Archive</span>
+          </button>
+        </div>
+
+        {/* Type Filter Buttons */}
+        <div className="flex items-center gap-1 pb-1">
+          {TYPE_FILTERS.map((filter) => (
+            <button
+              key={filter.value}
+              type="button"
+              onClick={() => setTypeFilter(filter.value)}
+              className={cn(
+                "rounded px-2.5 py-0.5 text-[11px] font-medium transition",
+                typeFilter === filter.value
+                  ? "bg-zinc-200 text-zinc-850 dark:bg-zinc-800 dark:text-zinc-100 font-semibold"
+                  : "text-zinc-450 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-300"
+              )}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {alertsQuery.isLoading ? (
@@ -115,15 +190,15 @@ function AlertsPage() {
       ) : !alertsQuery.data || alertsQuery.data.length === 0 ? (
         <EmptyState
           icon={ShieldAlert}
-          title={t("alerts.noActiveAlerts")}
-          description={canScan ? t("alerts.runScanPrompt") : t("alerts.nothingFlagged")}
+          title={statusFilter === "new" ? t("alerts.noActiveAlerts") : "No alerts in this folder."}
+          description={canScan && statusFilter === "new" ? t("alerts.runScanPrompt") : "This category is currently empty."}
         />
       ) : (
         <AlertsList
           alerts={alertsQuery.data}
           busyId={busyId}
-          onAcknowledge={(id) => ackMutation.mutate(id)}
-          onDismiss={(id) => dismissMutation.mutate(id)}
+          onAcknowledge={statusFilter !== "acknowledged" ? (id) => ackMutation.mutate(id) : undefined}
+          onDismiss={statusFilter !== "dismissed" ? (id) => dismissMutation.mutate(id) : undefined}
         />
       )}
     </div>

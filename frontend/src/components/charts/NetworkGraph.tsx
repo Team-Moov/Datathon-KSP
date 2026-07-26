@@ -1,10 +1,11 @@
 import * as React from "react"
 import {
-  forceCenter,
   forceCollide,
   forceLink,
   forceManyBody,
   forceSimulation,
+  forceX,
+  forceY,
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force"
@@ -62,7 +63,7 @@ const CLICK_SLOP = 4
  * any zoom. Interactive: scroll to zoom (toward the cursor), drag the background
  * to pan, drag a node to reposition it, click a node to drill in.
  */
-function NetworkGraph({ nodes, edges, primaryNodeId, height = 420, onNodeSelect }: NetworkGraphProps) {
+function NetworkGraph({ nodes, edges, primaryNodeId, height = 420, actionLabel, onNodeSelect }: NetworkGraphProps) {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [viewportWidth, setViewportWidth] = React.useState(640)
@@ -70,6 +71,22 @@ function NetworkGraph({ nodes, edges, primaryNodeId, height = 420, onNodeSelect 
   const [simulatedEdges, setSimulatedEdges] = React.useState<RenderableEdge[]>([])
   const [transform, setTransform] = React.useState<ViewTransform>({ x: 0, y: 0, k: 1 })
   const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null)
+  const [selectedNode, setSelectedNode] = React.useState<string | null>(null)
+
+  // Spacing & label visibility controls
+  const [showAllLabels, setShowAllLabels] = React.useState(false)
+  const [spacious, setSpacious] = React.useState(false)
+
+  // Entity node type filters for active decluttering — Accounts enabled by default so toggle is immediate
+  const [showPersons, setShowPersons] = React.useState(true)
+  const [showIncidents, setShowIncidents] = React.useState(true)
+  const [showAccounts, setShowAccounts] = React.useState(true)
+
+  // Relationship filters
+  const [showConfirmedEdges, setShowConfirmedEdges] = React.useState(true)
+  const [showPredictedEdges, setShowPredictedEdges] = React.useState(true)
+
+  const simulationRef = React.useRef<any>(null)
 
   // Mutable pointer-gesture state kept in a ref so the pointer handlers don't
   // churn on every render (they're attached once, read the latest via the ref).
@@ -91,38 +108,75 @@ function NetworkGraph({ nodes, edges, primaryNodeId, height = 420, onNodeSelect 
     return () => observer.disconnect()
   }, [])
 
+  // Initialize and run the simulation dynamically on node/edge changes, spacious settings, and filters
   React.useEffect(() => {
-    const nodeData: RenderableNode[] = nodes.map((node) => ({
+    // 1. Filter nodes based on active checkboxes
+    const filteredNodes = nodes.filter((node) => {
+      const type = node.type || "Person"
+      if (type === "Person" && !showPersons) return false
+      if (type === "Incident" && !showIncidents) return false
+      if (type === "Account" && !showAccounts) return false
+      return true
+    })
+
+    const keptNodeIds = new Set(filteredNodes.map((n) => n.id))
+
+    // 2. Filter edges based on visible nodes and relationship filters
+    const filteredEdges = edges.filter((edge) => {
+      if (!keptNodeIds.has(edge.from) || !keptNodeIds.has(edge.to)) return false
+      if (edge.isPredicted && !showPredictedEdges) return false
+      if (!edge.isPredicted && !showConfirmedEdges) return false
+      return true
+    })
+
+    const nodeData: RenderableNode[] = filteredNodes.map((node) => ({
       id: node.id,
       label: node.label,
       isPrimary: node.id === primaryNodeId,
       communityId: node.communityId,
+      type: node.type,
+      properties: node.properties,
     }))
-    const edgeData: RenderableEdge[] = edges.map((edge) => ({
+    
+    const edgeData: RenderableEdge[] = filteredEdges.map((edge) => ({
       id: edge.id,
       source: edge.from,
       target: edge.to,
       isPredicted: edge.isPredicted,
     }))
 
-    const simulation = forceSimulation(nodeData)
-      .force("charge", forceManyBody().strength(-220))
-      .force("link", forceLink<RenderableNode, RenderableEdge>(edgeData).id((node) => node.id).distance(90))
-      .force("center", forceCenter(viewportWidth / 2, height / 2))
-      .force("collide", forceCollide(26))
-      .stop()
+    // Island cluster physics: strong link force pulls intra-cluster nodes together,
+    // moderate repulsion pushes clusters apart, and weak positioning forces allow
+    // disconnected components to float as separate islands across the canvas.
+    const chargeStrength = spacious ? -350 : -220
+    const chargeDistanceMax = spacious ? 550 : 400
+    const linkDistance = spacious ? 55 : 35
+    const collideRadius = spacious ? 22 : 14
+    const linkForceStrength = 1.15
 
-    simulation.tick(240)
-    setSimulatedNodes([...nodeData])
-    setSimulatedEdges([...edgeData])
-    // Reset the view when the underlying data changes so a new graph starts framed.
+    const simulation = forceSimulation(nodeData)
+      .force("charge", forceManyBody().strength(chargeStrength).distanceMax(chargeDistanceMax))
+      .force("link", forceLink<RenderableNode, RenderableEdge>(edgeData).id((node) => node.id).distance(linkDistance).strength(linkForceStrength))
+      .force("collide", forceCollide(collideRadius).strength(0.9))
+      .force("x", forceX(viewportWidth / 2).strength(0.008))
+      .force("y", forceY(height / 2).strength(0.008))
+      .alphaDecay(0.025)
+
+    simulationRef.current = simulation
+
+    simulation.on("tick", () => {
+      setSimulatedNodes([...nodeData])
+      setSimulatedEdges([...edgeData])
+    })
+
     setTransform({ x: 0, y: 0, k: 1 })
+    setSelectedNode(null) // Reset details overlay on graph/filter changes
 
     return () => {
       simulation.stop()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, primaryNodeId, viewportWidth, height])
+  }, [nodes, edges, primaryNodeId, spacious, showPersons, showIncidents, showAccounts, showConfirmedEdges, showPredictedEdges, viewportWidth, height])
 
   function resolveEndpoint(endpoint: RenderableEdge["source"] | RenderableEdge["target"]): RenderableNode | null {
     return typeof endpoint === "object" ? (endpoint as RenderableNode) : null

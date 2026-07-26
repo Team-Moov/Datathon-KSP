@@ -130,6 +130,20 @@ class GraphSyncService:
             if pid:
                 account_to_persons[txn["from_account"]].add(str(pid))
                 account_to_persons[txn["to_account"]].add(str(pid))
+                await graph_db.execute_query(
+                    """
+                    MERGE (p:Person {id: $pid})
+                    MERGE (a:Account {account_no: $from_acc})
+                    MERGE (b:Account {account_no: $to_acc})
+                    MERGE (p)-[:HAS_ACCOUNT]->(a)
+                    MERGE (p)-[:HAS_ACCOUNT]->(b)
+                    """,
+                    {
+                        "pid": str(pid),
+                        "from_acc": txn["from_account"],
+                        "to_acc": txn["to_account"],
+                    },
+                )
 
         for account, people in account_to_persons.items():
             if len(people) < 2:
