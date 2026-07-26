@@ -56,10 +56,21 @@ async def chat(
     """
     svc = ConversationService(db, current_user)
     
-    # Real Kannada support: Instruct LLM to reply in Kannada if selected
+    # Language-aware system prompt: inject Kannada instruction BEFORE the
+    # full SYSTEM_PROMPT so Gemini treats it as a hard constraint.  Explicitly
+    # naming the script (ಕನ್ನಡ ಲಿಪಿ) prevents the model from silently
+    # responding in Romanized/transliterated Kannada, which happens when only
+    # "reply in Kannada" is specified without a script anchor.
     if payload.language == "kn":
-        sys_prompt = "You MUST reply to the investigator entirely in Kannada language (kn). Do NOT reply in English."
-        messages = [{"role": "system", "content": sys_prompt}]
+        lang_instruction = (
+            "LANGUAGE INSTRUCTION (highest priority): You MUST reply entirely in "
+            "Kannada language using Kannada script (ಕನ್ನಡ ಲಿಪಿ). "
+            "Do NOT use Romanized Kannada (e.g. 'Nanna hesaru' is forbidden — "
+            "use 'ನನ್ನ ಹೆಸರು' instead). Tool call inputs and raw JSON data returned "
+            "by tools stay in English — only your narration to the investigator "
+            "must be in Kannada script."
+        )
+        messages = [{"role": "system", "content": lang_instruction}]
     else:
         messages = []
         
@@ -147,7 +158,11 @@ async def chat_voice_live(
     system_instruction = SYSTEM_PROMPT
     if language == "kn":
         system_instruction += (
-            "\n\nYou MUST reply to the investigator entirely in Kannada language (kn). Do NOT reply in English."
+            "\n\nLANGUAGE INSTRUCTION (highest priority): You MUST reply entirely in "
+            "Kannada language using Kannada script (ಕನ್ನಡ ಲಿಪಿ). "
+            "Do NOT use Romanized Kannada. Tool call inputs and raw JSON data returned "
+            "by tools stay in English — only your narration to the investigator "
+            "must be in Kannada script."
         )
 
     live_config = types.LiveConnectConfig(

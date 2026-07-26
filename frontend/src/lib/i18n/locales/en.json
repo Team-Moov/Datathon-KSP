@@ -410,7 +410,8 @@
     "connectingEllipsis": "Connecting…",
     "endVoice": "End voice",
     "voice": "Voice",
-    "send": "Send"
+    "send": "Send",
+    "resetChat": "Reset Chat"
   },
   "chatWidgets": {
     "matchedPersons": "Matched persons",
@@ -593,5 +594,29 @@
     "searchByName": "Search a person by name…",
     "chooseDifferentPerson": "Choose a different person",
     "noMatches": "No matches."
+  },
+  "mfa": {
+    "enterSixDigitCode": "Enter the 6-digit code",
+    "codeDidntWork": "That code didn't work — check it and try again.",
+    "couldntSendCode": "Couldn't send a new code.",
+    "verifyItsYou": "Verify it's you",
+    "devModeNotice": "Development mode — real delivery isn't configured yet. Your code is",
+    "enterCodeSent": "Enter the code sent to your registered device. It expires in {{minutes}} minutes.",
+    "verificationCode": "Verification code",
+    "verifying": "Verifying...",
+    "verifyAndContinue": "Verify and continue",
+    "useDifferentAccount": "Use a different account",
+    "sending": "Sending...",
+    "resendCode": "Resend code"
+  },
+  "chatTrace": {
+    "showDetails": "Show details",
+    "hideDetails": "Hide details",
+    "howGenerated": "How was this answer generated?",
+    "originalQuery": "Original query",
+    "toolsInvoked": "Tools invoked",
+    "noToolsCalled": "No deterministic tools were called for this response.",
+    "toolLabel": "Tool",
+    "durationMs": "{{ms}} ms"
   }
 }

@@ -39,14 +39,47 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.district_coords import DEFAULT_DISTRICT_COORDS
 from app.core.graph_db import graph_db
-from app.models.case import CaseMaster
+from app.models.case import CaseMaster, CrimeHead, CrimeSubHead, GravityOffence
 from app.models.financial import FinancialTransaction
 from app.models.person import Person
+from app.models.enums import PersonRole, Sex
+from app.models.person import PersonCaseRole
+from app.models.socio import CrimeStatAggregate
+from app.models.unit import District, State, Unit, UnitType
+
+# Same 8 districts seed_demo_data.py already establishes (Karnataka/state
+# code KA) -- reused by name so this pool lands on the *same* District rows
+# if that script already ran, rather than creating a second parallel set.
+_DISTRICT_NAMES = [
+    ("Bengaluru Urban", "BLR"), ("Mysuru", "MYS"), ("Belagavi", "BGM"),
+    ("Mangaluru", "MNR"), ("Kalaburagi", "KLB"), ("Hubballi-Dharwad", "HBL"),
+    ("Shivamogga", "SMG"), ("Ballari", "BLI"),
+]
+
+# Real-sounding, varied Karnataka names -- not "Synthetic Person N". Mixed
+# across common Kannada/Indian first and last names so 60 people don't read
+# as an obviously generated list.
+_FIRST_NAMES_MALE = [
+    "Manjunath", "Naveen", "Ashwin", "Ravi", "Suresh", "Prakash", "Vijay",
+    "Ganesh", "Harish", "Kiran", "Mahesh", "Nagaraj", "Raghavendra", "Santosh",
+    "Shivaraj", "Sunil", "Umesh", "Vinod", "Yogesh", "Chandrashekar",
+]
+_FIRST_NAMES_FEMALE = [
+    "Lakshmi", "Deepa", "Kavitha", "Manjula", "Nagaveni", "Pooja", "Radha",
+    "Sandhya", "Shilpa", "Sowmya", "Sujatha", "Sunitha", "Usha", "Vani",
+    "Vidya", "Anitha", "Bhagya", "Chaitra", "Gowri", "Jyothi",
+]
+_LAST_NAMES = [
+    "Gowda", "Reddy", "Rao", "Naik", "Hegde", "Kulkarni", "Patil", "Shetty",
+    "Iyengar", "Murthy", "Bhat", "Nayak", "Shenoy", "Deshpande", "Achar",
+    "Poojary", "Kamath", "Prabhu", "Rai", "Acharya",
+]
 
 log = structlog.get_logger(__name__)
 
@@ -56,46 +89,524 @@ GROUND_TRUTH_PATH = Path(__file__).parent / "financial_ground_truth.json"
 # Same India-specific threshold used by FinancialCrimeService.
 CTR_THRESHOLD_INR = 1_000_000.0
 
+# Every generated date is relative to TODAY, never a fixed calendar year.
+# seed_demo_data.py established this rule for the same reason and documents it:
+# the detection/forecast endpoints only look back a bounded window
+# (HawkesETASService._compute_intensity discards anything more than 30 days
+# before the target date, and the Trends page defaults that target to today),
+# so hardcoded 2024 dates silently produce "100% chronic / 0% acute" and an
+# empty near-repeat layer forever. Confirmed live: the same forecast returned
+# 0% acute for a 2026 target and non-zero acute for a 2024-11 target.
+_TODAY = date.today()
+_WINDOW_DAYS = 180
+
 
 # ------------------------------------------------------------------ #
 # Person / Case pool -- reuse real rows if they exist, else create a
 # minimal synthetic pool so this script is runnable standalone before
 # ingestion is finished.
 # ------------------------------------------------------------------ #
-async def _get_or_create_pool(session, n_persons: int = 60, n_cases: int = 30):
-    persons = (await session.execute(select(Person.id))).scalars().all()
-    cases = (await session.execute(select(CaseMaster.id))).scalars().all()
+async def _get_or_create_districts(session) -> list:
+    """Reuses seed_demo_data.py's exact districts if that script already ran
+    (matched by name), otherwise creates them -- either way ends up on real
+    District rows, never a fake placeholder district."""
+    result = await session.execute(select(State).filter_by(name="Karnataka"))
+    state = result.scalar_one_or_none()
+    if state is None:
+        state = State(name="Karnataka", code="KA")
+        session.add(state)
+        await session.flush()
 
-    created_persons = False
-    if not persons:
-        log.warning("No Person rows found -- creating a minimal synthetic pool")
-        new_people = [
-            Person(full_name=f"Synthetic Person {i}", is_synthetic=True)
-            if hasattr(Person, "is_synthetic")
-            else Person(full_name=f"Synthetic Person {i}")
-            for i in range(n_persons)
-        ]
+    districts = []
+    for name, code in _DISTRICT_NAMES:
+        result = await session.execute(select(District).filter_by(name=name))
+        d = result.scalar_one_or_none()
+        if d is None:
+            d = District(name=name, state_id=state.id, code=code)
+            session.add(d)
+            await session.flush()
+        districts.append(d)
+    return districts
+
+
+async def _get_or_create_units(session, districts) -> dict:
+    """Two police stations per district. Needed for two separate reasons:
+    CaseMaster.unit_id is what the multi-jurisdiction repeat-offender detector
+    keys off (NetworkAnalysisService.get_multi_jurisdiction_offenders collects
+    DISTINCT i.unit_id per person), and the real KSP schema's Unit hierarchy
+    is what makes "this offender's cases span multiple jurisdictions" a
+    meaningful organized/mobile-activity signal at all. With every case
+    sharing one NULL unit_id, that detector can never fire."""
+    result = await session.execute(select(UnitType).filter_by(name="Police Station"))
+    station_type = result.scalar_one_or_none()
+    if station_type is None:
+        station_type = UnitType(name="Police Station", hierarchy_level=3)
+        session.add(station_type)
+        await session.flush()
+
+    units_by_district: dict = {}
+    for district in districts:
+        existing = (
+            await session.execute(select(Unit).where(Unit.district_id == district.id))
+        ).scalars().all()
+        units = list(existing)
+        for idx in range(len(units), 2):
+            unit = Unit(
+                name=f"{district.name} Financial Crimes PS-{idx + 1}",
+                unit_type_id=station_type.id,
+                district_id=district.id,
+            )
+            session.add(unit)
+            await session.flush()
+            units.append(unit)
+        units_by_district[district.id] = units
+    return units_by_district
+
+
+async def _link_accused(session, new_cases, person_ids, rng) -> None:
+    """Attach 2-3 accused per case via PersonCaseRole.
+
+    This is what actually creates a co-offending graph: two people accused in
+    the SAME case become an edge, which is what
+    NetworkAnalysisService.detect_communities() (organized-group alerts) and
+    the repeat-offender detector both traverse. Without these rows the
+    financial cases exist but have no people attached to them at all, so
+    Early-Warning could only ever produce FINANCIAL alerts and never
+    ORGANIZED_GROUP / REPEAT_OFFENDER ones -- confirmed live before this fix.
+
+    Draws each case's accused from a small rotating "crew" pool rather than
+    uniformly at random, because uniform sampling over 60 people produces a
+    sparse graph with no community structure for Louvain to find, and no
+    person accumulating cases across enough jurisdictions to look like a
+    repeat offender.
+    """
+    if not person_ids:
+        return
+
+    crew_size = 6
+    crews = [person_ids[i:i + crew_size] for i in range(0, len(person_ids), crew_size)]
+    crews = [c for c in crews if len(c) >= 3]
+    if not crews:
+        crews = [person_ids]
+
+    rows = []
+    for idx, case in enumerate(new_cases):
+        crew = crews[idx % len(crews)]
+        accused = rng.sample(crew, min(len(crew), rng.randint(2, 3)))
+        for person_id in accused:
+            rows.append(
+                PersonCaseRole(
+                    person_id=person_id,
+                    case_id=case.id,
+                    role=PersonRole.ACCUSED,
+                    arrested=rng.random() < 0.3,
+                )
+            )
+
+        # One victim per case, drawn from OUTSIDE the offending crew.
+        # Needed for SocioInsightsService.get_victim_demographics(), which is
+        # how financial crime reaches the Sociological Insights tab at all:
+        # it buckets by CrimeHead name, and "Financial Crime" matches its
+        # "financial" keyword into the "Cyber & Financial Fraud" category --
+        # but it only counts PersonCaseRole rows with role=VICTIM, so an
+        # accused-only case contributes nothing there.
+        victim_pool = [p for p in person_ids if p not in crew]
+        if victim_pool:
+            rows.append(
+                PersonCaseRole(
+                    person_id=rng.choice(victim_pool),
+                    case_id=case.id,
+                    role=PersonRole.VICTIM,
+                )
+            )
+
+    session.add_all(rows)
+    await session.flush()
+    log.info(f"Linked {len(rows)} accused/victim role rows across {len(new_cases)} cases (co-offending + demographics)")
+
+
+async def _seed_background_crime(session, districts, units_by_district, person_ids, rng) -> list:
+    """Non-financial cases so financial crime is a plausible minority.
+
+    Weighted roughly toward property offences, which dominate real NCRB
+    counts, with economic offences a much smaller slice. Each case gets a
+    victim so victim-demographic breakdowns have something other than
+    financial crime to report.
+    """
+    # (crime head, sub head, gravity label, chi weight, cases per district)
+    spec = [
+        ("Theft", "Theft of motor vehicle", "Non-Heinous", 2.5, 22),
+        ("Burglary", "House breaking by night", "Non-Heinous", 3.0, 14),
+        ("Assault", "Voluntarily causing hurt", "Heinous", 5.0, 9),
+        ("Cheating", "Cheating and dishonestly inducing delivery of property", "Non-Heinous", 2.0, 11),
+    ]
+
+    created: list = []
+    for head_name, sub_name, gravity_label, chi_weight, per_district in spec:
+        result = await session.execute(select(GravityOffence).filter_by(label=gravity_label))
+        gravity = result.scalar_one_or_none()
+        if gravity is None:
+            gravity = GravityOffence(label=gravity_label, chi_weight=chi_weight)
+            session.add(gravity)
+            await session.flush()
+
+        result = await session.execute(select(CrimeHead).filter_by(name=head_name))
+        head = result.scalar_one_or_none()
+        if head is None:
+            head = CrimeHead(name=head_name)
+            session.add(head)
+            await session.flush()
+
+        result = await session.execute(
+            select(CrimeSubHead).filter_by(crime_head_id=head.id, name=sub_name)
+        )
+        sub_head = result.scalar_one_or_none()
+        if sub_head is None:
+            sub_head = CrimeSubHead(
+                crime_head_id=head.id, name=sub_name, gravity_offence_id=gravity.id
+            )
+            session.add(sub_head)
+            await session.flush()
+
+        existing = dict(
+            (
+                await session.execute(
+                    select(CaseMaster.district_id, func.count())
+                    .where(CaseMaster.crime_head_id == head.id)
+                    .group_by(CaseMaster.district_id)
+                )
+            ).all()
+        )
+
+        batch = []
+        counts_by_district_year: dict = {}
+        for district in districts:
+            needed = max(0, per_district - existing.get(district.id, 0))
+            base_lat, base_lon = DEFAULT_DISTRICT_COORDS.get(district.name, (12.9716, 77.5946))
+            for _ in range(needed):
+                report_date = _TODAY - timedelta(days=rng.randint(0, _WINDOW_DAYS))
+                batch.append(
+                    CaseMaster(
+                        crime_no=f"SYN/{district.code}/{uuid.uuid4().hex[:6].upper()}/{_TODAY.year}",
+                        district_id=district.id,
+                        unit_id=rng.choice(units_by_district[district.id]).id,
+                        crime_head_id=head.id,
+                        crime_sub_head_id=sub_head.id,
+                        gravity_offence_id=gravity.id,
+                        date_reported=report_date,
+                        incident_from_date=report_date,
+                        latitude=round(base_lat + rng.uniform(-0.12, 0.12), 6),
+                        longitude=round(base_lon + rng.uniform(-0.12, 0.12), 6),
+                        brief_facts=f"Synthetic {head_name.lower()} case providing realistic background crime volume.",
+                    )
+                )
+                key = (district.id, report_date.year)
+                counts_by_district_year[key] = counts_by_district_year.get(key, 0) + 1
+
+        if not batch:
+            continue
+
+        session.add_all(batch)
+        await session.flush()
+        created.extend(batch)
+
+        # One accused + one victim per background case, so these cases also
+        # populate victim demographics rather than only inflating raw counts.
+        roles = []
+        for case in batch:
+            roles.append(PersonCaseRole(
+                person_id=rng.choice(person_ids), case_id=case.id, role=PersonRole.ACCUSED
+            ))
+            roles.append(PersonCaseRole(
+                person_id=rng.choice(person_ids), case_id=case.id, role=PersonRole.VICTIM
+            ))
+        session.add_all(roles)
+
+        for (district_id, year), count in counts_by_district_year.items():
+            existing_agg = await session.execute(
+                select(CrimeStatAggregate).filter_by(
+                    district_id=district_id, year=year, crime_head_id=head.id
+                )
+            )
+            row = existing_agg.scalar_one_or_none()
+            if row is None:
+                session.add(CrimeStatAggregate(
+                    district_id=district_id, year=year, crime_head_id=head.id,
+                    count=count, chi_weighted_count=count * float(chi_weight),
+                ))
+            else:
+                row.count += count
+                row.chi_weighted_count = (row.chi_weighted_count or 0) + count * float(chi_weight)
+
+    await session.flush()
+    if created:
+        log.info(f"Created {len(created)} background (non-financial) cases so financial crime is a realistic minority")
+    return created
+
+
+async def _get_or_create_financial_crime_head(session) -> tuple:
+    """A real CrimeHead/CrimeSubHead/GravityOffence for financial crime, not a
+    NULL category. Without this, financial cases are invisible to every
+    feature that reads CaseMaster.crime_head_id: temporal trends, Hawkes
+    forecasting, the socio-insights victim-demographics classifier (which
+    already has a "financial"-keyword bucket in _crime_bucket(), but only
+    fires if a crime_head name actually contains that word), and
+    CrimeStatAggregate-based correlation. Named "Financial Crime" specifically
+    so that keyword match hits.
+    """
+    result = await session.execute(select(GravityOffence).filter_by(label="Heinous"))
+    gravity = result.scalar_one_or_none()
+    if gravity is None:
+        gravity = GravityOffence(label="Heinous", chi_weight=4.0)
+        session.add(gravity)
+        await session.flush()
+
+    result = await session.execute(select(CrimeHead).filter_by(name="Financial Crime"))
+    head = result.scalar_one_or_none()
+    if head is None:
+        head = CrimeHead(name="Financial Crime", code="FINCRIME")
+        session.add(head)
+        await session.flush()
+
+    result = await session.execute(
+        select(CrimeSubHead).filter_by(crime_head_id=head.id, name="Money Laundering / Suspicious Transactions")
+    )
+    sub_head = result.scalar_one_or_none()
+    if sub_head is None:
+        sub_head = CrimeSubHead(
+            crime_head_id=head.id,
+            name="Money Laundering / Suspicious Transactions",
+            gravity_offence_id=gravity.id,
+        )
+        session.add(sub_head)
+        await session.flush()
+
+    return head, sub_head
+
+
+def _random_person_name(rng: random.Random) -> tuple:
+    """Returns (full_name, sex) -- picking from the matching first-name pool
+    so sex and name stay consistent, rather than generating one independent
+    of the other."""
+    if rng.random() < 0.5:
+        first = rng.choice(_FIRST_NAMES_MALE)
+        sex = Sex.MALE
+    else:
+        first = rng.choice(_FIRST_NAMES_FEMALE)
+        sex = Sex.FEMALE
+    last = rng.choice(_LAST_NAMES)
+    return f"{first} {last}", sex
+
+
+async def _get_or_create_pool(session, n_persons: int = 60, n_cases: int = 30, per_district_cases: int = 24, seed: int = RNG_SEED):
+    """Ensures a pool of at least n_persons/n_cases, spread across all real
+    Karnataka districts with varied demographics -- tops up rather than
+    skipping entirely when a few rows already exist (e.g. from
+    seed_demo_data.py's 2-3 named people), so bulk generation never ends up
+    funneling 600+ transactions through a tiny, single-district pool."""
+    rng = random.Random(seed)
+    districts = await _get_or_create_districts(session)
+
+    persons = (await session.execute(select(Person.id))).scalars().all()
+    persons = list(persons)
+    if len(persons) < n_persons:
+        needed = n_persons - len(persons)
+        log.info(f"Topping up person pool with {needed} demographically-varied rows across {len(districts)} districts")
+        new_people = []
+        for _ in range(needed):
+            full_name, sex = _random_person_name(rng)
+            district = rng.choice(districts)
+            age = rng.randint(19, 64)
+            person_kwargs = dict(
+                full_name=full_name, sex=sex,
+                date_of_birth=date(date.today().year - age, rng.randint(1, 12), rng.randint(1, 28)),
+                age_at_registration=age,
+                permanent_address=f"{rng.randint(1, 200)} Main Road, {district.name}",
+                present_address=f"{rng.randint(1, 200)} Main Road, {district.name}",
+            )
+            if hasattr(Person, "is_synthetic"):
+                person_kwargs["is_synthetic"] = True
+            new_people.append(Person(**person_kwargs))
         session.add_all(new_people)
         await session.flush()
-        persons = [p.id for p in new_people]
-        created_persons = True
+        persons.extend(p.id for p in new_people)
 
-    created_cases = False
-    if not cases:
-        log.warning("No CaseMaster rows found -- creating a minimal synthetic pool")
-        new_cases = [
-            CaseMaster(crime_no=f"SYN/{i:04d}/2024", date_reported=date(2024, 1, 1))
-            for i in range(n_cases)
-        ]
+    crime_head, crime_sub_head = await _get_or_create_financial_crime_head(session)
+    units_by_district = await _get_or_create_units(session, districts)
+
+    cases = (await session.execute(select(CaseMaster.id))).scalars().all()
+    cases = list(cases)
+    new_case_count_by_district_year: dict = {}
+
+    # Per-district minimum, not a flat total: HawkesForecastService.forecast()
+    # bails with "insufficient_data" below 10 incidents for a given
+    # (district, crime_head) pair, so a pool that's large in aggregate but
+    # thin per district still renders an empty Spatial Hotspots tab. Confirmed
+    # live -- 28 cases spread over 8 districts gave every district 1-6 and no
+    # district could fit an ETAS model.
+    existing_fin_by_district = dict(
+        (
+            await session.execute(
+                select(CaseMaster.district_id, func.count())
+                .where(CaseMaster.crime_head_id == crime_head.id)
+                .group_by(CaseMaster.district_id)
+            )
+        ).all()
+    )
+
+    new_cases = []
+    new_case_district = []
+    for district in districts:
+        have = existing_fin_by_district.get(district.id, 0)
+        needed = max(0, per_district_cases - have)
+
+        # Generate as parent/offspring clusters, NOT uniform-random dates and
+        # locations. This matters because the Hawkes/ETAS model on the Trends
+        # page exists specifically to separate chronic background risk from
+        # acute *near-repeat* risk -- a crime temporarily elevating risk
+        # nearby, decaying over days. Sampling dates uniformly across a year
+        # and coordinates uniformly across a district produces data with
+        # literally zero near-repeat structure, so the model honestly reports
+        # "100% chronic / 0% acute" and the hotspot map renders as one flat
+        # uniform blob. Confirmed live before this change. Real offense data
+        # clusters; so must synthetic data if the forecast tab is to show
+        # anything meaningful.
+        base_lat, base_lon = DEFAULT_DISTRICT_COORDS.get(district.name, (12.9716, 77.5946))
+        schedule: list[tuple] = []
+
+        # Values are "days ago" -- a LARGER number is further in the past.
+        #
+        # Two things force this layout. First, the ETAS kernel decays at
+        # exp(-beta*days) with beta~=1.0 and is hard-cut at 30 days, so only
+        # incidents from the last ~3 weeks affect a forecast targeted at
+        # today. Second, HawkesETASService._compute_intensity uses a single
+        # scalar `params.mu` as the background for EVERY grid cell, so the
+        # background layer is spatially flat by construction -- all visible
+        # variation in the hotspot map, and therefore the entire High/Medium/
+        # Low spread in surveillance priorities (which tiers on
+        # rate/max_rate), comes from near-repeat contributions alone.
+        #
+        # A single recent cluster therefore renders as a handful of hot cells
+        # on an otherwise uniform field, which is what the flat-looking map
+        # and the all-"High" priority list were both showing. Several
+        # clusters at different places, staggered across the active window,
+        # produce a genuinely graded surface instead.
+        # Deliberately only a FEW recent clusters, not a share of the total.
+        # _fit_etas sets the flat background to mu = n / span_days, so packing
+        # every case into the last few weeks collapses the span, inflates mu,
+        # and drowns the near-repeat layer it was supposed to expose --
+        # measured live: filling all 24 cases from recent clusters pushed the
+        # background from 0.1 to ~1.04 and cut hotspot contrast from 2.4x to
+        # 1.16x. Most cases must stay spread over months to keep mu small.
+        # Explicit hot / warm / cool recency rather than a random draw over
+        # the window. exp(-beta*days) with beta~=1.0 means a cluster 20 days
+        # old contributes ~2e-9 -- indistinguishable from nothing -- so a
+        # uniform random pick over 2-26 days usually produced no visible
+        # near-repeat at all (measured: 0 elevated cells). Three fixed bands
+        # guarantee one strong, one moderate and one faint hotspot, which is
+        # what gives the priority list an actual High/Medium/Low spread.
+        recent_bands = [(1, 2), (4, 6), (9, 12)]
+        for band_lo, band_hi in recent_bands:
+            if len(schedule) >= needed:
+                break
+            parent_day = rng.randint(band_lo, band_hi)
+            # Spread clusters across the district rather than stacking them.
+            parent_lat = base_lat + rng.uniform(-0.10, 0.10)
+            parent_lon = base_lon + rng.uniform(-0.10, 0.10)
+            schedule.append((parent_day, parent_lat, parent_lon))
+
+            # Offspring: triggered just after the parent (so 0-2 fewer days
+            # ago) and within ~0.5km. Both bounds are tied to the kernel this
+            # feeds: the spatial term is a Gaussian with sigma=0.5km, so
+            # offspring scattered a few km out fall outside their own
+            # parent's influence and stop reinforcing the hotspot; and a
+            # loose day offset would drag a "cool" cluster into the hot band,
+            # flattening the graded surface the tiers depend on.
+            for _ in range(rng.randint(2, 3)):
+                if len(schedule) >= needed:
+                    break
+                schedule.append((
+                    max(0, parent_day - rng.randint(0, 2)),
+                    parent_lat + rng.uniform(-0.004, 0.004),
+                    parent_lon + rng.uniform(-0.004, 0.004),
+                ))
+
+        # Remainder spread over the older window -- invisible to the forecast
+        # (>30 days) but needed so Temporal Seasonality has months of history
+        # rather than a single recent spike.
+        while len(schedule) < needed:
+            schedule.append((
+                rng.randint(35, _WINDOW_DAYS),
+                base_lat + rng.uniform(-0.12, 0.12),
+                base_lon + rng.uniform(-0.12, 0.12),
+            ))
+
+        for offset_day, lat, lon in schedule[:needed]:
+            report_date = _TODAY - timedelta(days=max(0, offset_day))
+            new_cases.append(
+                CaseMaster(
+                    crime_no=f"SYN/{district.code}/{uuid.uuid4().hex[:6].upper()}/{_TODAY.year}",
+                    district_id=district.id,
+                    unit_id=rng.choice(units_by_district[district.id]).id,
+                    crime_head_id=crime_head.id,
+                    crime_sub_head_id=crime_sub_head.id,
+                    gravity_offence_id=crime_sub_head.gravity_offence_id,
+                    date_reported=report_date,
+                    incident_from_date=report_date,
+                    latitude=round(lat, 6),
+                    longitude=round(lon, 6),
+                    brief_facts="Synthetic financial-crime case generated for typology-driven detection testing.",
+                )
+            )
+            new_case_district.append(district)
+            key = (district.id, report_date.year)
+            new_case_count_by_district_year[key] = new_case_count_by_district_year.get(key, 0) + 1
+
+    if new_cases:
+        log.info(f"Creating {len(new_cases)} financial cases so every district clears the Hawkes 10-incident minimum")
         session.add_all(new_cases)
         await session.flush()
-        cases = [c.id for c in new_cases]
-        created_cases = True
+        cases.extend(c.id for c in new_cases)
+        await _link_accused(session, new_cases, persons, rng)
 
-    if created_persons or created_cases:
-        await session.commit()
+        # Background crime of OTHER types, so financial crime lands at a
+        # believable share of the dataset instead of dominating it.
+        # Without this, seeding enough financial cases to satisfy the Hawkes
+        # per-district minimum left the database at 112 financial vs 2 theft
+        # -- which made every cross-crime-type view read as "98% of crime in
+        # Karnataka is financial." Most visibly, Sociological Insights'
+        # victim demographics showed "100% Cyber Crime" for every age cohort,
+        # arithmetically correct and completely misleading. Real NCRB
+        # proportions put property/theft offences far above economic
+        # offences, so the mix below is weighted that way.
+        background = await _seed_background_crime(
+            session, districts, units_by_district, persons, rng
+        )
+        if background:
+            cases.extend(c.id for c in background)
 
-    return list(persons), list(cases)
+        # CrimeStatAggregate rows -- what get_crime_stats()/get_correlation_matrix()
+        # in socio_insights.py actually read, separate from the CaseMaster rows
+        # themselves (that table is a pre-aggregated reporting layer, not
+        # something derived live from case counts elsewhere in this codebase).
+        for (district_id, year), count in new_case_count_by_district_year.items():
+            existing = await session.execute(
+                select(CrimeStatAggregate).filter_by(
+                    district_id=district_id, year=year, crime_head_id=crime_head.id
+                )
+            )
+            row = existing.scalar_one_or_none()
+            if row is None:
+                session.add(CrimeStatAggregate(
+                    district_id=district_id, year=year, crime_head_id=crime_head.id,
+                    count=count, chi_weighted_count=count * 4.0,  # matches the Heinous gravity chi_weight set above
+                ))
+            else:
+                row.count += count
+                row.chi_weighted_count = (row.chi_weighted_count or 0) + count * 4.0
+
+    await session.commit()
+    return persons, cases
 
 
 def _account_id(prefix: str = "ACC") -> str:
@@ -144,7 +655,7 @@ class TypologyGenerator:
         for _ in range(n_cases):
             source, dest = _account_id(), _account_id()
             person, case = self._pick_person(), self._pick_case()
-            start = self._random_date(date(2024, 1, 1), date(2024, 11, 1))
+            start = self._random_date(_TODAY - timedelta(days=_WINDOW_DAYS), _TODAY - timedelta(days=20))
 
             target_total = self.rng.uniform(1_200_000, 4_000_000)
             leg_count = self.rng.randint(4, 9)
@@ -164,7 +675,7 @@ class TypologyGenerator:
         for _ in range(n_cases):
             mule = _account_id()
             person, case = self._pick_person(), self._pick_case()
-            spike_date = self._random_date(date(2024, 1, 1), date(2024, 10, 1))
+            spike_date = self._random_date(_TODAY - timedelta(days=_WINDOW_DAYS), _TODAY - timedelta(days=15))
 
             source_count = self.rng.randint(5, 15)
             total_in = 0.0
@@ -194,7 +705,7 @@ class TypologyGenerator:
                 accounts.append(accounts[0])  # loop back
 
             amount = self.rng.uniform(500_000, 3_000_000)
-            start = self._random_date(date(2024, 1, 1), date(2024, 10, 1))
+            start = self._random_date(_TODAY - timedelta(days=_WINDOW_DAYS), _TODAY - timedelta(days=30))
 
             for i in range(len(accounts) - 1):
                 amount *= self.rng.uniform(0.92, 0.98)
@@ -209,7 +720,7 @@ class TypologyGenerator:
             self._add(
                 _account_id(), _account_id(),
                 self.rng.uniform(500, 300_000),
-                self._random_date(date(2024, 1, 1), date(2024, 12, 1)),
+                self._random_date(_TODAY - timedelta(days=_WINDOW_DAYS), _TODAY),
                 self._pick_person(), self._pick_case(), "clean",
             )
 
@@ -297,6 +808,55 @@ async def _sync_to_neo4j(rows: list[dict]) -> None:
         await graph_db.close()
 
 
+async def _sync_accused_to_neo4j(session) -> None:
+    """Mirrors PersonCaseRole ACCUSED rows into Neo4j as
+    (Person)-[:ACCUSED_IN]->(Incident), carrying the case's unit_id.
+
+    Both early-warning detectors traverse Neo4j, not Postgres:
+    detect_communities() walks Person-ACCUSED_IN->Incident<-ACCUSED_IN-Person
+    to find co-offending cells, and get_multi_jurisdiction_offenders() reads
+    DISTINCT i.unit_id per person. Writing the PersonCaseRole rows to Postgres
+    alone leaves both blind -- confirmed live: 218 accused rows in Postgres
+    still produced zero ORGANIZED_GROUP/REPEAT_OFFENDER alerts until these
+    edges existed.
+    """
+    rows = (
+        await session.execute(
+            select(
+                PersonCaseRole.person_id,
+                PersonCaseRole.case_id,
+                CaseMaster.unit_id,
+                CaseMaster.crime_no,
+                Person.full_name,
+            )
+            .join(CaseMaster, CaseMaster.id == PersonCaseRole.case_id)
+            .join(Person, Person.id == PersonCaseRole.person_id)
+            .where(PersonCaseRole.role == PersonRole.ACCUSED)
+        )
+    ).all()
+
+    await graph_db.connect()
+    try:
+        for person_id, case_id, unit_id, crime_no, full_name in rows:
+            await graph_db.execute_query(
+                """
+                MERGE (p:Person {id: $pid})
+                SET p.name = $name
+                MERGE (i:Incident {id: $cid})
+                SET i.unit_id = $unit_id, i.crime_no = $crime_no
+                MERGE (p)-[r:ACCUSED_IN]->(i)
+                SET r.updated_at = datetime()
+                """,
+                {
+                    "pid": str(person_id), "cid": str(case_id),
+                    "unit_id": unit_id, "crime_no": crime_no, "name": full_name,
+                },
+            )
+        log.info(f"Synced {len(rows)} ACCUSED_IN edges to Neo4j (co-offending + jurisdiction graph)")
+    finally:
+        await graph_db.close()
+
+
 async def seed() -> None:
     admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, pool_pre_ping=True)
     admin_session_factory = async_sessionmaker(
@@ -312,6 +872,8 @@ async def seed() -> None:
             session.add_all([FinancialTransaction(**row) for row in rows])
             await session.commit()
             log.info("Inserted synthetic FinancialTransaction rows", count=len(rows))
+
+            await _sync_accused_to_neo4j(session)
     finally:
         await admin_engine.dispose()
 

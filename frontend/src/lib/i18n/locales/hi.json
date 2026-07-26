@@ -410,7 +410,8 @@
     "connectingEllipsis": "कनेक्ट हो रहा है…",
     "endVoice": "आवाज़ समाप्त करें",
     "voice": "आवाज़",
-    "send": "भेजें"
+    "send": "भेजें",
+    "resetChat": "चैट रीसेट करें"
   },
   "chatWidgets": {
     "matchedPersons": "मेल खाने वाले व्यक्ति",
@@ -593,5 +594,29 @@
     "searchByName": "नाम से एक व्यक्ति खोजें…",
     "chooseDifferentPerson": "एक अलग व्यक्ति चुनें",
     "noMatches": "कोई मेल नहीं।"
+  },
+  "mfa": {
+    "enterSixDigitCode": "6-अंकीय कोड दर्ज करें",
+    "codeDidntWork": "वह कोड काम नहीं आया — जांचें और फिर से प्रयास करें।",
+    "couldntSendCode": "नया कोड नहीं भेजा जा सका।",
+    "verifyItsYou": "सत्यापित करें कि यह आप हैं",
+    "devModeNotice": "विकास मोड — वास्तविक डिलीवरी अभी तक कॉन्फ़िगर नहीं की गई है। आपका कोड है",
+    "enterCodeSent": "अपने पंजीकृत डिवाइस पर भेजा गया कोड दर्ज करें। यह {{minutes}} मिनट में समाप्त हो जाता है।",
+    "verificationCode": "सत्यापन कोड",
+    "verifying": "सत्यापित किया जा रहा है...",
+    "verifyAndContinue": "सत्यापित करें और जारी रखें",
+    "useDifferentAccount": "एक अलग खाता उपयोग करें",
+    "sending": "भेजा जा रहा है...",
+    "resendCode": "कोड पुनः भेजें"
+  },
+  "chatTrace": {
+    "showDetails": "विवरण दिखाएं",
+    "hideDetails": "विवरण छुपाएं",
+    "howGenerated": "यह उत्तर कैसे उत्पन्न हुआ?",
+    "originalQuery": "मूल प्रश्न",
+    "toolsInvoked": "उपयोग किए गए उपकरण",
+    "noToolsCalled": "इस प्रतिक्रिया के लिए कोई नियतात्मक उपकरण नहीं बुलाए गए।",
+    "toolLabel": "उपकरण",
+    "durationMs": "{{ms}} ms"
   }
 }

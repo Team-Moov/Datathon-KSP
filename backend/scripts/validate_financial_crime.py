@@ -22,6 +22,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionFactory
+from app.core.graph_db import graph_db
 from app.models.financial import FinancialTransaction
 from app.services.analytics.financial_crime import FinancialCrimeService
 
@@ -30,6 +31,12 @@ GROUND_TRUTH_PATH = Path(__file__).parent / "financial_ground_truth.json"
 
 async def evaluate() -> None:
     ground_truth = json.loads(GROUND_TRUTH_PATH.read_text())  # txn_id -> typology
+
+    # detect_cycles_in_graph() queries Neo4j directly via the graph_db
+    # singleton -- this script runs standalone, outside the FastAPI app's
+    # lifespan, so that connection pool has never been established unless
+    # this script opens it itself (same reason the seeders do this).
+    await graph_db.connect()
 
     async with AsyncSessionFactory() as session:
         svc = FinancialCrimeService(session)
@@ -46,6 +53,8 @@ async def evaluate() -> None:
             if f:
                 alerts.append(f)
         alerts.extend(await svc.detect_cycles_in_graph())
+
+    await graph_db.close()
 
     report = {}
     for typology in ["structuring", "funnel_account", "layering"]:

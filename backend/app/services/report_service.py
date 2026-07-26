@@ -156,9 +156,12 @@ def _case_report_html(
 def _chat_report_html(messages: List[Dict[str, str]], session_id: str, watermark: str) -> str:
     parts: List[str] = ["<h2>Transcript</h2>"]
     for msg in messages:
+        content = msg.get("content", "").strip()
+        if not content:
+            continue
         role = "Investigator" if msg["role"] == "user" else "AI Assistant"
         parts.append(f"<div class='role'>{role}:</div>")
-        parts.append(f"<div class='msg'>{html.escape(msg['content'])}</div>")
+        parts.append(f"<div class='msg'>{html.escape(content)}</div>")
     return _doc(f"Conversation Transcript — {session_id}", watermark, "".join(parts))
 
 
