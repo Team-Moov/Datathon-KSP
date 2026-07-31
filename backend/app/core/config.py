@@ -102,19 +102,77 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
 
-    # ── Groq — LLM + Whisper transcription ────────────────────────────────────
-    GROQ_API_KEY: str = ""
-    GROQ_LLM_MODEL: str = "llama-3.3-70b-versatile"      # tool-calling / planning
-    GROQ_LLM_MODEL_FAST: str = "llama-3.1-8b-instant"    # cheap narration/claim-validation pass
-    GROQ_WHISPER_MODEL: str = "whisper-large-v3"         # Kannada + English transcription
+    # ── Vertex AI — Gemini (chat/tool-calling) + Gemini Live (voice) ──────────
+    # Replaces Groq. Auth is via Application Default Credentials — either a
+    # service-account JSON pointed to by GOOGLE_APPLICATION_CREDENTIALS, or the
+    # ambient identity when running on GCP compute (AppSail has no ADC of its
+    # own, so a service-account key is required there).
+    VERTEX_PROJECT_ID: str = ""
+    VERTEX_LOCATION: str = "us-central1"  # Gemini Live's region availability is narrower than text Gemini — verify against current docs before deploying
+    GOOGLE_APPLICATION_CREDENTIALS: str = ""  # path to service-account JSON; google-genai picks this up via ADC automatically if set
+    GEMINI_MODEL: str = "gemini-2.5-flash"            # tool-calling / planning (was GROQ_LLM_MODEL)
+    GEMINI_MODEL_FAST: str = "gemini-2.5-flash-lite"  # cheap narration/claim-validation pass (was GROQ_LLM_MODEL_FAST)
+    GEMINI_LIVE_MODEL: str = "gemini-live-2.5-flash-native-audio"  # real-time duplex voice — GA as of Dec 2025; old gemini-2.0-flash-live-preview-* IDs return 1008 policy violation
 
-    # ── Embeddings — local, no network call (Groq has no embedding endpoint) ──
-    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    # ── Embeddings — Vertex AI ──────────────────────────────────────────────────
+    # output_dimensionality is pinned to EMBEDDING_DIM at call time (see
+    # embedding_service.py) so this stays whatever the pgvector column actually
+    # is — changing EMBEDDING_DIM requires a schema + full re-embed, not just a
+    # config edit.
+    EMBEDDING_MODEL: str = "text-embedding-005"
     EMBEDDING_DIM: int = 384
 
     # ── File storage ──────────────────────────────────────────────────────────
-    UPLOAD_DIR: str = "/tmp/uploads"
+    # /uploads maps to the named Docker volume (backend/docker-compose.yml:
+    # uploads:/uploads). Using /tmp/uploads would be ephemeral — files would
+    # be lost on container restart (DEBT-03 fix).
+    UPLOAD_DIR: str = "/uploads"
     MAX_UPLOAD_SIZE_MB: int = 50
+
+    # ── Object storage provider ───────────────────────────────────────────────
+    # "local" (filesystem volume) by default; "catalyst_stratus" or "gcs" bind the
+    # respective managed backends without touching call sites. See app/core/storage.
+    STORAGE_PROVIDER: str = "local"
+    STRATUS_BUCKET: str = ""
+    STRATUS_BASE_URL: str = ""  # bucket domain, e.g. https://crime-development.zohostratus.in
+
+    # ── Google Cloud Storage (STORAGE_PROVIDER=gcs) ───────────────────────────
+    GCS_BUCKET: str = ""
+    GCS_PROJECT_ID: str = ""  # falls back to VERTEX_PROJECT_ID if unset
+
+    # ── Catalyst (Stratus / future services) admin credentials ────────────────
+    # Data center is "in" for this account (accounts.zoho.in / api.catalyst.zoho.in).
+    # Client id/secret from a Self Client at api-console.zoho.in; refresh token minted
+    # with the Stratus scopes. Only needed when STORAGE_PROVIDER=catalyst_stratus.
+    CATALYST_DC: str = "in"
+    CATALYST_API_BASE: str = ""  # override host if the default api.catalyst.zoho.<dc> differs
+    CATALYST_PROJECT_ID: str = ""
+    CATALYST_CLIENT_ID: str = ""
+    CATALYST_CLIENT_SECRET: str = ""
+    CATALYST_REFRESH_TOKEN: str = ""
+
+    # ── Cache provider ────────────────────────────────────────────────────────
+    # "redis" (default) or "catalyst" (Catalyst Cache). Segment auto-discovered
+    # if CATALYST_CACHE_SEGMENT is left blank.
+    CACHE_PROVIDER: str = "redis"
+    CATALYST_CACHE_SEGMENT: str = ""
+
+    # ── PDF renderer ──────────────────────────────────────────────────────────
+    # "local" (xhtml2pdf) or "smartbrowz" (Catalyst SmartBrowz, headless Chromium).
+    PDF_PROVIDER: str = "local"
+    SMARTBROWZ_PDF_URL: str = ""  # override the default …/baas/v1/project/{id}/pdf
+
+    # ── OCR renderer ──────────────────────────────────────────────────────────
+    # "zia" (Catalyst Zia OCR) — the only provider; the local pdfplumber-based
+    # (digital-PDF-only, no real OCR) option was removed once Zia covered
+    # everything it did and more.
+    OCR_PROVIDER: str = "zia"
+
+    # ── NER provider ──────────────────────────────────────────────────────────
+    # "zia" (Catalyst Zia — verified lower recall on Indian-name narrative text)
+    # or "gemini" (Vertex AI structured extraction, default). The local spaCy
+    # option was removed along with the spacy/torch/transformers dependencies.
+    NLP_PROVIDER: str = "gemini"
 
     # ── Sentry ────────────────────────────────────────────────────────────────
     SENTRY_DSN: str = ""

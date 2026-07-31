@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { ScrollText } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { ErrorState } from "@/components/data-states/ErrorState"
@@ -13,6 +14,7 @@ import { useDebouncedValue } from "@/lib/hooks/useDebounce"
 import { fetchAuditLog } from "./adminApi"
 
 function AuditLogPage() {
+  const { t } = useTranslation()
   const [actionFilter, setActionFilter] = React.useState("")
   const debouncedActionFilter = useDebouncedValue(actionFilter, 300)
 
@@ -24,18 +26,18 @@ function AuditLogPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Audit Log</h1>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("nav.auditLog")}</h1>
         <Input
           value={actionFilter}
           onChange={(event) => setActionFilter(event.target.value)}
-          placeholder="Filter by action (e.g. case.edited)"
+          placeholder={t("auditLog.filterPlaceholder")}
           className="w-72"
         />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Activity</CardTitle>
+          <CardTitle>{t("auditLog.activity")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -43,17 +45,17 @@ function AuditLogPage() {
           ) : isError ? (
             <ErrorState message={extractApiErrorMessage(error)} onRetry={() => void refetch()} />
           ) : !data || data.length === 0 ? (
-            <EmptyState icon={ScrollText} title="No matching activity" />
+            <EmptyState icon={ScrollText} title={t("auditLog.noMatchingActivity")} />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Resource</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>IP Address</TableHead>
-                  <TableHead>Reason</TableHead>
+                  <TableHead>{t("auditLog.timestamp")}</TableHead>
+                  <TableHead>{t("auditLog.action")}</TableHead>
+                  <TableHead>{t("auditLog.resource")}</TableHead>
+                  <TableHead>{t("auditLog.user")}</TableHead>
+                  <TableHead>{t("auditLog.ipAddress")}</TableHead>
+                  <TableHead>{t("auditLog.reason")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

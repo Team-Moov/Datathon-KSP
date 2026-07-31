@@ -5,8 +5,12 @@ from an already-existing model — CaseMaster header fields, the CaseStageEvent
 timeline (§8.3), linked Document provenance (§3.1/§11), the latest RiskScore
 including its shap_decomposition (§7.4/§11 — never just the bare score), and
 investigator-support leads (§8.1, each already carrying source_tool/confidence).
+
+Reports are built as HTML and rendered to PDF by the configured PdfRenderer
+(local xhtml2pdf, or Catalyst SmartBrowz) — swap via settings.PDF_PROVIDER.
 """
 
+import html
 import io
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -14,13 +18,11 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pypdf import PdfReader, PdfWriter
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
-from reportlab.pdfgen import canvas
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.pdf import get_pdf_renderer
 from app.core.security import hash_password
 from app.models.case import CaseMaster
 from app.models.document import Document
@@ -28,8 +30,6 @@ from app.models.offender import CriminalHistory, RiskScore
 from app.models.person import PersonCaseRole
 from app.models.reports import ReportShareLink
 from app.models.user import User
-
-_PAGE_BOTTOM_MARGIN = 4 * cm
 
 
 async def _load_case_for_report(db: AsyncSession, case_id: UUID) -> Optional[CaseMaster]:
@@ -66,49 +66,106 @@ async def _load_latest_risk_scores(db: AsyncSession, case: CaseMaster) -> List[R
     return list(result.scalars().all())
 
 
-def _draw_watermark(c: canvas.Canvas, watermark_text: str, width: float, height: float) -> None:
-    c.saveState()
-    c.setFont("Helvetica", 11)
-    c.setFillGray(0.75, 0.5)
-    c.translate(width / 2, height / 2)
-    c.rotate(45)
-    c.drawCentredString(0, 0, watermark_text)
-    c.restoreState()
+# ── HTML templating ───────────────────────────────────────────────────────────
+
+_STYLE = """
+  @page { size: A4; margin: 2cm; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #1a1a1a; font-size: 11px; }
+  h1 { font-size: 18px; margin: 0 0 4px 0; }
+  h2 { font-size: 13px; border-bottom: 1px solid #888; padding-bottom: 2px; margin: 16px 0 6px 0; }
+  .meta { color: #555; font-size: 10px; margin-bottom: 8px; }
+  .row { margin: 2px 0; }
+  .sub { color: #444; padding-left: 14px; }
+  .watermark { position: fixed; top: 45%; left: 12%; transform: rotate(-30deg);
+               color: #cfcfcf; font-size: 20px; font-weight: bold; }
+  .role { font-weight: bold; margin-top: 8px; }
+  .msg { white-space: pre-wrap; padding-left: 12px; }
+"""
 
 
-class _ReportCanvas:
-    """Small stateful wrapper so each section doesn't repeat page-break bookkeeping."""
+def _doc(title: str, watermark: str, body: str) -> str:
+    return (
+        f"<html><head><meta charset='utf-8'><style>{_STYLE}</style></head><body>"
+        f"<div class='watermark'>{html.escape(watermark)}</div>"
+        f"<h1>{html.escape(title)}</h1>"
+        f"<div class='meta'>{html.escape(watermark)}</div>"
+        f"{body}</body></html>"
+    )
 
-    def __init__(self, c: canvas.Canvas, width: float, height: float, watermark_text: str) -> None:
-        self.c = c
-        self.width = width
-        self.height = height
-        self.watermark_text = watermark_text
-        self.y = height - 2 * cm
 
-    def heading(self, text: str) -> None:
-        self._ensure_space(1.2 * cm)
-        self.c.setFont("Helvetica-Bold", 12)
-        self.c.drawString(2 * cm, self.y, text)
-        self.y -= 0.7 * cm
-        self.c.setFont("Helvetica", 9)
+def _confidential_watermark(issued_to: User) -> str:
+    return (
+        f"CONFIDENTIAL — issued to {issued_to.full_name} — "
+        f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}"
+    )
 
-    def line(self, text: str, indent: float = 2.2 * cm) -> None:
-        self._ensure_space(0.5 * cm)
-        self.c.drawString(indent, self.y, text[:110])
-        self.y -= 0.48 * cm
 
-    def _ensure_space(self, needed: float) -> None:
-        if self.y - needed < _PAGE_BOTTOM_MARGIN:
-            _draw_watermark(self.c, self.watermark_text, self.width, self.height)
-            self.c.showPage()
-            self.y = self.height - 2 * cm
-            self.c.setFont("Helvetica", 9)
+def _case_report_html(
+    case: CaseMaster,
+    documents: List[Document],
+    risk_scores: List[RiskScore],
+    leads: Optional[List[Dict[str, Any]]],
+    watermark: str,
+) -> str:
+    parts: List[str] = []
+    disposition = case.chargesheet.cs_type.value if case.chargesheet else "Undetected/pending"
+    parts.append(
+        f"<div class='row'>District ID: {case.district_id or '-'} &nbsp;&nbsp; "
+        f"Reported: {case.date_reported or '-'}</div>"
+        f"<div class='row'>Disposition: {html.escape(str(disposition))}</div>"
+    )
 
-    def finish(self) -> None:
-        _draw_watermark(self.c, self.watermark_text, self.width, self.height)
-        self.c.showPage()
+    parts.append("<h2>Timeline</h2>")
+    for event in sorted(case.stage_events, key=lambda e: e.event_date):
+        parts.append(
+            f"<div class='row'>{event.event_date} — {html.escape(event.stage.value)} "
+            f"(confidence {event.confidence:.2f})</div>"
+        )
 
+    parts.append("<h2>Evidence (Document Provenance)</h2>")
+    for doc in documents:
+        parts.append(
+            f"<div class='row'>{html.escape(doc.original_filename)} — "
+            f"{html.escape(doc.source_type.value)} via {html.escape(doc.extraction_method.value)}, "
+            f"confidence {doc.confidence_score:.2f}</div>"
+        )
+
+    if risk_scores:
+        parts.append("<h2>Risk Assessment</h2>")
+        for score in risk_scores[:5]:
+            parts.append(
+                f"<div class='row'>Score {score.score:.2f} (model {html.escape(score.model_version)}, "
+                f"human_reviewed={score.human_reviewed})</div>"
+            )
+            for feature, contribution in (score.shap_decomposition or {}).items():
+                parts.append(f"<div class='sub'>{html.escape(str(feature))}: {contribution}</div>")
+
+    if leads:
+        parts.append("<h2>Investigative Leads</h2>")
+        for lead in leads:
+            parts.append(
+                f"<div class='row'>{html.escape(str(lead.get('type', 'lead')))}: "
+                f"{html.escape(str(lead.get('name', lead.get('person_id', '-'))))} "
+                f"(source: {html.escape(str(lead.get('source_tool', '-')))}, "
+                f"confidence {lead.get('confidence', '-')})</div>"
+            )
+
+    return _doc(f"Case Report — {case.crime_no}", watermark, "".join(parts))
+
+
+def _chat_report_html(messages: List[Dict[str, str]], session_id: str, watermark: str) -> str:
+    parts: List[str] = ["<h2>Transcript</h2>"]
+    for msg in messages:
+        content = msg.get("content", "").strip()
+        if not content:
+            continue
+        role = "Investigator" if msg["role"] == "user" else "AI Assistant"
+        parts.append(f"<div class='role'>{role}:</div>")
+        parts.append(f"<div class='msg'>{html.escape(content)}</div>")
+    return _doc(f"Conversation Transcript — {session_id}", watermark, "".join(parts))
+
+
+# ── PDF builders ──────────────────────────────────────────────────────────────
 
 async def build_case_report_pdf(
     db: AsyncSession,
@@ -122,56 +179,19 @@ async def build_case_report_pdf(
 
     documents = await _load_documents(db, case_id)
     risk_scores = await _load_latest_risk_scores(db, case)
+    watermark = _confidential_watermark(issued_to)
+    doc_html = _case_report_html(case, documents, risk_scores, leads, watermark)
+    return await get_pdf_renderer().render_html(doc_html)
 
-    buffer = io.BytesIO()
-    width, height = A4
-    watermark_text = (
-        f"CONFIDENTIAL — issued to {issued_to.full_name} — "
-        f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}"
-    )
-    report = _ReportCanvas(canvas.Canvas(buffer, pagesize=A4), width, height, watermark_text)
 
-    report.c.setFont("Helvetica-Bold", 16)
-    report.c.drawString(2 * cm, report.y, f"Case Report — {case.crime_no}")
-    report.y -= 1 * cm
-    report.c.setFont("Helvetica", 10)
-    report.line(f"District ID: {case.district_id or '-'}    Reported: {case.date_reported or '-'}", indent=2 * cm)
-    disposition = case.chargesheet.cs_type.value if case.chargesheet else "Undetected/pending"
-    report.line(f"Disposition: {disposition}", indent=2 * cm)
-
-    report.heading("Timeline")
-    for event in sorted(case.stage_events, key=lambda e: e.event_date):
-        report.line(f"{event.event_date} - {event.stage.value} (confidence {event.confidence:.2f})")
-
-    report.heading("Evidence (Document Provenance)")
-    for doc in documents:
-        report.line(
-            f"{doc.original_filename} - {doc.source_type.value} via "
-            f"{doc.extraction_method.value}, confidence {doc.confidence_score:.2f}"
-        )
-
-    if risk_scores:
-        report.heading("Risk Assessment")
-        for score in risk_scores[:5]:
-            report.line(
-                f"Score {score.score:.2f} (model {score.model_version}, "
-                f"human_reviewed={score.human_reviewed})"
-            )
-            for feature, contribution in (score.shap_decomposition or {}).items():
-                report.line(f"- {feature}: {contribution}", indent=2.6 * cm)
-
-    if leads:
-        report.heading("Investigative Leads")
-        for lead in leads:
-            report.line(
-                f"{lead.get('type', 'lead')}: {lead.get('name', lead.get('person_id', '-'))} "
-                f"(source: {lead.get('source_tool', '-')}, confidence {lead.get('confidence', '-')})"
-            )
-
-    report.finish()
-    report.c.save()
-    buffer.seek(0)
-    return buffer.getvalue()
+async def build_chat_report_pdf(
+    messages: List[Dict[str, str]],
+    session_id: str,
+    issued_to: User,
+) -> bytes:
+    watermark = _confidential_watermark(issued_to)
+    doc_html = _chat_report_html(messages, session_id, watermark)
+    return await get_pdf_renderer().render_html(doc_html)
 
 
 def apply_password_protection(pdf_bytes: bytes, password: str) -> bytes:

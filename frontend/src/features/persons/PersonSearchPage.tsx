@@ -2,6 +2,7 @@ import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { UserSearch } from "lucide-react"
 import { Link } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { ErrorState } from "@/components/data-states/ErrorState"
@@ -13,8 +14,13 @@ import { extractApiErrorMessage } from "@/lib/api/httpClient"
 import { useDebouncedValue } from "@/lib/hooks/useDebounce"
 import { searchPersonsByName } from "./personsApi"
 
+import { useSearchParams } from "react-router-dom"
+
 function PersonSearchPage() {
-  const [rawQuery, setRawQuery] = React.useState("")
+  const { t } = useTranslation()
+  const [searchParams] = useSearchParams()
+  const queryParam = searchParams.get("query") || searchParams.get("search") || ""
+  const [rawQuery, setRawQuery] = React.useState(queryParam)
   const debouncedQuery = useDebouncedValue(rawQuery, 300)
   const hasQuery = debouncedQuery.trim().length >= 2
 
@@ -26,27 +32,27 @@ function PersonSearchPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Person Search</h1>
+      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("nav.persons")}</h1>
       <Input
         value={rawQuery}
         onChange={(event) => setRawQuery(event.target.value)}
-        placeholder="Search by name (min. 2 characters)..."
+        placeholder={t("persons.searchPlaceholder")}
         className="max-w-md"
       />
 
       <Card>
         <CardHeader>
-          <CardTitle>Results</CardTitle>
+          <CardTitle>{t("persons.results")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {!hasQuery ? (
-            <EmptyState icon={UserSearch} title="Start typing to search" description="Cross-case identity records resolved by entity resolution." />
+            <EmptyState icon={UserSearch} title={t("persons.startTyping")} description={t("persons.startTypingDesc")} />
           ) : isLoading ? (
             <LoadingSkeleton variant="list" rows={4} />
           ) : isError ? (
             <ErrorState message={extractApiErrorMessage(error)} onRetry={() => void refetch()} />
           ) : !matches || matches.length === 0 ? (
-            <EmptyState title="No matches" description={`Nothing found for "${debouncedQuery}"`} />
+            <EmptyState title={t("persons.noMatches")} description={t("common.noMatchesFor", { query: debouncedQuery })} />
           ) : (
             <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
               {matches.map((person) => (
@@ -56,7 +62,7 @@ function PersonSearchPage() {
                     className="flex items-center justify-between px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
                   >
                     <span className="text-zinc-800 dark:text-zinc-100">{person.full_name}</span>
-                    {!person.human_verified ? <Badge variant="neutral">unverified</Badge> : null}
+                    {!person.human_verified ? <Badge variant="neutral">{t("common.unverified")}</Badge> : null}
                   </Link>
                 </li>
               ))}

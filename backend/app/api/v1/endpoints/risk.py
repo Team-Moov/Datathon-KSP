@@ -32,12 +32,14 @@ async def compute_risk_score(
     if score is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Risk score blocked — criminal history not human-verified or person not found",
+            detail="Risk score unavailable. Either the criminal history is not human-verified, or the offline ML pipeline hasn't generated a score for this person yet.",
         )
 
     db.add(score)
     await db.flush()
     await db.refresh(score)
+
+    from app.services.ml_registry import get_model_card
 
     return {
         "score_id": str(score.id),
@@ -45,6 +47,10 @@ async def compute_risk_score(
         "score": score.score,
         "model_version": score.model_version,
         "shap_decomposition": score.shap_decomposition,
+        # Model card (concordance, per-feature importance, fairness posture) travels
+        # with the score so the profile card can show WHY the model weights each
+        # feature the way it does — capability #9, not a separate lookup.
+        "model_card": get_model_card(score.model_version),
         "human_reviewed": score.human_reviewed,
         "computed_at": str(score.computed_at),
         "disclaimer": (

@@ -1,4 +1,4 @@
-"""
+﻿"""
 run_harness.py
 ===============
 Runs the actual, unmodified scripts -- data/synthetic.py, load_data.py,

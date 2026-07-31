@@ -1,4 +1,4 @@
-"""
+﻿"""
 Loads generate_synthetic_data.py's CSV output into the Postgres schema
 defined in schema.sql. Respects foreign-key order (districts and persons
 before incidents, incidents before offenses, etc.).
@@ -11,7 +11,7 @@ import argparse
 import csv
 
 import psycopg2
-
+import psycopg2.extras
 
 def load_csv(cur, path, insert_sql, row_to_tuple):
     with open(path) as f:
@@ -28,8 +28,7 @@ def main():
     ap.add_argument("--dsn", default="postgresql://crimeportal:crimeportal@localhost/crimeportal")
     args = ap.parse_args()
 
-    import psycopg2.extras
-
+    
     conn = psycopg2.connect(args.dsn)
     cur = conn.cursor()
     d = args.data_dir

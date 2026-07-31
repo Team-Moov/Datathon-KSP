@@ -68,10 +68,14 @@ def hash_token(token: str) -> str:
 
 # ── FastAPI dependencies ───────────────────────────────────────────────────────
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
-) -> User:
+async def get_user_from_token(token: str, db: AsyncSession) -> User:
+    """
+    Shared JWT-validation core, factored out of get_current_user() so
+    WebSocket routes (which can't carry a normal Authorization header from a
+    browser client, and so read the token from elsewhere — e.g. a query
+    param — instead of via the oauth2_scheme Depends) can reuse the exact
+    same validation instead of re-implementing it.
+    """
     credentials_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -95,6 +99,13 @@ async def get_current_user(
     current_user_id_ctx.set(user.id)
     await _apply_rls_session_context(db, user)
     return user
+
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    return await get_user_from_token(token, db)
 
 
 async def _apply_rls_session_context(db: AsyncSession, user: User) -> None:

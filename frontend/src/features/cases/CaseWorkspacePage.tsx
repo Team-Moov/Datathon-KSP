@@ -1,4 +1,5 @@
 import { useParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { ErrorState } from "@/components/data-states/ErrorState"
 import { LoadingSkeleton } from "@/components/data-states/LoadingSkeleton"
@@ -7,18 +8,19 @@ import { extractApiErrorMessage } from "@/lib/api/httpClient"
 import { AiBriefPanel } from "./components/AiBriefPanel"
 import { CaseHeaderCard } from "./components/CaseHeaderCard"
 import { CaseNotesPanel } from "./components/CaseNotesPanel"
-import { CaseTimeline } from "./components/CaseTimeline"
+import { CaseTimeline } from "@/components/charts/CaseTimeline"
 import { EvidenceList } from "./components/EvidenceList"
 import { ReportExportDialog } from "./components/ReportExportDialog"
 import { SuspectWitnessPanel } from "./components/SuspectWitnessPanel"
 import { useCaseWorkspace } from "./useCaseWorkspace"
 
 function CaseWorkspacePage() {
+  const { t } = useTranslation()
   const { caseId } = useParams<{ caseId: string }>()
   const { currentUser } = useAuth()
   const { workspaceSnapshot, isLoading, isError, error, refetch } = useCaseWorkspace(caseId ?? "")
 
-  if (!caseId) return <ErrorState message="No case selected." />
+  if (!caseId) return <ErrorState message={t("cases.noCaseSelected")} />
 
   if (isLoading) {
     return (
@@ -30,7 +32,7 @@ function CaseWorkspacePage() {
   }
 
   if (isError || !workspaceSnapshot) {
-    return <ErrorState message={extractApiErrorMessage(error, "Couldn't load this case.")} onRetry={() => void refetch()} />
+    return <ErrorState message={extractApiErrorMessage(error, t("cases.couldntLoadCase"))} onRetry={() => void refetch()} />
   }
 
   return (

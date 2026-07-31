@@ -5,6 +5,12 @@ import { DashboardLayout } from "@/layouts/DashboardLayout"
 import { FullScreenSpinnerFallback, RequireAuthenticatedSession, RequirePermission } from "./RouteGuards"
 
 const LoginPage = React.lazy(() => import("@/features/auth/LoginPage").then((m) => ({ default: m.LoginPage })))
+const CatalystCallbackPage = React.lazy(() =>
+  import("@/features/auth/CatalystCallbackPage").then((m) => ({ default: m.CatalystCallbackPage })),
+)
+const RoleSelectionPage = React.lazy(() =>
+  import("@/features/auth/RoleSelectionPage").then((m) => ({ default: m.RoleSelectionPage })),
+)
 const OverviewPage = React.lazy(() =>
   import("@/features/dashboard/OverviewPage").then((m) => ({ default: m.OverviewPage })),
 )
@@ -23,6 +29,12 @@ const PersonDetailPage = React.lazy(() =>
 const NetworkExplorerPage = React.lazy(() =>
   import("@/features/network/NetworkExplorerPage").then((m) => ({ default: m.NetworkExplorerPage })),
 )
+const GlobalNetworkPage = React.lazy(() =>
+  import("@/features/network/GlobalNetworkPage").then((m) => ({ default: m.GlobalNetworkPage })),
+)
+const DocumentsPage = React.lazy(() =>
+  import("@/features/documents/DocumentsPage").then((m) => ({ default: m.DocumentsPage })),
+)
 const RiskProfilingPage = React.lazy(() =>
   import("@/features/risk/RiskProfilingPage").then((m) => ({ default: m.RiskProfilingPage })),
 )
@@ -32,6 +44,7 @@ const FinancialCrimePage = React.lazy(() =>
 const CrimeTrendsPage = React.lazy(() =>
   import("@/features/trends/CrimeTrendsPage").then((m) => ({ default: m.CrimeTrendsPage })),
 )
+const AlertsPage = React.lazy(() => import("@/features/alerts/AlertsPage").then((m) => ({ default: m.AlertsPage })))
 const SocioInsightsPage = React.lazy(() =>
   import("@/features/socio/SocioInsightsPage").then((m) => ({ default: m.SocioInsightsPage })),
 )
@@ -44,12 +57,20 @@ const AuditLogPage = React.lazy(() =>
 const UserManagementPage = React.lazy(() =>
   import("@/features/admin/UserManagementPage").then((m) => ({ default: m.UserManagementPage })),
 )
+const SystemJobsPage = React.lazy(() =>
+  import("@/features/admin/SystemJobsPage").then((m) => ({ default: m.SystemJobsPage })),
+)
 
 function AppRouter() {
   return (
     <React.Suspense fallback={<FullScreenSpinnerFallback />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/catalyst-callback" element={<CatalystCallbackPage />} />
+        {/* Not wrapped in RequireAuthenticatedSession — that guard redirects
+            needs_role_selection users to this exact route, which would loop.
+            RoleSelectionPage does its own "must be logged in" check instead. */}
+        <Route path="/auth/select-role" element={<RoleSelectionPage />} />
 
         <Route
           element={
@@ -63,12 +84,28 @@ function AppRouter() {
           <Route path="/cases/:caseId" element={<CaseWorkspacePage />} />
           <Route path="/persons" element={<PersonSearchPage />} />
           <Route path="/persons/:personId" element={<PersonDetailPage />} />
+          <Route
+            path="/documents"
+            element={
+              <RequirePermission permission="upload_document">
+                <DocumentsPage />
+              </RequirePermission>
+            }
+          />
 
           <Route
             path="/network"
             element={
               <RequirePermission permission="view_network_basic">
                 <NetworkExplorerPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/network/graph"
+            element={
+              <RequirePermission permission="view_network_basic">
+                <GlobalNetworkPage />
               </RequirePermission>
             }
           />
@@ -97,6 +134,14 @@ function AppRouter() {
             }
           />
           <Route
+            path="/alerts"
+            element={
+              <RequirePermission permission="view_network_advanced">
+                <AlertsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
             path="/socio"
             element={
               <RequirePermission permission="view_aggregate_analytics">
@@ -119,6 +164,14 @@ function AppRouter() {
             element={
               <RequirePermission permission="manage_users">
                 <UserManagementPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/admin/jobs"
+            element={
+              <RequirePermission permission="manage_analytics_jobs">
+                <SystemJobsPage />
               </RequirePermission>
             }
           />

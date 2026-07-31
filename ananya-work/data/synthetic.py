@@ -1,4 +1,4 @@
-"""
+﻿"""
 Synthetic Crime Data Generator
 ================================
 Generates a schema-consistent synthetic dataset for the crime-analytics

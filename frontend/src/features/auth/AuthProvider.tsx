@@ -16,6 +16,8 @@ interface AuthContextValue {
   isAuthenticated: boolean
   applyTokenPair: (tokens: TokenPair) => Promise<void>
   endSession: () => Promise<void>
+  /** Re-fetches /auth/me without touching tokens — used after POST /auth/select-role. */
+  refreshCurrentUser: () => Promise<void>
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null)
@@ -69,6 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(profile)
   }, [])
 
+  const refreshCurrentUser = React.useCallback(async () => {
+    const profile = await fetchCurrentUser()
+    setCurrentUser(profile)
+  }, [])
+
   const endSession = React.useCallback(async () => {
     const refreshToken = getRefreshToken()
     clearTokens()
@@ -89,8 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: currentUser !== null,
       applyTokenPair,
       endSession,
+      refreshCurrentUser,
     }),
-    [currentUser, isSessionLoading, applyTokenPair, endSession],
+    [currentUser, isSessionLoading, applyTokenPair, endSession, refreshCurrentUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

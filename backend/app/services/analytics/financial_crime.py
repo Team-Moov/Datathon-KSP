@@ -56,6 +56,32 @@ class FinancialCrimeService:
         self.db = db
 
     # ------------------------------------------------------------------ #
+    # The connective lookup: person -> accounts. Lets a caller (chat tool or
+    # REST) start from a person_id (which entity resolution/search already
+    # produces) instead of needing an opaque account string upfront -- that's
+    # the missing link that made the other detectors uncallable from a plain
+    # "give me financial info on X" question with no account number in hand.
+    # ------------------------------------------------------------------ #
+    async def get_accounts_for_person(self, person_id: UUID) -> List[Dict[str, Any]]:
+        stmt = select(
+            FinancialTransaction.from_account,
+            FinancialTransaction.to_account,
+            FinancialTransaction.alert_type,
+        ).where(FinancialTransaction.linked_person_id == person_id)
+        rows = (await self.db.execute(stmt)).all()
+
+        accounts: Dict[str, Dict[str, Any]] = {}
+        for from_account, to_account, alert_type in rows:
+            for account in (from_account, to_account):
+                if not account:
+                    continue
+                entry = accounts.setdefault(account, {"account": account, "txn_count": 0, "flagged": False})
+                entry["txn_count"] += 1
+                if alert_type is not None:
+                    entry["flagged"] = True
+        return sorted(accounts.values(), key=lambda a: (-a["txn_count"], a["account"]))
+
+    # ------------------------------------------------------------------ #
     # Structuring: fan-out from one source, legs under CTR threshold,
     # summing over it inside a rolling window -- per (from, to) pair, not
     # blended across every counterparty of the account.
@@ -182,10 +208,19 @@ class FinancialCrimeService:
     # Layering: cycles in the ACCOUNT-level TRANSACTED_WITH graph.
     # ------------------------------------------------------------------ #
     async def detect_cycles_in_graph(self, max_depth: int = 6) -> List[Dict[str, Any]]:
+        # Also collects each relationship's transaction_id -- the other three
+        # detectors all put transaction_ids in evidence_trail (that's what
+        # validate_financial_crime.py and anything else measuring precision/
+        # recall actually keys off), but this one previously only returned
+        # cycle_length/cycle_members, so every cycle it found was invisible
+        # to anything checking evidence_trail["transaction_ids"] -- confirmed
+        # live: Neo4j had real cycles, this method just never surfaced them
+        # in a comparable shape.
         query = """
         MATCH path = (a:Account)-[:TRANSACTED_WITH*2..{depth}]->(a)
         WHERE LENGTH(path) >= 3
         RETURN [n IN nodes(path) | n.account_no] AS cycle_members,
+               [r IN relationships(path) | r.transaction_id] AS transaction_ids,
                LENGTH(path) AS cycle_length
         LIMIT 50
         """.replace("{depth}", str(max_depth))
@@ -195,7 +230,10 @@ class FinancialCrimeService:
             self._build_str_alert(
                 typology=FinancialAlertType.LAYERING,
                 accounts=r.get("cycle_members", []),
-                evidence={"cycle_length": r.get("cycle_length")},
+                evidence={
+                    "cycle_length": r.get("cycle_length"),
+                    "transaction_ids": r.get("transaction_ids", []),
+                },
                 confidence=0.70,
             )
             for r in results

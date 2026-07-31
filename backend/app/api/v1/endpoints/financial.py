@@ -1,6 +1,7 @@
 """Financial crime detection endpoints (§9)."""
 
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,23 @@ from app.models.user import User
 from app.services.analytics.financial_crime import FinancialCrimeService
 
 router = APIRouter()
+
+
+@router.get("/accounts", response_model=List[Dict[str, Any]])
+async def accounts_for_person(
+    person_id: UUID = Query(..., description="Return the accounts appearing in this person's linked transactions."),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.VIEW_FINANCIAL_RAW)),
+):
+    """
+    The connective endpoint for the financial workflow: instead of typing an opaque
+    account identifier, an investigator picks a person and gets the accounts tied to
+    them (via FinancialTransaction.linked_person_id), each with an activity count and
+    whether a typology alert already fired — ready to hand straight to /scan.
+    Same lookup the get_financial_accounts chat tool uses (FinancialCrimeService).
+    """
+    svc = FinancialCrimeService(db)
+    return await svc.get_accounts_for_person(person_id)
 
 
 @router.get("/structuring/{account}", response_model=Optional[Dict[str, Any]])

@@ -80,8 +80,16 @@ async def _setup_runtime_role_and_rls(admin_engine) -> None:
                 DO $$
                 BEGIN
                     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{app_user}') THEN
-                        CREATE ROLE {app_user} LOGIN PASSWORD '{settings.POSTGRES_APP_PASSWORD}'
-                            NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+                        -- EXECUTE format(...) lets Postgres quote the password with %L
+                        -- (its own string-literal escaper) rather than relying on a
+                        -- Python f-string, which would break or enable SQL injection if
+                        -- POSTGRES_APP_PASSWORD contained a single quote.
+                        EXECUTE format(
+                            'CREATE ROLE %I LOGIN PASSWORD %L
+                             NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS',
+                            '{app_user}',
+                            '{settings.POSTGRES_APP_PASSWORD.replace("'", "''")}'  -- belt-and-suspenders escape for the format() arg itself
+                        );
                     END IF;
                 END
                 $$;

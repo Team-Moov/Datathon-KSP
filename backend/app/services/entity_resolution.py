@@ -46,6 +46,13 @@ class EntityResolutionService:
             if case_id and person_data.get("role"):
                 await self._link_person_to_case(person, case_id, person_data)
 
+    async def resolve_person_by_name(self, full_name: str, document_id: uuid.UUID) -> Person:
+        """Public single-name entry point for callers that only have a name,
+        not a full extracted person_data dict — e.g. financial-transaction
+        ingestion resolving a 'linked_person_name' CSV column. Reuses the same
+        fuzzy-match-or-create logic as document entity resolution."""
+        return await self._resolve_person({"full_name": full_name}, document_id)
+
     async def _resolve_person(
         self, person_data: Dict[str, Any], document_id: uuid.UUID
     ) -> Person:

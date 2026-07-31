@@ -1,0 +1,5 @@
+{
+  "command": "sh -c 'pip install --no-cache-dir -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port $X_ZOHO_CATALYST_LISTEN_PORT'",
+  "memory": 2048,
+  "disk": 2048
+}

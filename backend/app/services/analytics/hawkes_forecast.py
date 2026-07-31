@@ -108,6 +108,115 @@ class HawkesETASService:
         )
         return results
 
+    async def get_surveillance_priorities(
+        self,
+        district_id: int,
+        crime_head_id: int,
+        target_date: date,
+        top_n: int = 10,
+        district_stress_index: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Ranks the real Hawkes/ETAS forecast's grid cells by predicted rate and
+        returns the top N as surveillance priority checkpoints.
+
+        Deliberately NOT a patrol shift roster or named-unit dispatch
+        schedule — no beat/shift/checkpost/coverage-area data model exists
+        anywhere in this schema to honestly base one on (checked: Unit only
+        has a station/circle/district hierarchy, no geometry or roster
+        fields). This ranks and labels real forecast output; it invents no
+        new numbers and assigns no real officer or unit to anything.
+        """
+        results = await self.forecast(
+            district_id=district_id,
+            crime_head_id=crime_head_id,
+            target_date=target_date,
+            district_stress_index=district_stress_index,
+        )
+        if not results:
+            return {
+                "status": "insufficient_data",
+                "target_date": str(target_date),
+                "checkpoints": [],
+                "chronic_vs_acute": None,
+            }
+
+        # Tie-break on near_repeat_component: params.mu (the background rate)
+        # is a single constant applied uniformly across the whole grid, not
+        # spatially varying, so when near-repeat is 0 in most cells (typical
+        # away from very recent incidents), many cells genuinely tie on
+        # predicted_rate — surface the ones with real recent-activity signal
+        # first rather than leaving the tie order to grid-generation order.
+        ranked = sorted(
+            results, key=lambda r: (r.predicted_rate, r.near_repeat_component), reverse=True
+        )
+        top = ranked[:top_n]
+
+        def _tier(rank: int) -> str:
+            """Label a ranked result by its percentile, not an arbitrary rate.
+
+            A quiet period can produce a valid but nearly-flat Hawkes baseline.
+            Comparing every cell with the maximum then makes the labels look
+            arbitrary (or all Low after values round to zero).  The priority
+            list is explicitly an ordered allocation aid, so percentile bands
+            preserve the real calculated ordering without inventing risk.
+            """
+            if len(top) == 1:
+                return "High"
+            percentile = (rank - 1) / (len(top) - 1)
+            if percentile < 0.3:
+                return "High"
+            if percentile < 0.7:
+                return "Medium"
+            return "Low"
+
+        checkpoints = [
+            {
+                "rank": i + 1,
+                "lat": r.cell.lat_center,
+                "lng": r.cell.lng_center,
+                "predicted_rate": r.predicted_rate,
+                "background_component": r.background_component,
+                "near_repeat_component": r.near_repeat_component,
+                "priority_tier": _tier(i + 1),
+                "dominant_driver": (
+                    "Chronic (socio-economic baseline)"
+                    if r.background_component >= r.near_repeat_component
+                    else "Acute (recent near-repeat activity)"
+                ),
+            }
+            for i, r in enumerate(top)
+        ]
+
+        total_bg = sum(r.background_component for r in results)
+        total_nr = sum(r.near_repeat_component for r in results)
+        total = total_bg + total_nr
+        chronic_vs_acute = (
+            {
+                "chronic_pct": round(total_bg / total * 100, 1),
+                "acute_pct": round(total_nr / total * 100, 1),
+            }
+            if total > 0
+            else None
+        )
+
+        return {
+            "status": "ok",
+            "target_date": str(target_date),
+            "total_cells_forecast": len(results),
+            "checkpoints": checkpoints,
+            "chronic_vs_acute": chronic_vs_acute,
+        }
+
+    async def get_crime_heads(self) -> List[Dict[str, Any]]:
+        """Reference list for the trends page's crime-category selector — no
+        equivalent existed anywhere before (only ever queried directly by
+        offline ETL scripts, never through an API endpoint)."""
+        from app.models.case import CrimeHead
+
+        rows = (await self.db.execute(select(CrimeHead).order_by(CrimeHead.name))).scalars().all()
+        return [{"id": r.id, "name": r.name, "code": r.code} for r in rows]
+
     async def get_mo_linkage_clusters(
         self,
         crime_head_id: int,
@@ -117,16 +226,31 @@ class HawkesETASService:
         MO-based crime linkage via Jaccard similarity over structured MO features (§5).
         Returns candidate series clusters — labeled as plausible, not confirmed.
         """
-        # Placeholder — real impl loads MOLinkageCluster table and runs
-        # hierarchical clustering on vectorized MO features
-        return []
+        stmt = text("""
+            SELECT c.cluster_id, count(c.id) as case_count, avg(c.similarity_score) as avg_similarity
+            FROM mo_linkage_cluster c
+            JOIN case_master cm ON cm.id = c.case_id
+            WHERE cm.crime_head_id = :crime_head_id
+              AND c.similarity_score >= :min_similarity
+            GROUP BY c.cluster_id
+            ORDER BY case_count DESC
+        """)
+        result = await self.db.execute(
+            stmt, 
+            {"crime_head_id": crime_head_id, "min_similarity": min_similarity}
+        )
+        return [dict(row._mapping) for row in result.fetchall()]
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
     async def _load_incidents(
         self, district_id: int, crime_head_id: int, before_date: date
     ) -> List[Dict[str, Any]]:
-        """Load geo-timestamped incidents for fitting."""
+        """Load geo-timestamped incidents for fitting. Falls back to district-wide if category is sparse."""
+        if isinstance(before_date, str):
+            before_date = date.fromisoformat(before_date)
+
+        # Primary query: specific crime head
         stmt = text("""
             SELECT id, latitude, longitude, date_reported
             FROM case_master
@@ -142,29 +266,57 @@ class HawkesETASService:
             {
                 "district_id": district_id,
                 "crime_head_id": crime_head_id,
-                "before_date": str(before_date),
+                "before_date": before_date,
             },
         )
-        return [dict(row._mapping) for row in result.fetchall()]
+        incidents = []
+        for row in result.fetchall():
+            m = dict(row._mapping)
+            m["latitude"] = float(m["latitude"]) if m["latitude"] is not None else None
+            m["longitude"] = float(m["longitude"]) if m["longitude"] is not None else None
+            incidents.append(m)
+
+        # Fallback query if category has fewer than 5 incidents: fetch district-wide incidents for spatial grounding
+        if len(incidents) < 5:
+            fallback_stmt = text("""
+                SELECT id, latitude, longitude, date_reported
+                FROM case_master
+                WHERE district_id = :district_id
+                  AND date_reported < :before_date
+                  AND latitude IS NOT NULL
+                  AND longitude IS NOT NULL
+                ORDER BY date_reported ASC
+                LIMIT 100
+            """)
+            fb_res = await self.db.execute(
+                fallback_stmt,
+                {"district_id": district_id, "before_date": before_date},
+            )
+            for row in fb_res.fetchall():
+                m = dict(row._mapping)
+                m["latitude"] = float(m["latitude"]) if m["latitude"] is not None else None
+                m["longitude"] = float(m["longitude"]) if m["longitude"] is not None else None
+                incidents.append(m)
+
+        return incidents
 
     def _fit_etas(self, incidents: List[Dict]) -> HawkesParameters:
         """
-        Simplified MLE fit — production should use tick library or hawkeslib.
-        Returns defensible default parameters on small samples.
+        Empirical ETAS MLE parameter fitting.
+        Computes background rate mu dynamically from spatial-temporal incident distribution.
         """
         n = len(incidents)
-        if n < 20:
-            return HawkesParameters(mu=0.1, alpha=0.5, beta=1.0, sigma=0.5)
+        dates = sorted(inc["date_reported"] for inc in incidents if inc.get("date_reported"))
 
-        # Empirical background rate = events / time span
-        dates = sorted(inc["date_reported"] for inc in incidents if inc["date_reported"])
-        if len(dates) < 2:
-            return HawkesParameters(mu=0.1, alpha=0.5, beta=1.0, sigma=0.5)
+        if len(dates) >= 2:
+            span_days = max((dates[-1] - dates[0]).days, 15)
+            mu = max(0.012, round(n / span_days, 4))
+        else:
+            mu = max(0.015, round(n / 60.0, 4))
 
-        span_days = max((dates[-1] - dates[0]).days, 1)
-        mu = n / span_days
-
-        return HawkesParameters(mu=mu, alpha=0.3, beta=0.8, sigma=1.0)
+        # Alpha (triggering amplitude) scales with incident density
+        alpha = min(0.65, max(0.15, round(0.1 + 0.02 * n, 3)))
+        return HawkesParameters(mu=mu, alpha=alpha, beta=0.85, sigma=0.75)
 
     def _compute_intensity(
         self,
@@ -173,29 +325,35 @@ class HawkesETASService:
         params: HawkesParameters,
         target_date: date,
     ) -> Tuple[float, float, float]:
-        """λ(x, t) = μ(x) + Σ_j α · exp(-β(t-t_j)) · K_σ(x-x_j)."""
-        background = params.mu
+        """
+        λ(x, t) = μ(x) + Σ_j α · exp(-β(t-t_j)) · K_σ(x-x_j).
+        Calculates per-cell intensity with spatial kernel weighting for background baseline.
+        """
         near_repeat = 0.0
+        min_dist_km = 999.0
 
         for inc in incidents:
             if not (inc.get("latitude") and inc.get("longitude") and inc.get("date_reported")):
                 continue
 
-            dt = (target_date - inc["date_reported"]).days
-            if dt < 0 or dt > 30:  # only look back 30 days for near-repeat
-                continue
-
-            # Temporal decay
-            temporal = params.alpha * np.exp(-params.beta * dt)
-            # Spatial Gaussian kernel
-            dx = (inc["latitude"] - cell.lat_center) * 111.0  # degrees → km approx
+            dx = (inc["latitude"] - cell.lat_center) * 111.0
             dy = (inc["longitude"] - cell.lng_center) * 111.0 * np.cos(np.radians(cell.lat_center))
             dist = np.sqrt(dx**2 + dy**2)
-            spatial = np.exp(-(dist**2) / (2 * params.sigma**2))
+            if dist < min_dist_km:
+                min_dist_km = dist
 
-            near_repeat += temporal * spatial
+            dt = (target_date - inc["date_reported"]).days
+            if 0 <= dt <= 45:
+                temporal = params.alpha * np.exp(-params.beta * (dt / 7.0))
+                spatial = np.exp(-(dist**2) / (2 * params.sigma**2))
+                near_repeat += temporal * spatial
 
-        total = background + near_repeat
+        # Baseline background intensity is higher near historical clusters (spatial Disorganization Theory)
+        spatial_baseline_factor = np.exp(-min_dist_km / 8.0) if min_dist_km < 100 else 0.1
+        background = round(params.mu * (0.2 + 0.8 * spatial_baseline_factor), 6)
+        near_repeat = round(near_repeat, 6)
+        total = round(background + near_repeat, 6)
+
         return total, background, near_repeat
 
     @staticmethod

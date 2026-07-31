@@ -1,9 +1,3 @@
-"""
-Graph Sync Service — writes entities and relationships to Neo4j after relational load.
-Maintains the multiplex graph: co-offending, financial, address, alias edges (§4).
-All edge types are explicitly labeled — predicted links are never merged with confirmed edges.
-"""
-
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -16,10 +10,6 @@ log = structlog.get_logger(__name__)
 
 
 class GraphSyncService:
-    """
-    Writes/merges nodes and edges into Neo4j based on ingested data.
-    Uses MERGE to avoid duplicates — idempotent on re-ingest.
-    """
 
     async def sync_document(
         self, extracted: Dict[str, Any], doc: Document
@@ -47,17 +37,16 @@ class GraphSyncService:
         confidence: float,
         model_version: str,
         source_tool: str,
+        evidence: Optional[str] = None,
     ) -> None:
-        """
-        Predicted (unconfirmed) link — stored as a PREDICTED_LINK edge,
-        NEVER merged with confirmed ACCUSED_IN or ASSOCIATED_WITH edges (§4).
-        """
         query = """
-        MATCH (a:Person {id: $a_id}), (b:Person {id: $b_id})
+        MERGE (a:Person {id: $a_id})
+        MERGE (b:Person {id: $b_id})
         MERGE (a)-[r:PREDICTED_LINK]-(b)
         SET r.confidence = $confidence,
             r.model_version = $model_version,
             r.source_tool = $source_tool,
+            r.evidence = $evidence,
             r.updated_at = datetime()
         """
         await graph_db.execute_query(
@@ -68,6 +57,7 @@ class GraphSyncService:
                 "confidence": confidence,
                 "model_version": model_version,
                 "source_tool": source_tool,
+                "evidence": evidence,
             },
         )
         await invalidate_graph_cache()
@@ -85,7 +75,6 @@ class GraphSyncService:
         transaction_id: str,
         amount: float,
     ) -> None:
-        """TRANSACTED_WITH edge — confirmed financial evidence (§9.4)."""
         query = """
         MATCH (a:Person {id: $from_id}), (b:Person {id: $to_id})
         MERGE (a)-[r:TRANSACTED_WITH {transaction_id: $txn_id}]->(b)
@@ -102,13 +91,82 @@ class GraphSyncService:
         )
         await invalidate_graph_cache()
 
+    async def sync_financial_transactions(self, transactions: List[Dict[str, Any]]) -> None:
+        """
+        Writes the Account-level TRANSACTED_WITH graph that
+        detect_cycles_in_graph/detect_organized_clusters actually query, plus
+        person-level FINANCIALLY_ASSOCIATED_WITH inference when two different
+        linked persons' transactions touch the same account (kept as a
+        distinct, weaker relationship type from the confirmed
+        Person-Person TRANSACTED_WITH edge upsert_financial_edge writes —
+        never conflate predicted/inferred with confirmed, per §4).
+        Mirrors scripts/seed_financial_transactions.py._sync_to_neo4j so
+        live-ingested and seeded transactions land in the same graph shape.
+        Each dict needs: id, from_account, to_account, amount,
+        transaction_date, and optionally linked_person_id.
+        """
+        from collections import defaultdict
+        from itertools import combinations
+
+        account_to_persons: Dict[str, set] = defaultdict(set)
+
+        for txn in transactions:
+            await graph_db.execute_query(
+                """
+                MERGE (a:Account {account_no: $from_acc})
+                MERGE (b:Account {account_no: $to_acc})
+                MERGE (a)-[r:TRANSACTED_WITH {transaction_id: $txn_id}]->(b)
+                SET r.amount = $amount, r.date = $date, r.updated_at = datetime()
+                """,
+                {
+                    "from_acc": txn["from_account"],
+                    "to_acc": txn["to_account"],
+                    "txn_id": str(txn["id"]),
+                    "amount": float(txn["amount"]),
+                    "date": str(txn["transaction_date"]),
+                },
+            )
+            pid = txn.get("linked_person_id")
+            if pid:
+                account_to_persons[txn["from_account"]].add(str(pid))
+                account_to_persons[txn["to_account"]].add(str(pid))
+                await graph_db.execute_query(
+                    """
+                    MERGE (p:Person {id: $pid})
+                    MERGE (a:Account {account_no: $from_acc})
+                    MERGE (b:Account {account_no: $to_acc})
+                    MERGE (p)-[:HAS_ACCOUNT]->(a)
+                    MERGE (p)-[:HAS_ACCOUNT]->(b)
+                    """,
+                    {
+                        "pid": str(pid),
+                        "from_acc": txn["from_account"],
+                        "to_acc": txn["to_account"],
+                    },
+                )
+
+        for account, people in account_to_persons.items():
+            if len(people) < 2:
+                continue
+            for p1, p2 in combinations(sorted(people), 2):
+                await graph_db.execute_query(
+                    """
+                    MERGE (a:Person {id: $p1})
+                    MERGE (b:Person {id: $p2})
+                    MERGE (a)-[r:FINANCIALLY_ASSOCIATED_WITH]-(b)
+                    SET r.shared_account = $account, r.evidence_type = 'financial',
+                        r.updated_at = datetime()
+                    """,
+                    {"p1": p1, "p2": p2, "account": account},
+                )
+
+        if transactions:
+            await invalidate_graph_cache()
+            log.info("Financial transactions synced to graph", count=len(transactions))
+
     async def get_person_network(
         self, person_id: str, depth: int = 2
     ) -> Dict[str, Any]:
-        """
-        Return nodes and edges for a person's ego network up to `depth` hops.
-        Used by the force-directed graph widget (§10.2).
-        """
         query = """
         MATCH path = (p:Person {id: $person_id})-[*1..{depth}]-(n)
         RETURN nodes(path) as nodes, relationships(path) as rels
@@ -118,11 +176,6 @@ class GraphSyncService:
         return self._serialize_graph(results)
 
     async def run_community_detection(self, algorithm: str = "louvain") -> List[Dict[str, Any]]:
-        """
-        Trigger Neo4j GDS community detection.
-        Returns list of {person_id, community_id, centrality_score}.
-        """
-        # Write projection
         await graph_db.execute_query(
             """
             CALL gds.graph.project(
@@ -132,7 +185,6 @@ class GraphSyncService:
             )
             """
         )
-        # Run Louvain
         results = await graph_db.execute_query(
             """
             CALL gds.louvain.stream('co_offending')
@@ -142,8 +194,6 @@ class GraphSyncService:
             """
         )
         return results
-
-    # ── Private helpers ───────────────────────────────────────────────────────
 
     async def _upsert_incident_node(self, case_id: str, data: Dict[str, Any]) -> None:
         await graph_db.execute_query(
@@ -190,13 +240,6 @@ class GraphSyncService:
 
     @staticmethod
     def _json_safe_properties(props: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Neo4j's driver returns its own temporal types (neo4j.time.DateTime, Date,
-        etc.) for any property set via a Cypher datetime()/date() call — these
-        aren't JSON-serializable and FastAPI's response encoder has no idea what
-        to do with them. Anything with an isoformat() (every neo4j.time.* type)
-        gets flattened to a plain string; everything else passes through as-is.
-        """
         safe: Dict[str, Any] = {}
         for key, value in props.items():
             isoformat = getattr(value, "isoformat", None)
@@ -221,11 +264,21 @@ class GraphSyncService:
                 rid = str(rel.element_id)
                 if rid not in seen_edge_ids:
                     seen_edge_ids.add(rid)
+                    # Must key from/to the same way nodes are keyed above (the
+                    # custom "id" property, falling back to element_id only if
+                    # a node genuinely has none) — using rel.start_node/end_node's
+                    # raw element_id here unconditionally meant edges pointed at
+                    # an identifier space the nodes array never used, so no edge
+                    # could ever resolve to a node. d3-force's forceLink throws
+                    # on an unresolvable link id, and with no error boundary in
+                    # the frontend that crash blanks the entire app.
+                    start_props = dict(rel.start_node)
+                    end_props = dict(rel.end_node)
                     edges.append({
                         "id": rid,
                         "type": rel.type,
-                        "from": str(rel.start_node.element_id),
-                        "to": str(rel.end_node.element_id),
+                        "from": start_props.get("id") or str(rel.start_node.element_id),
+                        "to": end_props.get("id") or str(rel.end_node.element_id),
                         "properties": GraphSyncService._json_safe_properties(dict(rel)),
                     })
         return {"nodes": nodes, "edges": edges}

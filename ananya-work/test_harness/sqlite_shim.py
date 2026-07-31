@@ -1,4 +1,4 @@
-"""
+﻿"""
 sqlite_shim.py
 ===============
 TEST-ONLY. Monkeypatches psycopg2 so every training/inference script runs

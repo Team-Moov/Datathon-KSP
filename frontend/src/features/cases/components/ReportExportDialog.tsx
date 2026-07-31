@@ -2,6 +2,7 @@ import * as React from "react"
 import { useMutation } from "@tanstack/react-query"
 import { Download, Share2 } from "lucide-react"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -30,6 +31,7 @@ function triggerBrowserDownload(blob: Blob, filename: string) {
 }
 
 function ReportExportDialog({ caseId, crimeNo }: { caseId: string; crimeNo: string }) {
+  const { t } = useTranslation()
   const { has } = usePermission()
   const [isOpen, setIsOpen] = React.useState(false)
   const [password, setPassword] = React.useState("")
@@ -42,14 +44,14 @@ function ReportExportDialog({ caseId, crimeNo }: { caseId: string; crimeNo: stri
       if (shareLink) {
         const shareData = result as { token: string; expires_at: string; max_downloads: number }
         setShareResult({ token: shareData.token, expiresAt: shareData.expires_at })
-        toast.success("Share link created")
+        toast.success(t("reportExport.shareLinkCreatedToast"))
         return
       }
       triggerBrowserDownload(result as Blob, `case-report-${crimeNo}.pdf`)
       setIsOpen(false)
-      toast.success("Report downloaded")
+      toast.success(t("reportExport.reportDownloadedToast"))
     },
-    onError: (error) => toast.error(extractApiErrorMessage(error, "Couldn't generate the report.")),
+    onError: (error) => toast.error(extractApiErrorMessage(error, t("reportExport.couldntGenerateReport"))),
   })
 
   if (!has("export_report")) return null
@@ -67,20 +69,20 @@ function ReportExportDialog({ caseId, crimeNo }: { caseId: string; crimeNo: stri
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1.5">
           <Download className="size-3.5" />
-          Export report
+          {t("reportExport.exportReport")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Export case report</DialogTitle>
+          <DialogTitle>{t("reportExport.exportCaseReport")}</DialogTitle>
           <DialogDescription>
-            Watermarked PDF with the case timeline, evidence provenance, and risk assessment.
+            {t("reportExport.exportDesc")}
           </DialogDescription>
         </DialogHeader>
 
         {shareResult && shareUrl ? (
           <div className="space-y-2">
-            <Label>Share link (expires {new Date(shareResult.expiresAt).toLocaleString()})</Label>
+            <Label>{t("reportExport.shareLinkExpires", { date: new Date(shareResult.expiresAt).toLocaleString() })}</Label>
             <div className="flex gap-2">
               <Input readOnly value={shareUrl} className="font-mono text-xs" />
               <Button
@@ -88,30 +90,30 @@ function ReportExportDialog({ caseId, crimeNo }: { caseId: string; crimeNo: stri
                 size="sm"
                 onClick={() => {
                   void navigator.clipboard.writeText(shareUrl)
-                  toast.success("Copied to clipboard")
+                  toast.success(t("reportExport.copiedToClipboard"))
                 }}
               >
-                Copy
+                {t("reportExport.copy")}
               </Button>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="report-password">Password protect (optional)</Label>
+              <Label htmlFor="report-password">{t("reportExport.passwordProtect")}</Label>
               <Input
                 id="report-password"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Leave blank for no password"
+                placeholder={t("reportExport.passwordPlaceholder")}
               />
             </div>
 
             {has("share_case") ? (
               <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
                 <Checkbox checked={shareLink} onCheckedChange={(checked) => setShareLink(checked === true)} />
-                Create an expiring share link instead of downloading directly
+                {t("reportExport.createShareLinkInstead")}
               </label>
             ) : null}
           </div>
@@ -121,7 +123,7 @@ function ReportExportDialog({ caseId, crimeNo }: { caseId: string; crimeNo: stri
           {!shareResult ? (
             <Button onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending} className="gap-1.5">
               {shareLink ? <Share2 className="size-3.5" /> : <Download className="size-3.5" />}
-              {exportMutation.isPending ? "Working..." : shareLink ? "Create share link" : "Download PDF"}
+              {exportMutation.isPending ? t("reportExport.working") : shareLink ? t("reportExport.createShareLinkBtn") : t("reportExport.downloadPdf")}
             </Button>
           ) : null}
         </DialogFooter>

@@ -5,9 +5,31 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Karnataka Crime Intelligence Platform</title>
+    <!-- Noto Sans Kannada — required for correct rendering of ಕನ್ನಡ script glyphs.
+         display=swap prevents FOIT; preconnect reduces DNS lookup latency.
+         The existing app font stack falls back to this for Kannada codepoints. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+Kannada:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Zoho Catalyst Web SDK — only resolves once this app is served through
+      Catalyst Web Client Hosting (that's what serves /__catalyst/sdk/init.js;
+      see https://docs.catalyst.zoho.com/en/sdk/web/v4/overview). In any other
+      environment (local Vite dev, a non-Catalyst host) init.js 404s — the SDK
+      script itself still loads and defines `window.catalyst`, but without
+      init.js's project config, catalyst.auth.signIn() fails silently inside
+      its own iframe rather than throwing here. window.__catalystInitFailed
+      is the honest signal: standard <script onerror>, not a guess about SDK
+      internals — src/lib/catalyst/catalystAuth.ts checks it before mounting.
+    -->
+    <script src="https://static.zohocdn.com/catalyst/sdk/js/4.4.0/catalystWebSDK.js"></script>
+    <script src="/__catalyst/sdk/init.js" onerror="window.__catalystInitFailed = true"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

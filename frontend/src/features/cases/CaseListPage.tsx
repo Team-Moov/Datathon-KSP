@@ -2,6 +2,7 @@ import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { FileSearch } from "lucide-react"
 import { Link } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { ErrorState } from "@/components/data-states/ErrorState"
@@ -13,6 +14,7 @@ import { extractApiErrorMessage } from "@/lib/api/httpClient"
 import { fetchCaseList } from "./casesApi"
 
 function CaseListPage() {
+  const { t } = useTranslation()
   const [crimeNoFilter, setCrimeNoFilter] = React.useState("")
 
   const { data: cases, isLoading, isError, error, refetch } = useQuery({
@@ -30,18 +32,18 @@ function CaseListPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Case Register</h1>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t("cases.title")}</h1>
         <Input
           value={crimeNoFilter}
           onChange={(event) => setCrimeNoFilter(event.target.value)}
-          placeholder="Filter by crime number..."
+          placeholder={t("cases.filterPlaceholder")}
           className="w-64"
         />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Cases In Scope</CardTitle>
+          <CardTitle>{t("cases.casesInScope")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -51,17 +53,17 @@ function CaseListPage() {
           ) : filteredCases.length === 0 ? (
             <EmptyState
               icon={FileSearch}
-              title="No cases match"
-              description="Cases reported within your jurisdiction will appear here as they're registered."
+              title={t("cases.noCasesMatch")}
+              description={t("cases.noCaptionDesc")}
             />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Crime No.</TableHead>
-                  <TableHead>Reported</TableHead>
-                  <TableHead>District</TableHead>
-                  <TableHead>Source</TableHead>
+                  <TableHead>{t("cases.colCrimeNo")}</TableHead>
+                  <TableHead>{t("cases.dateReported")}</TableHead>
+                  <TableHead>{t("common.district")}</TableHead>
+                  <TableHead>{t("cases.colSource")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

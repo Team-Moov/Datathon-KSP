@@ -1,5 +1,7 @@
 import * as React from "react"
 import { Pin, PinOff, StickyNote, Trash2 } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 
 import { EmptyState } from "@/components/data-states/EmptyState"
 import { Button } from "@/components/ui/button"
@@ -20,11 +22,13 @@ function NoteItem({
   canManage,
   onTogglePin,
   onDelete,
+  t,
 }: {
   note: WorkspaceNote
   canManage: boolean
   onTogglePin: () => void
   onDelete: () => void
+  t: TFunction
 }) {
   return (
     <li className="flat-surface rounded-md p-3">
@@ -36,7 +40,7 @@ function NoteItem({
               type="button"
               onClick={onTogglePin}
               className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
-              title={note.pinned ? "Unpin" : "Pin"}
+              title={note.pinned ? t("caseNotes.unpin") : t("caseNotes.pin")}
             >
               {note.pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
             </button>
@@ -44,7 +48,7 @@ function NoteItem({
               type="button"
               onClick={onDelete}
               className="rounded p-1 text-zinc-400 hover:bg-critical-500/10 hover:text-critical-600"
-              title="Delete note"
+              title={t("caseNotes.deleteNote")}
             >
               <Trash2 className="size-3.5" />
             </button>
@@ -52,7 +56,7 @@ function NoteItem({
         ) : null}
       </div>
       <p className="mt-1.5 text-[11px] text-zinc-400 dark:text-zinc-500">
-        {note.pinned ? "Pinned · " : ""}
+        {note.pinned ? `${t("caseNotes.pinned")} · ` : ""}
         {new Date(note.updated_at).toLocaleString()}
       </p>
     </li>
@@ -60,6 +64,7 @@ function NoteItem({
 }
 
 function CaseNotesPanel({ caseId, notes, currentUserId }: CaseNotesPanelProps) {
+  const { t } = useTranslation()
   const { has } = usePermission()
   const { addNoteMutation, updateNoteMutation, deleteNoteMutation } = useCaseWorkspace(caseId)
   const [draftContent, setDraftContent] = React.useState("")
@@ -85,7 +90,7 @@ function CaseNotesPanel({ caseId, notes, currentUserId }: CaseNotesPanelProps) {
         onError: (error) => {
           setConflictMessage(
             isVersionConflict(error)
-              ? "That note changed elsewhere — the list has been refreshed."
+              ? t("caseNotes.noteChangedElsewhere")
               : extractApiErrorMessage(error),
           )
         },
@@ -104,7 +109,7 @@ function CaseNotesPanel({ caseId, notes, currentUserId }: CaseNotesPanelProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Investigator Notes</CardTitle>
+        <CardTitle>{t("caseNotes.investigatorNotes")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {canAddNotes ? (
@@ -112,13 +117,13 @@ function CaseNotesPanel({ caseId, notes, currentUserId }: CaseNotesPanelProps) {
             <textarea
               value={draftContent}
               onChange={(event) => setDraftContent(event.target.value)}
-              placeholder="Add an observation, lead, or next step..."
+              placeholder={t("caseNotes.addObservationPlaceholder")}
               rows={3}
               className="w-full rounded-md border border-zinc-300 bg-white p-2.5 text-sm text-zinc-900 outline-none focus-visible:border-accent-400 focus-visible:ring-2 focus-visible:ring-accent-400/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
             />
             <div className="flex justify-end">
               <Button type="submit" size="sm" disabled={addNoteMutation.isPending || !draftContent.trim()}>
-                {addNoteMutation.isPending ? "Adding..." : "Add note"}
+                {addNoteMutation.isPending ? t("caseNotes.adding") : t("caseNotes.addNote")}
               </Button>
             </div>
           </form>
@@ -127,7 +132,7 @@ function CaseNotesPanel({ caseId, notes, currentUserId }: CaseNotesPanelProps) {
         {conflictMessage ? <p className="text-xs text-critical-500">{conflictMessage}</p> : null}
 
         {sortedNotes.length === 0 ? (
-          <EmptyState icon={StickyNote} title="No notes yet" description="Observations added here are visible to the whole case team." />
+          <EmptyState icon={StickyNote} title={t("caseNotes.noNotesYet")} description={t("caseNotes.noNotesYetDesc")} />
         ) : (
           <ul className="space-y-2">
             {sortedNotes.map((note) => (
@@ -137,6 +142,7 @@ function CaseNotesPanel({ caseId, notes, currentUserId }: CaseNotesPanelProps) {
                 canManage={canManageAnyNote || note.author_id === currentUserId}
                 onTogglePin={() => handleTogglePin(note)}
                 onDelete={() => handleDelete(note)}
+                t={t}
               />
             ))}
           </ul>

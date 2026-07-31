@@ -83,6 +83,27 @@
     border: 1px solid rgb(var(--hairline-rgb));
   }
 
+  /* Catalyst's embedded-auth SDK injects its own <iframe> with inline
+     width/height into whatever element catalyst.auth.signIn() is given —
+     !important is required to win over those inline styles, since there's no
+     documented option to make the SDK size it any other way.
+     `height: 100% !important` alone was verified (via javascript_tool against
+     the live deployment) to NOT resolve against a flex-grown parent — it
+     silently fell back to the iframe's browser-default 150px, while width:
+     100% resolved fine. position: absolute + inset: 0 sidesteps that
+     percentage-height quirk entirely and is the standard reliable pattern for
+     "fill the parent" on iframes. */
+  #catalyst-login {
+    position: relative;
+  }
+  #catalyst-login iframe {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+  }
+
   /* Genuinely floating content only: dropdown menus, popovers, the command
      palette, modal chrome. This is the only place backdrop-blur is allowed. */
   .glass-overlay {

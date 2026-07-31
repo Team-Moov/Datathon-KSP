@@ -1,8 +1,10 @@
 import { LogOut, Moon, Sun, SunMoon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +28,7 @@ function initialsFromFullName(fullName: string): string {
 }
 
 function ThemeToggle() {
+  const { t } = useTranslation()
   const { themePreference, setThemePreference } = useTheme()
 
   const nextPreference = themePreference === "light" ? "dark" : themePreference === "dark" ? "system" : "light"
@@ -36,7 +39,7 @@ function ThemeToggle() {
       type="button"
       onClick={() => setThemePreference(nextPreference)}
       className="flex size-8 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-      title={`Theme: ${themePreference}`}
+      title={t("common.theme", { theme: themePreference })}
     >
       <Icon className="size-4" />
     </button>
@@ -44,6 +47,7 @@ function ThemeToggle() {
 }
 
 function TopHeader() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { currentUser, endSession } = useAuth()
 
@@ -58,6 +62,7 @@ function TopHeader() {
 
       <div className="flex items-center gap-3">
         <GlobalPersonSearch />
+        <LanguageSwitcher />
         <ThemeToggle />
 
         {currentUser ? (
@@ -86,7 +91,7 @@ function TopHeader() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void initiateSignOut()} className="gap-2 text-critical-600">
                 <LogOut className="size-3.5" />
-                Sign out
+                {t("common.signOut")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

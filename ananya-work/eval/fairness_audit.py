@@ -1,4 +1,4 @@
-"""
+﻿"""
 fairness_audit.py
 ==================
 Subgroup error-rate / calibration audit for risk_score. No protected

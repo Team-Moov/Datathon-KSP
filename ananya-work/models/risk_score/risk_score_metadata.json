@@ -1,4 +1,4 @@
-{
+﻿{
   "model_version": "risk_survival_rsf_v1",
   "feature_cols": [
     "severity_history",

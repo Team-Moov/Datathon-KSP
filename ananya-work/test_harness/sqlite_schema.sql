@@ -1,4 +1,4 @@
--- SQLite subset of schema.sql, for offline testing without Postgres.
+﻿-- SQLite subset of schema.sql, for offline testing without Postgres.
 -- Covers: data loading, graph_features, mo_linkage, lead_rec, risk_score.
 -- Deliberately excludes: pgvector/narrative_chunk (no SQLite equivalent),
 -- person_match_candidate, document (not touched by these 4 scripts).

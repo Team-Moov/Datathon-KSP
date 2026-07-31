@@ -8,11 +8,21 @@ from uuid import UUID
 
 import networkx as nx
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.graph_db import cached_graph_query, graph_db
 from app.services.graph_sync_service import GraphSyncService
 
 log = structlog.get_logger(__name__)
+
+# Whitelisted before being interpolated into Cypher text — Neo4j has no way to
+# bind labels/relationship types as query parameters, so anything reaching
+# the query string has to be validated against a fixed set first.
+_ALLOWED_NODE_LABELS = {"Person", "Incident", "Account"}
+_ALLOWED_EDGE_TYPES = {
+    "ACCUSED_IN", "VICTIM_IN", "WITNESSED", "ASSOCIATED_WITH",
+    "TRANSACTED_WITH", "PREDICTED_LINK", "HAS_ACCOUNT",
+}
 
 
 class NetworkAnalysisService:
@@ -51,10 +61,73 @@ class NetworkAnalysisService:
     @cached_graph_query("communities")
     async def detect_communities(self) -> List[Dict[str, Any]]:
         """
-        Run Louvain community detection via Neo4j GDS.
+        Louvain community detection over the co-offending network.
+
+        Computed in networkx from the co-offending edges rather than Neo4j GDS:
+        GDS isn't available on every Neo4j tier (e.g. Aura Free) and its projection
+        was brittle when an edge type had zero instances. networkx.louvain runs
+        anywhere and needs only the co-offending edges we already derive.
         Returns [{person_id, community_id}].
         """
-        return await self.graph_sync.run_community_detection(algorithm="louvain")
+        from networkx.algorithms.community import louvain_communities
+
+        cooffending = await self.get_cooffending_network()
+        graph = nx.Graph()
+        for edge in cooffending.get("edges", []):
+            graph.add_edge(edge["person_a"], edge["person_b"], weight=edge.get("shared_incidents", 1))
+
+        if graph.number_of_nodes() == 0:
+            return []
+
+        communities = louvain_communities(graph, weight="weight", seed=42)
+        return [
+            {"person_id": person_id, "community_id": community_id}
+            for community_id, members in enumerate(communities)
+            for person_id in members
+        ]
+
+    async def get_communities_graph(self) -> Dict[str, Any]:
+        """
+        Louvain community assignments merged with the co-offending edges they
+        were computed over, as a {nodes, edges} force-directed-graph payload
+        (nodes carry community_id + name in `properties`).
+
+        detect_communities() alone returns a flat [{person_id, community_id}]
+        list — correct for counting/storage, but not renderable by the
+        force-directed-graph widget without the edge structure, which this
+        adds back in.
+        """
+        assignments = await self.detect_communities()
+        if not assignments:
+            return {"nodes": [], "edges": []}
+
+        community_by_person = {a["person_id"]: a["community_id"] for a in assignments}
+        person_ids = list(community_by_person.keys())
+
+        names_query = "MATCH (p:Person) WHERE p.id IN $ids RETURN p.id AS id, p.name AS name"
+        name_rows = await graph_db.execute_query(names_query, {"ids": person_ids})
+        name_by_person = {row["id"]: row["name"] for row in name_rows}
+
+        cooffending = await self.get_cooffending_network()
+
+        nodes = [
+            {
+                "id": person_id,
+                "properties": {"community_id": community_id, "name": name_by_person.get(person_id)},
+            }
+            for person_id, community_id in community_by_person.items()
+        ]
+        edges = [
+            {
+                "id": f"{edge['person_a']}-{edge['person_b']}",
+                "from": edge["person_a"],
+                "to": edge["person_b"],
+                "type": "ACCUSED_IN",
+            }
+            for edge in cooffending.get("edges", [])
+            if edge["person_a"] in community_by_person and edge["person_b"] in community_by_person
+        ]
+        return {"nodes": nodes, "edges": edges}
 
     @cached_graph_query("cooffending_network")
     async def get_cooffending_network(
@@ -122,6 +195,127 @@ class NetworkAnalysisService:
         LIMIT 100
         """
         return await graph_db.execute_query(query, {})
+
+    async def query_graph_subset(
+        self,
+        db: Optional[AsyncSession] = None,
+        node_labels: Optional[List[str]] = None,
+        edge_types: Optional[List[str]] = None,
+        district_id: Optional[int] = None,
+        crime_no_contains: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        center_person_id: Optional[str] = None,
+        depth: int = 1,
+        limit: int = 300,
+    ) -> Dict[str, Any]:
+        """
+        General-purpose filtered subgraph query — the data source behind the
+        global graph explorer's filter controls, and also registered as the
+        get_graph_subset LLM tool, so a free-text question like "show accused
+        persons in district 3 connected by financial transactions" resolves
+        to this exact same deterministic query rather than a separate path.
+
+        Deliberately NOT LLM-generated Cypher: the model only ever supplies
+        these structured filter arguments — the same "plan the call, don't
+        write the query" pattern every other tool in this codebase follows.
+        Letting a model generate raw Cypher against a live graph would be a
+        real injection/DoS risk every other tool here was designed to avoid.
+        """
+        # If the caller supplies explicit edge types, use them (whitelist-filtered).
+        # If nothing is supplied, include all allowed edge types so Person, Incident,
+        # and Account nodes (with HAS_ACCOUNT / TRANSACTED_WITH links) are returned.
+        if edge_types:
+            selected_edge_types = [t for t in edge_types if t in _ALLOWED_EDGE_TYPES]
+        else:
+            selected_edge_types = list(_ALLOWED_EDGE_TYPES)
+
+        if node_labels:
+            selected_node_labels = [label for label in node_labels if label in _ALLOWED_NODE_LABELS]
+            if "Account" in selected_node_labels and not any(t in selected_edge_types for t in ["HAS_ACCOUNT", "TRANSACTED_WITH"]):
+                selected_edge_types.extend(["HAS_ACCOUNT", "TRANSACTED_WITH"])
+        else:
+            selected_node_labels = list(_ALLOWED_NODE_LABELS)
+
+        # district_id isn't a graph property (Incident nodes only carry
+        # crime_no/date_reported) — resolved via Postgres first, then applied
+        # as a graph-side id filter. This is the cross-store routing step:
+        # relational answers "which incidents are in this district", graph
+        # answers "how are they connected" — one call, two stores.
+        allowed_incident_ids: Optional[set] = None
+        if district_id is not None and db is not None:
+            from sqlalchemy import text as sql_text
+
+            rows = (
+                await db.execute(sql_text("SELECT id FROM case_master WHERE district_id = :d"), {"d": district_id})
+            ).all()
+            allowed_incident_ids = {str(row[0]) for row in rows}
+            if not allowed_incident_ids:
+                return {"nodes": [], "edges": []}
+
+        if center_person_id:
+            raw = await self.get_ego_network(center_person_id, depth)
+        else:
+            rel_pattern = "|".join(selected_edge_types)
+            query = f"""
+            MATCH (p:Person)
+            OPTIONAL MATCH (p)-[r:{rel_pattern}]-(b)
+            RETURN [p, b] AS nodes, [r] AS rels
+            LIMIT $fetch_limit
+            """
+            results = await graph_db.execute_query(query, {"fetch_limit": max(limit * 6, 1800)})
+            raw = self.graph_sync._serialize_graph(results)
+
+            # If node count is still under limit, fetch additional graph edges
+            if len(raw.get("nodes", [])) < limit:
+                supp_query = f"""
+                MATCH (a)-[r:{rel_pattern}]-(b)
+                RETURN [a, b] AS nodes, [r] AS rels
+                LIMIT $fetch_limit
+                """
+                supp_res = await graph_db.execute_query(supp_query, {"fetch_limit": limit * 2})
+                supp_raw = self.graph_sync._serialize_graph(supp_res)
+                # Merge nodes and edges
+                existing_node_ids = {n["id"] for n in raw.get("nodes", [])}
+                for node in supp_raw.get("nodes", []):
+                    if node["id"] not in existing_node_ids:
+                        raw.get("nodes", []).append(node)
+                        existing_node_ids.add(node["id"])
+                existing_edge_ids = {e["id"] for e in raw.get("edges", [])}
+                for edge in supp_raw.get("edges", []):
+                    if edge["id"] not in existing_edge_ids:
+                        raw.get("edges", []).append(edge)
+                        existing_edge_ids.add(edge["id"])
+
+        def node_passes(node: Dict[str, Any]) -> bool:
+            labels = set(node.get("labels", []))
+            if selected_node_labels and not (labels & set(selected_node_labels)):
+                return False
+            if "Incident" in labels:
+                props = node.get("properties", {})
+                if allowed_incident_ids is not None and node["id"] not in allowed_incident_ids:
+                    return False
+                if crime_no_contains and crime_no_contains.lower() not in str(props.get("crime_no", "")).lower():
+                    return False
+                date_reported = props.get("date_reported")
+                if date_from and (not date_reported or date_reported < date_from):
+                    return False
+                if date_to and (not date_reported or date_reported > date_to):
+                    return False
+            return True
+
+        # Prioritize Person nodes first, then Incident, then Account so no people are starved out by accounts
+        all_passing = [n for n in raw.get("nodes", []) if node_passes(n)]
+        all_passing.sort(key=lambda n: 0 if "Person" in n.get("labels", []) else 1 if "Incident" in n.get("labels", []) else 2)
+
+        kept_nodes = all_passing[:limit]
+        kept_ids = {n["id"] for n in kept_nodes}
+        kept_edges = [
+            e
+            for e in raw.get("edges", [])
+            if e["from"] in kept_ids and e["to"] in kept_ids and e.get("type") in selected_edge_types
+        ]
+        return {"nodes": kept_nodes, "edges": kept_edges}
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

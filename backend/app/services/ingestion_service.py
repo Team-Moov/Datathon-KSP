@@ -14,6 +14,8 @@ from typing import Any, Dict
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.nlp import get_nlp_provider
+from app.core.ocr import get_ocr_provider
 from app.models.document import Document
 from app.models.enums import DocumentFormat, ExtractionMethod, SourceType
 from app.services.extraction.classifier import DocumentClassifier
@@ -22,6 +24,7 @@ from app.services.entity_resolution import EntityResolutionService
 from app.services.embedding_service import EmbeddingService
 from app.services.graph_sync_service import GraphSyncService
 from app.repositories.case_repository import CaseRepository
+from app.repositories.person_repository import PersonRepository
 
 log = structlog.get_logger(__name__)
 
@@ -39,6 +42,7 @@ class IngestionService:
         self.embedding_svc = EmbeddingService()
         self.graph_sync = GraphSyncService()
         self.case_repo = CaseRepository(db)
+        self.person_repo = PersonRepository(db)
 
     async def ingest_file(
         self,
@@ -82,8 +86,31 @@ class IngestionService:
         if source_type in (SourceType.FIR, SourceType.CHARGESHEET, SourceType.JUDGMENT):
             await self._load_case_data(extracted, doc)
 
-        # ── Step 4b: embed narrative text into vector store ───────────────────
+        # ── Step 4a-financial: load transaction rows + sync account graph ─────
+        if source_type == SourceType.FINANCIAL:
+            await self._load_financial_data(extracted, doc)
+
+        # ── Step 3.5: OCR fallback — scanned images/PDFs have no extractable text ──
         narrative_text = extracted.get("narrative_text") or extracted.get("brief_facts", "")
+        if not narrative_text and file_format in (DocumentFormat.JPG, DocumentFormat.PNG, DocumentFormat.PDF):
+            try:
+                ocr = await get_ocr_provider().extract_text(file_path.read_bytes(), original_filename)
+                if ocr.get("text"):
+                    narrative_text = ocr["text"]
+                    extracted["narrative_text"] = narrative_text
+                    log.info("OCR text extracted", provider=ocr.get("provider"), chars=len(narrative_text))
+            except Exception as exc:  # noqa: BLE001 — OCR is best-effort, never fail ingestion
+                log.warning("OCR failed", error=str(exc))
+
+        # ── Step 4: NER on the narrative (entities held for entity resolution) ──
+        if narrative_text:
+            try:
+                extracted["entities"] = await get_nlp_provider().extract_entities(narrative_text)
+                log.info("NER extracted", count=len(extracted["entities"]))
+            except Exception as exc:  # noqa: BLE001 — NER is best-effort
+                log.warning("NER failed", error=str(exc))
+
+        # ── Step 4b: embed narrative text into vector store ───────────────────
         if narrative_text:
             await self.embedding_svc.embed_and_store(
                 text=narrative_text,
@@ -150,3 +177,83 @@ class IngestionService:
                 )
             )
             await self.db.flush()
+
+    async def _load_financial_data(self, extracted: Dict[str, Any], doc: Document) -> None:
+        """
+        Writes FinancialCsvExtractor's normalized rows into `financial_transaction`
+        and syncs the Account-level graph, so an uploaded bank statement actually
+        reaches FinancialCrimeService's detectors instead of stopping at the
+        parsed-but-unused 'dataframe' the old CSV fallback produced.
+        """
+        from app.models.financial import FinancialTransaction
+
+        raw_transactions = extracted.get("transactions", [])
+        if not raw_transactions:
+            log.warning(
+                "Financial upload had no parseable transaction rows",
+                document_id=str(doc.id),
+                error=extracted.get("extraction_error"),
+            )
+            return
+
+        name_to_person_id: Dict[str, uuid.UUID] = {}
+        created_rows = []
+
+        for raw in raw_transactions:
+            linked_person_id = None
+
+            given_id = raw.get("linked_person_id")
+            if given_id:
+                try:
+                    candidate = uuid.UUID(str(given_id))
+                    if await self.person_repo.get_by_id(candidate) is not None:
+                        linked_person_id = candidate
+                except ValueError:
+                    pass
+
+            if linked_person_id is None:
+                name = raw.get("linked_person_name")
+                if name:
+                    if name not in name_to_person_id:
+                        person = await self.entity_resolver.resolve_person_by_name(name, doc.id)
+                        name_to_person_id[name] = person.id
+                    linked_person_id = name_to_person_id[name]
+
+            txn = FinancialTransaction(
+                from_account=raw["from_account"],
+                to_account=raw["to_account"],
+                amount=raw["amount"],
+                currency=raw.get("currency", "INR"),
+                transaction_date=raw["transaction_date"],
+                transaction_type=raw.get("transaction_type"),
+                linked_person_id=linked_person_id,
+                linked_incident_id=extracted.get("case_id"),
+                # Model defaults is_synthetic=True (built for the seed script) —
+                # these are real uploaded rows, must not be tagged as synthetic.
+                is_synthetic=False,
+            )
+            self.db.add(txn)
+            created_rows.append(txn)
+
+        await self.db.flush()
+        for row in created_rows:
+            await self.db.refresh(row)
+
+        await self.graph_sync.sync_financial_transactions([
+            {
+                "id": row.id,
+                "from_account": row.from_account,
+                "to_account": row.to_account,
+                "amount": float(row.amount),
+                "transaction_date": row.transaction_date,
+                "linked_person_id": row.linked_person_id,
+            }
+            for row in created_rows
+        ])
+
+        log.info(
+            "Financial transactions loaded",
+            document_id=str(doc.id),
+            count=len(created_rows),
+            rows_skipped=extracted.get("rows_skipped", 0),
+        )

@@ -35,6 +35,7 @@ export type Permission =
   | "view_audit_log"
   | "manage_users"
   | "manage_case_notes"
+  | "manage_analytics_jobs"
 
 const CONSTABLE_TIER: Permission[] = ["view_case_basic", "view_trends_hotspots"]
 
@@ -63,11 +64,12 @@ const DSP_TIER: Permission[] = [
 ]
 
 const SP_TIER: Permission[] = [...DSP_TIER, "view_audit_log"]
-const DGP_TIER: Permission[] = [...SP_TIER, "manage_users"]
+const DGP_TIER: Permission[] = [...SP_TIER, "manage_users", "manage_analytics_jobs"]
 
-const CRIME_ANALYST_TIER: Permission[] = DSP_TIER.filter(
-  (permission) => permission !== "share_case" && permission !== "manage_case_notes",
-)
+const CRIME_ANALYST_TIER: Permission[] = [
+  ...DSP_TIER.filter((permission) => permission !== "share_case" && permission !== "manage_case_notes"),
+  "manage_analytics_jobs",
+]
 
 const POLICY_MAKER_TIER: Permission[] = [
   "view_case_basic",

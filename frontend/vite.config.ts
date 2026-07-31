@@ -12,6 +12,12 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || "http://localhost:8090"
 
   return {
+    // Catalyst Web Client Hosting serves the uploaded app under an /app/
+    // subpath, not the domain root (confirmed against a live deployment —
+    // undocumented on docs.catalyst.zoho.com's Web Client Hosting pages).
+    // Local dev keeps serving from "/" since Vite's own dev server isn't
+    // subject to that.
+    base: mode === "production" ? "/app/" : "/",
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
@@ -23,6 +29,7 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: apiProxyTarget,
           changeOrigin: true,
+          ws: true,
         },
       },
     },

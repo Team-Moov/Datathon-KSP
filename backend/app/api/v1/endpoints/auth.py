@@ -4,12 +4,14 @@ Authentication endpoints — password + simulated MFA, token issuance/refresh/lo
 """
 
 from datetime import datetime, timedelta, timezone
+import re
+import secrets
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_audit_event
@@ -34,6 +36,28 @@ from app.services import mfa_service
 router = APIRouter()
 
 
+# ── Password complexity ────────────────────────────────────────────────────────
+
+_PASSWORD_RE = re.compile(
+    r"^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=\[\]{};':""\\|,.<>\/?]).{10,}$"
+)
+
+
+def _validate_password_complexity(v: str) -> str:
+    """
+    Shared password-complexity rule used by RegisterRequest and admin user
+    creation. Requirements: \u226510 chars, ≥1 uppercase letter, ≥1 digit, ≥1
+    special character. Enforced here (Pydantic layer) so the error is a
+    clean 422 with a readable message rather than a bcrypt-truncation surprise.
+    """
+    if not _PASSWORD_RE.match(v):
+        raise ValueError(
+            "Password must be at least 10 characters and contain at least one "
+            "uppercase letter, one digit, and one special character"
+        )
+    return v
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -49,8 +73,13 @@ class CurrentUserOut(BaseModel):
     badge_number: Optional[str]
     district_id: Optional[int]
     unit_id: Optional[int]
+    needs_role_selection: bool
 
     model_config = {"from_attributes": True}
+
+
+class SelectRoleRequest(BaseModel):
+    role: Role
 
 
 class MfaRequiredResponse(BaseModel):
@@ -66,7 +95,13 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str
     badge_number: str | None = None
-    role: Role = Role.CONSTABLE
+    # Role is NOT accepted from the caller — all self-registrations default to
+    # CONSTABLE. Elevated roles must be granted by an admin via PATCH /admin/users/{id}/role.
+
+    @field_validator("password")
+    @classmethod
+    def _password_complexity(cls, v: str) -> str:
+        return _validate_password_complexity(v)
 
 
 class MfaVerifyRequest(BaseModel):
@@ -143,6 +178,82 @@ async def login(
     )
 
 
+class CatalystExchangeRequest(BaseModel):
+    email: EmailStr
+    zuid: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+
+@router.post("/catalyst/exchange", response_model=TokenResponse)
+async def exchange_catalyst_identity(
+    payload: CatalystExchangeRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Trades a Catalyst identity for our own access/refresh token pair.
+
+    ⚠️ KNOWN GAP — deliberate, not accidental: this identity is CLIENT-ASSERTED,
+    not independently verified server-side. The frontend reads it from
+    catalyst.userManagement.getCurrentProjectUser() (a legitimate Catalyst SDK
+    call, but one that runs in the browser) and POSTs it here as-is; nothing
+    on this backend re-checks it against Catalyst's servers. A malicious
+    client could claim to be any email.
+
+    Why: the one mechanism that WOULD close this gap —
+    zcatalyst_sdk.initialize(req) reading AppSail-injected X-ZC-* headers, see
+    app/core/catalyst_request_auth.py — only works when this backend runs on
+    Catalyst's own AppSail platform. It doesn't on GCP (or anywhere else);
+    those headers are AppSail-specific platform plumbing, not something
+    Catalyst attaches to requests in general. catalyst_request_auth.py is
+    kept, unused, for exactly the scenario where this backend moves back onto
+    AppSail — swap this endpoint back to using get_catalyst_identity(request)
+    then, and this whole docstring's warning goes away.
+
+    Acceptable for a demo; not for anything handling real police data.
+
+    New users are provisioned with role=CONSTABLE and needs_role_selection=True
+    — Catalyst's generic roles don't express our police-rank RBAC, so instead
+    of an admin having to promote every social-login signup by hand, the user
+    picks their own role once via POST /auth/select-role right after this
+    (RequireAuthenticatedSession on the frontend routes them there
+    automatically). This is a deliberate demo/onboarding tradeoff, not a
+    production RBAC pattern — self-service role assignment (including
+    DSP/SP/DGP) has no approval step. Tightening this later just means
+    changing select_role's accepted roles or requiring admin approval before
+    needs_role_selection flips off.
+    """
+    repo = UserRepository(db)
+    user = await repo.get_by_email(payload.email)
+    if user is None:
+        full_name = (
+            f"{payload.first_name} {payload.last_name}".strip()
+            if payload.first_name or payload.last_name
+            else payload.email.split("@", 1)[0]
+        )
+        user = User(
+            email=payload.email,
+            # Catalyst owns credential verification for this user now — this
+            # hash is unreachable (never used by /token) but the column is
+            # NOT NULL, so a random value fills it rather than a guessable one.
+            hashed_password=hash_password(secrets.token_urlsafe(32)),
+            full_name=full_name,
+            role=Role.CONSTABLE,
+            needs_role_selection=True,
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+        await log_audit_event(
+            db, action="auth.catalyst_user_provisioned", resource_type="user", resource_id=str(user.id), user_id=user.id,
+        )
+
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account inactive")
+
+    return await _issue_tokens(db, user)
+
+
 @router.get("/me", response_model=CurrentUserOut)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """
@@ -150,6 +261,33 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
     gating) from just the stored tokens — there's no other way to recover this
     after a page reload without re-authenticating.
     """
+    return CurrentUserOut.model_validate(current_user)
+
+
+@router.post("/select-role", response_model=CurrentUserOut)
+async def select_role(
+    payload: SelectRoleRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    One-time role pick for Catalyst social-login signups — see the note on
+    exchange_catalyst_identity for why this exists and its tradeoffs. Only
+    callable while needs_role_selection is True; once set, only an admin can
+    change it further, via the existing PATCH /admin/users/{id}/role.
+    """
+    if not current_user.needs_role_selection:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role has already been selected")
+
+    previous_role = current_user.role.value
+    current_user.role = payload.role
+    current_user.needs_role_selection = False
+    await db.flush()
+    await db.refresh(current_user)
+    await log_audit_event(
+        db, action="auth.role_self_selected", resource_type="user", resource_id=str(current_user.id),
+        user_id=current_user.id, payload={"previous_role": previous_role, "selected_role": payload.role.value},
+    )
     return CurrentUserOut.model_validate(current_user)
 
 
@@ -167,11 +305,31 @@ async def verify_mfa(payload: MfaVerifyRequest, db: AsyncSession = Depends(get_d
 
 @router.post("/mfa/resend", response_model=MfaRequiredResponse)
 async def resend_mfa(payload: MfaResendRequest, db: AsyncSession = Depends(get_db)):
+    from datetime import timedelta
+
     from app.models.security import OtpChallenge
 
     previous = await db.get(OtpChallenge, payload.challenge_id)
     if previous is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown challenge")
+
+    # BUG-06 fix: enforce a 60-second cooldown between resend requests.
+    # Without this an attacker (or impatient user) could loop: resend → try 5
+    # codes → resend → repeat, effectively bypassing the per-challenge attempt
+    # limit. This also prevents SMS/email flooding when real delivery is wired in.
+    _RESEND_COOLDOWN_SECONDS = 60
+    resend_eligible_after = previous.created_at.replace(tzinfo=timezone.utc) + timedelta(
+        seconds=_RESEND_COOLDOWN_SECONDS
+    )
+    now = datetime.now(timezone.utc)
+    if now < resend_eligible_after:
+        wait_seconds = int((resend_eligible_after - now).total_seconds()) + 1
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Please wait {wait_seconds}s before requesting a new code",
+            headers={"Retry-After": str(wait_seconds)},
+        )
+
     if previous.consumed_at is None:
         previous.consumed_at = datetime.now(timezone.utc)  # invalidate — a resend supersedes it
 
@@ -186,6 +344,10 @@ async def resend_mfa(payload: MfaResendRequest, db: AsyncSession = Depends(get_d
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="No real OTP delivery provider is configured",
         ) from exc
+
+    await log_audit_event(
+        db, action="auth.mfa_code_resent", resource_type="user", resource_id=str(user.id), user_id=user.id,
+    )
     return MfaRequiredResponse(
         challenge_id=challenge.id,
         expires_in_minutes=settings.OTP_EXPIRE_MINUTES,
@@ -260,7 +422,7 @@ async def register(
         hashed_password=hash_password(payload.password),
         full_name=payload.full_name,
         badge_number=payload.badge_number,
-        role=payload.role,
+        role=Role.CONSTABLE,  # always — see RegisterRequest
     )
     db.add(user)
     await db.flush()

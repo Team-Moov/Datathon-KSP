@@ -79,6 +79,7 @@ class Person(Base):
 
     # Provenance — which source record seeded this entity
     source_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("document.id"))
+    source_person_id: Mapped[Optional[str]] = mapped_column(String(200), index=True)
     human_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -131,3 +132,25 @@ class PersonCaseRole(Base):
     case: Mapped["CaseMaster"] = relationship(back_populates="person_roles")  # type: ignore[name-defined]
     religion: Mapped[Optional["ReligionMaster"]] = relationship(foreign_keys=[religion_id])
     caste: Mapped[Optional["CasteMaster"]] = relationship(foreign_keys=[caste_id])
+
+class PersonMatchCandidate(Base):
+    """
+    Entity-resolution candidate matches pending human review.
+    Mirrors Ananya's person_match_candidate table.
+    """
+    __tablename__ = "person_match_candidate"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    person_a_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("person.id"), nullable=False, index=True)
+    person_b_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("person.id"), nullable=False, index=True)
+    
+    match_score: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False)
+    match_method: Mapped[str] = mapped_column(String(100), nullable=False)
+    
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, confirmed, rejected
+    reviewed_by: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("user.id"))
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    person_a: Mapped["Person"] = relationship(foreign_keys=[person_a_id])
+    person_b: Mapped["Person"] = relationship(foreign_keys=[person_b_id])

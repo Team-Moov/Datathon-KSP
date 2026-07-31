@@ -1,4 +1,4 @@
-"""
+﻿"""
 severity_history.py
 ====================
 Sum of CHI-style severity weights across a person's accused offenses,

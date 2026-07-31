@@ -11,12 +11,49 @@ from app.core.audit import log_audit_event
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.permissions import Permission, require_permission
+from app.core.nlp import get_nlp_provider
+from app.core.ocr import get_ocr_provider
+from app.core.storage import get_storage_provider
 from app.models.user import User
 from app.services.ingestion_service import IngestionService
 
 router = APIRouter()
-UPLOAD_DIR = Path(settings.UPLOAD_DIR)
 MAX_BYTES = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+
+@router.post("/ocr")
+async def ocr_document(
+    file: UploadFile = File(...),
+    language: str | None = None,
+    current_user: User = Depends(require_permission(Permission.UPLOAD_DOCUMENT)),
+):
+    """
+    OCR a scanned image / PDF to text via the configured provider (local digital-PDF
+    text, or Catalyst Zia OCR for real image/handwriting recognition). Ingestion
+    step 3 — the extracted text then flows into the normal embed → pgvector path.
+    """
+    content = await file.read()
+    if len(content) > MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit",
+        )
+    result = await get_ocr_provider().extract_text(content, file.filename, language)
+    return result
+
+
+class NerRequest(BaseModel):
+    text: str
+
+
+@router.post("/ner")
+async def ner_text(
+    payload: NerRequest,
+    current_user: User = Depends(require_permission(Permission.UPLOAD_DOCUMENT)),
+):
+    """Extract named entities from text via the configured provider (spaCy or Zia)."""
+    entities = await get_nlp_provider().extract_entities(payload.text)
+    return {"entities": entities, "count": len(entities)}
 
 
 class DocumentOut(BaseModel):
@@ -48,21 +85,23 @@ async def upload_document(
             detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit",
         )
 
-    # Write to local storage
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    # Store via the configured provider (local filesystem / Catalyst Stratus / GCS).
+    storage = get_storage_provider()
     upload_id = uuid.uuid4()
     suffix = Path(file.filename).suffix
-    dest = UPLOAD_DIR / f"{upload_id}{suffix}"
-    dest.write_bytes(content)
+    key = f"documents/{upload_id}{suffix}"
+    raw_ref = await storage.put(key, content, file.content_type)
 
-    raw_ref = str(dest)
     svc = IngestionService(db)
-    doc = await svc.ingest_file(
-        file_path=dest,
-        original_filename=file.filename,
-        raw_file_ref=raw_ref,
-        user_id=current_user.id,
-    )
+    # Extractors need a filesystem path; the provider yields one (real path for
+    # local, temp download for remote backends) for the duration of ingestion.
+    async with storage.local_path(raw_ref, suffix=suffix) as dest:
+        doc = await svc.ingest_file(
+            file_path=dest,
+            original_filename=file.filename,
+            raw_file_ref=raw_ref,
+            user_id=current_user.id,
+        )
     await log_audit_event(
         db, action="document.uploaded", resource_type="document", resource_id=str(doc.id),
         payload={"original_filename": file.filename, "staging_only": doc.staging_only},

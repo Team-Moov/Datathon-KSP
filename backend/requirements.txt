@@ -13,42 +13,43 @@ psycopg2-binary==2.9.9    # sync fallback / Alembic
 
 # ── Vector store ──────────────────────────────────────────────────────────────
 pgvector==0.3.2           # pgvector SQLAlchemy integration
-sentence-transformers==3.0.1
+# Embeddings are Vertex AI (text-embedding-005) now, not a local model — see
+# app/services/embedding_service.py.
 
 # ── Graph store ───────────────────────────────────────────────────────────────
 neo4j==5.22.0             # async Neo4j driver
 
-# ── AI / LLM — Groq ────────────────────────────────────────────────────────────
-langchain==0.2.11
-langchain-groq==0.1.9      # ChatGroq
-langchain-core==0.2.38     # langchain-groq 0.1.9 needs >=0.2.26; langchain 0.2.11 caps at <0.3.0
-langgraph==0.1.19
-groq==0.9.0                # raw client — used directly for Whisper transcription
+# ── AI / LLM — Vertex AI (Gemini + Gemini Live) ──────────────────────────────
+google-genai==1.2.0        # unified SDK — Vertex AI Gemini text/tool-calling + the Live (real-time voice) API
+google-cloud-storage==2.18.2  # GCS storage provider (STORAGE_PROVIDER=gcs)
 
 # ── Document processing ───────────────────────────────────────────────────────
-unstructured[pdf]==0.14.10
-docling==2.1.0
+# unstructured[pdf] and docling were pinned but never actually imported
+# anywhere (confirmed by grep) — FIRPdfExtractor/ChargesheetExtractor used
+# pdfplumber directly instead. Removed rather than carrying ~2GB of unused
+# layout-detection ML deps (they were also what pulled in torch/transformers
+# transitively — removing sentence-transformers alone hadn't shrunk the image
+# because of this). pdfplumber itself is gone too — FIRPdfExtractor/
+# ChargesheetExtractor now route through the Zia OCR provider (already the
+# configured provider, already handles PDFs directly) instead of extracting
+# digital-PDF text locally, and nothing else in the codebase used pdfplumber.
 python-docx==1.1.2
 openpyxl==3.1.5
 pandas==2.2.2
-pdfplumber==0.11.3
-
-# ── NLP / Embeddings ──────────────────────────────────────────────────────────
-spacy==3.7.5
-transformers==4.42.4
-torch==2.3.1
 
 # ── Analytics ─────────────────────────────────────────────────────────────────
 numpy==1.26.4
-scipy==1.14.1              # docling 2.1.0 requires >=1.14.1
+scipy==1.14.1
 scikit-learn==1.5.1
 statsmodels==0.14.2
 networkx==3.3
 mgwr==2.1.2               # geographically weighted regression
 
-# ── Geospatial ────────────────────────────────────────────────────────────────
-geopandas==1.0.1
-shapely==2.0.5
+# geopandas/shapely were pinned but never imported anywhere (confirmed by
+# grep across the whole backend, including scripts/) — removed along with
+# libgdal-dev/libgeos-dev in the Dockerfile, which existed purely to build
+# them. GDAL's transitive dependency tree (boost, ICU, spatialite, xerces-c,
+# proj-data) was the single largest chunk of the image.
 
 # ── Background jobs ───────────────────────────────────────────────────────────
 celery==5.4.0
@@ -64,7 +65,8 @@ sentry-sdk[fastapi]==2.7.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1              # pinned — passlib 1.7.4's version probe breaks on bcrypt>=4.1
-tenacity==8.5.0           # retry/backoff for Groq calls
+tenacity==8.5.0           # retry/backoff for Vertex AI calls
+zcatalyst-sdk==1.4.0      # per-request Catalyst identity verification on AppSail — see app/core/catalyst_request_auth.py
 
 # ── Secure report sharing ─────────────────────────────────────────────────────
 reportlab==4.2.2          # PDF generation + watermarking
@@ -73,3 +75,6 @@ pypdf==4.3.1               # PDF password protection
 # ── HTTP ──────────────────────────────────────────────────────────────────────
 httpx==0.27.0
 aiofiles==24.1.0
+
+# HTML->PDF for local report rendering (SmartBrowz is the managed alternative)
+xhtml2pdf==0.2.16

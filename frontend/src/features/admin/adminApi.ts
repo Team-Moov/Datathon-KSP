@@ -63,3 +63,32 @@ export async function submitUserDeactivation(userId: string): Promise<AdminUserR
   const response = await httpClient.post<AdminUserRecord>(`/admin/users/${userId}/deactivate`)
   return response.data
 }
+
+export interface JobTrigger {
+  task_id: string
+  task_name: string
+}
+
+export type JobStatus = "PENDING" | "STARTED" | "RETRY" | "SUCCESS" | "FAILURE"
+
+export interface JobStatusRecord {
+  task_id: string
+  status: JobStatus
+  result: Record<string, unknown> | null
+  error: string | null
+}
+
+export async function triggerGwrRecompute(): Promise<JobTrigger> {
+  const response = await httpClient.post<JobTrigger>("/admin/jobs/recompute-gwr")
+  return response.data
+}
+
+export async function triggerEmbeddingBackfill(): Promise<JobTrigger> {
+  const response = await httpClient.post<JobTrigger>("/admin/jobs/backfill-embeddings")
+  return response.data
+}
+
+export async function fetchJobStatus(taskId: string): Promise<JobStatusRecord> {
+  const response = await httpClient.get<JobStatusRecord>(`/admin/jobs/${taskId}`)
+  return response.data
+}
