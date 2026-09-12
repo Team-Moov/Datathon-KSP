@@ -71,31 +71,64 @@ class Settings(BaseSettings):
     POSTGRES_APP_USER: str = "app_runtime"
     POSTGRES_APP_PASSWORD: str
 
+    # Set only on Cloud Run: the Cloud SQL Auth Proxy sidecar Cloud Run wires
+    # up via `--add-cloudsql-instances` exposes the DB over a Unix socket at
+    # /cloudsql/<this value>, not over TCP host:port — asyncpg/psycopg2 reach
+    # that through a DSN of the form `.../db?host=/cloudsql/<name>` (no host
+    # before the @). Left blank for local Docker Compose, which talks to
+    # Postgres over plain TCP instead.
+    INSTANCE_CONNECTION_NAME: str = ""
+
+    # Required by every managed Postgres reached over the public internet
+    # (Neon, Supabase, RDS): they refuse non-TLS connections. Cloud SQL over
+    # the Auth Proxy socket is already encrypted and rejects these params, so
+    # this only applies to the TCP path and defaults off to keep local Docker
+    # Compose working unchanged.
+    POSTGRES_REQUIRE_SSL: bool = False
+
     @property
     def DATABASE_URL(self) -> str:  # async — restricted role, RLS-enforced
-        return (
-            f"postgresql+asyncpg://{self.POSTGRES_APP_USER}:{self.POSTGRES_APP_PASSWORD}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        )
+        return self._build_database_url(self.POSTGRES_APP_USER, self.POSTGRES_APP_PASSWORD, "asyncpg")
 
     @property
     def DATABASE_URL_ADMIN(self) -> str:  # async — superuser, DDL/init only
-        return (
-            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        )
+        return self._build_database_url(self.POSTGRES_USER, self.POSTGRES_PASSWORD, "asyncpg")
 
     @property
     def DATABASE_URL_SYNC(self) -> str:  # for Alembic
-        return (
-            f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        )
+        return self._build_database_url(self.POSTGRES_USER, self.POSTGRES_PASSWORD, "psycopg2")
+
+    def _build_database_url(self, user: str, password: str, driver: str) -> str:
+        # Passwords land here straight from Secret Manager/env vars with no
+        # guarantee they're DSN-safe — an unescaped @, :, /, ?, or # in the
+        # password corrupts the connection string (e.g. an unescaped "@"
+        # reads as the start of the host section), so asyncpg either
+        # misparses the credentials entirely or authenticates with a
+        # truncated password. quote() makes the round-trip lossless
+        # regardless of what character set the password actually uses.
+        from urllib.parse import quote
+
+        user_q = quote(user, safe="")
+        password_q = quote(password, safe="")
+        if self.INSTANCE_CONNECTION_NAME:
+            return f"postgresql+{driver}://{user_q}:{password_q}@/{self.POSTGRES_DB}?host=/cloudsql/{self.INSTANCE_CONNECTION_NAME}"
+        base = f"postgresql+{driver}://{user_q}:{password_q}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        if not self.POSTGRES_REQUIRE_SSL:
+            return base
+        # The two drivers spell this differently and reject each other's
+        # spelling: asyncpg takes `ssl`, psycopg2 (Alembic) takes `sslmode`.
+        return f"{base}?ssl=require" if driver == "asyncpg" else f"{base}?sslmode=require"
 
     # ── Neo4j ─────────────────────────────────────────────────────────────────
     NEO4J_URI: str = "bolt://localhost:7687"
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str
+    # Aura instances don't always name their database "neo4j" (a free-tier
+    # instance's database can be named after its instance id instead) —
+    # graph_db.py's query methods default to this setting rather than a
+    # hardcoded "neo4j", so pointing at Aura only ever requires an env var
+    # change, never a code change.
+    NEO4J_DATABASE: str = "neo4j"
 
     # ── Redis ─────────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -176,6 +209,14 @@ class Settings(BaseSettings):
 
     # ── Sentry ────────────────────────────────────────────────────────────────
     SENTRY_DSN: str = ""
+
+    # ── Internal task triggers (Cloud Scheduler replacing Celery Beat) ────────
+    # Shared secret checked against the X-Internal-Task-Secret header on
+    # /internal/tasks/* — same demo-grade tradeoff class as ALLOW_MOCK_MFA,
+    # acceptable because these routes only enqueue already-idempotent Celery
+    # tasks, never touch case data directly. Required in production (main.py
+    # refuses to start with the default value there).
+    INTERNAL_TASK_SECRET: str = "CHANGE_ME_TO_A_LONG_RANDOM_SECRET"
 
 
 @lru_cache

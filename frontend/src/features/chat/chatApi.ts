@@ -1,4 +1,4 @@
-import { httpClient } from "@/lib/api/httpClient"
+import { API_BASE_URL, httpClient } from "@/lib/api/httpClient"
 import { getAccessToken } from "@/lib/api/authTokenStore"
 import type { ChatStreamEvent } from "@/lib/types/api"
 
@@ -45,7 +45,10 @@ export async function* streamChatTurn(
   signal: AbortSignal,
   language: ChatLanguage = "en",
 ): AsyncGenerator<ChatStreamEvent> {
-  const response = await fetch("/api/v1/chat/", {
+  // API_BASE_URL, not a bare "/api/v1/..." path: this is a raw fetch, so a
+  // relative URL would resolve against the page origin (Catalyst in
+  // production) rather than the backend, and never reach the chat endpoint.
+  const response = await fetch(`${API_BASE_URL}/chat/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

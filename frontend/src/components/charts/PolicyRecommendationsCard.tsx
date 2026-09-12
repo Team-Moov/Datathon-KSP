@@ -18,7 +18,7 @@ export function PolicyRecommendationsCard({ data }: PolicyRecommendationsCardPro
             <div>
               <CardTitle className="text-base font-semibold flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
                 <Sparkles className="w-4 h-4 text-accent-600 dark:text-accent-400" />
-                <span>{t("policyRecommendations.title")} — {data.district_name}</span>
+                <span>{t("policyRecommendations.title")}: {data.district_name}</span>
               </CardTitle>
               <CardDescription className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
                 {t("policyRecommendations.description")}

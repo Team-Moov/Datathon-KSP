@@ -485,6 +485,9 @@ async def _sync_to_graph(session, case, person_a, person_b, victim, document) ->
             "case_id": str(case.id),
             "crime_no": case.crime_no,
             "date_reported": str(case.date_reported),
+            # Drives the multi-jurisdiction Cypher behind the repeat-offender
+            # early-warning detector; without it that scan finds nothing.
+            "unit_id": case.unit_id,
             "persons": [
                 {"person_id": str(person_a.id), "full_name": person_a.full_name, "role": "accused", "aliases": []},
                 {"person_id": str(person_b.id), "full_name": person_b.full_name, "role": "accused", "aliases": []},

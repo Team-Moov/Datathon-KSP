@@ -91,8 +91,15 @@ async def get_job_status(
 
 
 class AuditLogOut(BaseModel):
-    id: str
-    user_id: Optional[str]
+    # UUID, not str, because that is what the ORM column holds. Pydantic v2 does
+    # not coerce a UUID instance into a str field, so declaring these as str made
+    # model_validate raise on every row and the endpoint 500. The failure looked
+    # like a network error in the browser rather than a 500, because FastAPI's
+    # unhandled-exception response bypasses the CORS middleware and arrives with
+    # no Access-Control-Allow-Origin header. Both still serialize to a string in
+    # the JSON response, so the client contract is unchanged.
+    id: UUID
+    user_id: Optional[UUID]
     action: str
     resource_type: str
     resource_id: Optional[str]

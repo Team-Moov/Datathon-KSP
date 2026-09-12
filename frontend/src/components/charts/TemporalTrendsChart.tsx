@@ -73,7 +73,7 @@ function TemporalTrendsChart({ data }: { data: TemporalTrendsData }) {
         </p>
         {data.hour_of_day.length === 0 ? (
           <p className="px-1 text-xs text-zinc-400">
-            No cases in this scope have a recorded time-of-occurrence yet — this chart populates as new cases record one.
+            No cases in this scope have a recorded time-of-occurrence yet. This chart populates as new cases record one.
           </p>
         ) : (
           <MiniBarChart

@@ -12,10 +12,13 @@ dist
 dist-ssr
 *.local
 
-# .env.example is the committed template; nothing else under this name is
+# .env.example is the committed template; nothing else under this name is,
+# except .env.production — it carries only the backend's public origin, and a
+# production build without it is silently broken (see that file's comment).
 .env
 .env.*
 !.env.example
+!.env.production
 
 # Editor directories and files
 .vscode/*

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { extractApiErrorMessage } from "@/lib/api/httpClient"
+import { API_ORIGIN, extractApiErrorMessage } from "@/lib/api/httpClient"
 import { usePermission } from "@/lib/hooks/usePermission"
 import { initiateReportExport } from "../casesApi"
 
@@ -56,7 +56,10 @@ function ReportExportDialog({ caseId, crimeNo }: { caseId: string; crimeNo: stri
 
   if (!has("export_report")) return null
 
-  const shareUrl = shareResult ? `${window.location.origin}/api/v1/reports/shared/${shareResult.token}` : null
+  // API_ORIGIN, not the page origin: this link is handed to someone to open
+  // directly, and the report is served by the backend, not by the static host
+  // this app is served from.
+  const shareUrl = shareResult ? `${API_ORIGIN}/api/v1/reports/shared/${shareResult.token}` : null
 
   return (
     <Dialog

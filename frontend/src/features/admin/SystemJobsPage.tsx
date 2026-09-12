@@ -86,7 +86,7 @@ function JobCard({ icon: Icon, title, description, triggerLabel, triggerFn }: Jo
           {taskId
             ? `${t("systemJobs.task")} ${taskId.slice(0, 8)}…${
                 statusQuery.data?.result
-                  ? ` — ${Object.entries(statusQuery.data.result)
+                  ? `: ${Object.entries(statusQuery.data.result)
                       .map(([k, v]) => `${k}: ${v}`)
                       .join(", ")}`
                   : ""

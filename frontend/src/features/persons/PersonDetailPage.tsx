@@ -95,11 +95,11 @@ function PersonDetailPage() {
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
             <div>
               <dt className="section-label">{t("persons.aliases")}</dt>
-              <dd className="text-zinc-700 dark:text-zinc-300">{person.aliases?.join(", ") || "—"}</dd>
+              <dd className="text-zinc-700 dark:text-zinc-300">{person.aliases?.join(", ") || "-"}</dd>
             </div>
             <div>
               <dt className="section-label">{t("persons.nationality")}</dt>
-              <dd className="text-zinc-700 dark:text-zinc-300">{person.nationality ?? "—"}</dd>
+              <dd className="text-zinc-700 dark:text-zinc-300">{person.nationality ?? "-"}</dd>
             </div>
             <div className="col-span-2 sm:col-span-1">
               <dt className="section-label">{t("persons.permanentAddress")}</dt>

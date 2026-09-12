@@ -40,10 +40,17 @@ class GraphDatabase:
         self,
         query: str,
         parameters: Optional[Dict[str, Any]] = None,
-        database: str = "neo4j",
+        database: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Run a Cypher query and return a list of record dicts."""
-        async with self._driver.session(database=database) as session:
+        # Startup no longer hard-fails when Neo4j is asleep (see main.py), so
+        # the driver can legitimately be absent here. Reconnect on demand: the
+        # connection attempt is itself what wakes a paused Aura instance, so
+        # the first graph request after a pause recovers the app rather than
+        # requiring a redeploy.
+        if self._driver is None:
+            await self.connect()
+        async with self._driver.session(database=database or settings.NEO4J_DATABASE) as session:
             result = await session.run(query, parameters or {})
             return [dict(record) async for record in result]
 
@@ -51,18 +58,18 @@ class GraphDatabase:
         self,
         query: str,
         parameters: Optional[Dict[str, Any]] = None,
-        database: str = "neo4j",
+        database: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Run a write Cypher transaction."""
-        async with self._driver.session(database=database) as session:
+        async with self._driver.session(database=database or settings.NEO4J_DATABASE) as session:
             result = await session.execute_write(
                 lambda tx: tx.run(query, parameters or {})
             )
             return result
 
-    async def run_in_transaction(self, tx_function, database: str = "neo4j"):
+    async def run_in_transaction(self, tx_function, database: Optional[str] = None):
         """Execute a coroutine-based transaction function."""
-        async with self._driver.session(database=database) as session:
+        async with self._driver.session(database=database or settings.NEO4J_DATABASE) as session:
             return await session.execute_write(tx_function)
 
 

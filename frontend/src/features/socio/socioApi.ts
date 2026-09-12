@@ -1,3 +1,4 @@
+import type { PoliceStaffingData } from "@/components/charts/PoliceStaffingCard"
 import { httpClient } from "@/lib/api/httpClient"
 
 export interface SocioIndicatorPoint {
@@ -169,3 +170,8 @@ export async function fetchPolicyRecommendations(districtId: number) {
   return response.data
 }
 
+
+export async function fetchPoliceStaffing(districtId: number) {
+  const response = await httpClient.get<PoliceStaffingData>(`/socio/calculate-staffing/${districtId}`)
+  return response.data
+}

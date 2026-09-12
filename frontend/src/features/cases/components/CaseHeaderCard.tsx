@@ -63,7 +63,7 @@ function CaseHeaderCard({ caseId, caseData }: CaseHeaderCardProps) {
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {t("caseHeader.reportedOn", { date: caseData.date_reported ?? t("caseHeader.dateUnknown") })} ·{" "}
-            {t("common.district")} {caseData.district_id ?? "—"}
+            {t("common.district")} {caseData.district_id ?? "-"}
           </p>
           {caseData.brief_facts ? (
             <p className="max-w-2xl text-sm text-zinc-700 dark:text-zinc-300">{caseData.brief_facts}</p>

@@ -1,4 +1,4 @@
-import { LogOut, Moon, Sun, SunMoon } from "lucide-react"
+import { LogOut, Moon, Sun, SunMoon, UserCog } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 
@@ -89,6 +89,10 @@ function TopHeader() {
                 ) : null}
               </div>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => navigate("/auth/select-role")} className="gap-2">
+                <UserCog className="size-3.5" />
+                {t("auth.changeRole")}
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void initiateSignOut()} className="gap-2 text-critical-600">
                 <LogOut className="size-3.5" />
                 {t("common.signOut")}

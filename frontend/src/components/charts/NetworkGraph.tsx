@@ -11,6 +11,10 @@ import {
   type SimulationNodeDatum,
 } from "d3-force"
 import { X } from "lucide-react"
+// Link, not a raw <a href="/...">: the app is served under a basename (/app/ in
+// production), which a plain anchor ignores. Those links navigated outside the
+// app and hit the static host's 404 instead of the route.
+import { Link } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 
@@ -457,12 +461,12 @@ function NetworkGraph({ nodes, edges, primaryNodeId, height = 520, actionLabel, 
 
             {selectedNode.type === "Person" && (
               <div className="grid grid-cols-2 gap-1.5">
-                <a
-                  href={`/persons?query=${encodeURIComponent(selectedNode.label)}`}
+                <Link
+                  to={`/persons?query=${encodeURIComponent(selectedNode.label)}`}
                   className="flex items-center justify-center rounded bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-900 dark:hover:bg-indigo-900/60 px-2 py-1 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition text-center"
                 >
                   View Profile
-                </a>
+                </Link>
                 {onNodeSelect ? (
                   <button
                     type="button"
@@ -475,67 +479,67 @@ function NetworkGraph({ nodes, edges, primaryNodeId, height = 520, actionLabel, 
                     {actionLabel ?? "Ego Network"}
                   </button>
                 ) : (
-                  <a
-                    href={`/chat?query=${encodeURIComponent(`Show ego network for ${selectedNode.label}`)}`}
+                  <Link
+                    to={`/chat?query=${encodeURIComponent(`Show ego network for ${selectedNode.label}`)}`}
                     className="flex items-center justify-center rounded bg-accent-600 hover:bg-accent-700 text-white px-2 py-1 text-[10px] font-semibold transition text-center"
                   >
                     Ego Network
-                  </a>
+                  </Link>
                 )}
-                <a
-                  href={`/risk?person=${encodeURIComponent(selectedNode.id)}&name=${encodeURIComponent(selectedNode.label)}`}
+                <Link
+                  to={`/risk?person=${encodeURIComponent(selectedNode.id)}&name=${encodeURIComponent(selectedNode.label)}`}
                   className="flex items-center justify-center rounded bg-amber-50 border border-amber-100 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-900 dark:hover:bg-amber-900/60 px-2 py-1 text-[10px] font-medium text-amber-700 dark:text-amber-300 transition text-center"
                 >
                   Risk Profiling
-                </a>
-                <a
-                  href={`/financial?tab=by-person&person=${encodeURIComponent(selectedNode.id)}&name=${encodeURIComponent(selectedNode.label)}`}
+                </Link>
+                <Link
+                  to={`/financial?tab=by-person&person=${encodeURIComponent(selectedNode.id)}&name=${encodeURIComponent(selectedNode.label)}`}
                   className="flex items-center justify-center rounded bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-900 dark:hover:bg-emerald-900/60 px-2 py-1 text-[10px] font-medium text-emerald-700 dark:text-emerald-300 transition text-center"
                 >
                   Scan Financials
-                </a>
+                </Link>
               </div>
             )}
 
             {selectedNode.type === "Account" && (
               <div className="space-y-1.5">
                 <div className="grid grid-cols-2 gap-1.5">
-                  <a
-                    href={`/financial?tab=structuring&account=${encodeURIComponent(selectedNode.label)}`}
+                  <Link
+                    to={`/financial?tab=structuring&account=${encodeURIComponent(selectedNode.label)}`}
                     className="flex items-center justify-center rounded bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-900 dark:hover:bg-emerald-900/60 px-2 py-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 transition text-center"
                   >
                     Check Structuring
-                  </a>
-                  <a
-                    href={`/financial?tab=funnel&account=${encodeURIComponent(selectedNode.label)}`}
+                  </Link>
+                  <Link
+                    to={`/financial?tab=funnel&account=${encodeURIComponent(selectedNode.label)}`}
                     className="flex items-center justify-center rounded bg-amber-50 border border-amber-100 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-900 dark:hover:bg-amber-900/60 px-2 py-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300 transition text-center"
                   >
                     Check Funnel/Mule
-                  </a>
+                  </Link>
                 </div>
-                <a
-                  href={`/financial?tab=cycles`}
+                <Link
+                  to={`/financial?tab=cycles`}
                   className="flex items-center justify-center w-full rounded bg-zinc-100 border border-zinc-200 hover:bg-zinc-200 dark:bg-zinc-800 dark:border-zinc-700 dark:hover:bg-zinc-700 px-2 py-1 text-[10px] font-medium text-zinc-700 dark:text-zinc-300 transition text-center"
                 >
                   Layering Cycles / Clusters Scan
-                </a>
+                </Link>
               </div>
             )}
 
             {selectedNode.type === "Incident" && (
               <div className="space-y-1.5">
-                <a
-                  href={`/cases/${encodeURIComponent(selectedNode.id)}`}
+                <Link
+                  to={`/cases/${encodeURIComponent(selectedNode.id)}`}
                   className="flex items-center justify-center w-full rounded bg-rose-50 border border-rose-100 hover:bg-rose-100 dark:bg-rose-950/40 dark:border-rose-900 dark:hover:bg-rose-900/60 px-2 py-1 text-[10px] font-semibold text-rose-700 dark:text-rose-300 transition text-center"
                 >
                   View Case Workspace
-                </a>
-                <a
-                  href={`/trends`}
+                </Link>
+                <Link
+                  to={`/trends`}
                   className="flex items-center justify-center w-full rounded bg-zinc-100 border border-zinc-200 hover:bg-zinc-200 dark:bg-zinc-800 dark:border-zinc-700 dark:hover:bg-zinc-700 px-2 py-1 text-[10px] font-medium text-zinc-700 dark:text-zinc-300 transition text-center"
                 >
                   Spatial Hotspots / Forecast Trends
-                </a>
+                </Link>
               </div>
             )}
           </div>
@@ -629,7 +633,7 @@ function NetworkGraph({ nodes, edges, primaryNodeId, height = 520, actionLabel, 
             onChange={() => setShowPredictedEdges(!showPredictedEdges)}
             className="size-3 rounded accent-caution-500 cursor-pointer"
           />
-          <span className="inline-block h-px w-3 border-t border-dashed border-caution-500/60 mr-0.5" /> Predicted — unverified
+          <span className="inline-block h-px w-3 border-t border-dashed border-caution-500/60 mr-0.5" /> Predicted (unverified)
         </label>
         <span className="ml-auto hidden sm:inline">Scroll to zoom · drag to pan{onNodeSelect ? " · click a node to inspect" : ""}</span>
       </div>

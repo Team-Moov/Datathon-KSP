@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Black Box MK.7 — Recovery Terminal</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#121922; --panel-2:#19222d; --inset:#0d131a;
+    --sky:#2e5c7a; --ground:#8a5a2e;
+    --text:#e6edf3; --text-dim:#7f8d9c; --text-faint:#55616e;
+    --accent:#f2a93b; --accent-dim:rgba(242,169,59,.32);
+    --good:#3fc1a0; --bad:#e2604f; --line:rgba(230,237,243,.11);
+    --mono: ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,"Roboto Mono",monospace;
+    --sans: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{
+    margin:0; min-height:100dvh;
+    background:radial-gradient(125% 85% at 50% -12%, #16202b 0%, var(--bg) 58%), var(--bg);
+    color:var(--text); font-family:var(--sans);
+    display:flex; align-items:center; justify-content:center;
+    padding:16px; overflow-x:hidden; -webkit-user-select:none; user-select:none;
+  }
+  body::after{
+    content:""; position:fixed; inset:0; z-index:99; pointer-events:none;
+    background:repeating-linear-gradient(to bottom, rgba(255,255,255,.022) 0 1px, transparent 1px 3px);
+    mix-blend-mode:overlay;
+  }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms !important; transition-duration:.001ms !important; } }
+
+  .unit{
+    width:100%; max-width:430px;
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--line); border-radius:20px;
+    box-shadow:0 34px 90px -34px rgba(0,0,0,.78), inset 0 1px 0 rgba(255,255,255,.045);
+    overflow:hidden;
+  }
+  .bar{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:14px 16px 11px; border-bottom:1px solid var(--line); }
+  .tag{ font-family:var(--mono); font-size:10.5px; letter-spacing:.09em; color:var(--text-faint); }
+  .tag b{ color:var(--accent); font-weight:600; }
+  .tag i{ display:none; font-style:normal; margin-left:7px; padding:2px 6px;
+    border:1px solid var(--line); border-radius:5px; color:var(--text-dim); font-size:9.5px; }
+  .tag i.on{ display:inline-block; }
+  .steps{ display:flex; gap:9px; font-family:var(--mono); font-size:9.5px; letter-spacing:.11em; }
+  .steps span{ color:var(--text-faint); transition:color .3s; }
+  .steps span.on{ color:var(--accent); }
+  .steps span.ok{ color:var(--good); }
+
+  .scr{ padding:22px 18px 20px; display:none; flex-direction:column; min-height:540px; }
+  .scr.on{ display:flex; animation:fade .34s ease both; }
+  @keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+
+  h1{ font-family:var(--mono); font-size:14px; letter-spacing:.07em; text-transform:uppercase;
+    color:var(--accent); margin:0 0 4px; }
+  .lede{ font-family:var(--mono); font-size:10.5px; color:var(--text-faint); letter-spacing:.05em; margin:0 0 16px; }
+  .grow{ flex:1; min-height:8px; }
+
+  .btn{ appearance:none; width:100%; border:1px solid var(--accent-dim);
+    background:linear-gradient(180deg,rgba(242,169,59,.16),rgba(242,169,59,.055)); color:var(--accent);
+    font-family:var(--mono); font-size:12.5px; letter-spacing:.09em; text-transform:uppercase;
+    padding:14px 16px; border-radius:11px; cursor:pointer; transition:transform .14s,opacity .2s; }
+  .btn:active{ transform:scale(.985); }
+  .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .btn[disabled]{ opacity:.34; cursor:not-allowed; }
+  .btn.go{ border-color:rgba(63,193,160,.45);
+    background:linear-gradient(180deg,rgba(63,193,160,.18),rgba(63,193,160,.055)); color:var(--good); }
+  .link{ appearance:none; background:none; border:0; padding:8px 0; color:var(--text-faint);
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.05em;
+    text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+  .link:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  .log{ font-family:var(--mono); font-size:11px; line-height:1.85; color:var(--text-dim);
+    background:var(--inset); border:1px solid var(--line); border-radius:11px;
+    padding:13px; height:206px; overflow:hidden; margin-bottom:14px; }
+  .log div{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .log .ok{ color:var(--good); } .log .er{ color:var(--bad); } .log .dim{ color:var(--text-faint); }
+  .brief{ font-size:14.5px; line-height:1.66; color:var(--text); max-width:34ch; margin:0; }
+  .brief em{ color:var(--accent); font-style:normal; }
+
+  .telem{ background:var(--inset); border:1px solid var(--line); border-radius:11px;
+    padding:11px 13px; font-family:var(--mono); font-size:11.5px;
+    display:grid; grid-template-columns:auto 1fr auto; gap:6px 12px; align-items:center;
+    font-variant-numeric:tabular-nums; margin-bottom:11px; }
+  .telem .k{ color:var(--text-faint); letter-spacing:.07em; }
+  .telem .v{ color:var(--text); text-align:right; min-width:56px; }
+  .telem .meter{ height:3px; background:rgba(230,237,243,.08); border-radius:2px; position:relative; overflow:hidden; }
+  .telem .meter i{ position:absolute; top:0; bottom:0; left:50%; width:2px; background:var(--accent);
+    transform:translateX(-1px); transition:transform .09s linear; }
+  .telem .st{ grid-column:1/-1; display:flex; justify-content:space-between; gap:10px;
+    border-top:1px solid var(--line); padding-top:8px; margin-top:2px; letter-spacing:.08em; }
+  .telem .st .er{ color:var(--bad); } .telem .st .ok{ color:var(--good); } .telem .st .code{ color:var(--accent); }
+
+  .ref{ background:var(--inset); border:1px dashed var(--line); border-radius:11px;
+    font-family:var(--mono); font-size:10.5px; line-height:1.8; color:var(--text-dim);
+    overflow:hidden; max-height:0; opacity:0; margin:0;
+    transition:max-height .35s ease,opacity .3s,margin .3s,padding .3s; padding:0 13px; }
+  .ref.open{ max-height:340px; opacity:1; margin:0 0 12px; padding:12px 13px; overflow-y:auto; }
+  .ref h4{ margin:0 0 7px; font-size:10px; letter-spacing:.12em; color:var(--accent); font-weight:600; }
+  .ref b{ color:var(--text); font-weight:600; }
+  .ref .hl{ color:var(--accent); }
+  .ref hr{ border:0; border-top:1px solid var(--line); margin:9px 0; }
+
+  .picks{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:11px; }
+  .picks label{ display:flex; flex-direction:column; gap:5px;
+    font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; color:var(--text-faint); }
+  select,.picks input{ appearance:none; width:100%; background:var(--inset);
+    border:1px solid var(--line); border-radius:9px; color:var(--text);
+    font-family:var(--mono); font-size:12.5px; padding:11px; }
+  select{ padding-right:26px; cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%237f8d9c'/></svg>");
+    background-repeat:no-repeat; background-position:right 11px center; }
+  select:focus-visible,.picks input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .picks input{ font-variant-numeric:tabular-nums; letter-spacing:.1em; }
+
+  .note{ font-family:var(--mono); font-size:10.5px; line-height:1.6; min-height:15px; margin:9px 0 0; color:var(--text-faint); }
+  .note.er{ color:var(--bad); } .note.ok{ color:var(--good); }
+
+  .gwrap{ position:relative; width:clamp(136px,38vw,170px); aspect-ratio:1; margin:2px auto 0; }
+  .gface{ position:absolute; inset:0; border-radius:50%; overflow:hidden;
+    border:2px solid rgba(230,237,243,.17);
+    box-shadow:0 0 0 5px rgba(0,0,0,.35), inset 0 0 20px rgba(0,0,0,.55); background:var(--panel); }
+  .strip{ position:absolute; left:50%; top:50%; width:290%; height:290%;
+    background:linear-gradient(to bottom,var(--sky) 0 50%,var(--ground) 50% 100%);
+    transform:translate(-50%,-50%); will-change:transform; }
+  .strip::before{ content:""; position:absolute; left:0; right:0; top:50%; height:2px;
+    background:rgba(230,237,243,.92); box-shadow:0 0 6px rgba(230,237,243,.55); }
+  .crosshair{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+  .crosshair::before{ content:""; width:48%; height:2px; background:var(--accent); box-shadow:0 0 4px var(--accent); }
+  .crosshair::after{ content:""; position:absolute; width:7px; height:7px; border-radius:50%;
+    background:var(--accent); box-shadow:0 0 6px var(--accent); }
+  .halo{ position:absolute; inset:-7px; transform:rotate(-90deg); }
+  .halo circle{ fill:none; stroke-width:3; }
+  .halo .tr{ stroke:rgba(230,237,243,.07); }
+  .halo .fl{ stroke:var(--accent); stroke-linecap:round; transition:stroke .3s; }
+
+  .hold{ height:3px; background:rgba(230,237,243,.08); border-radius:3px; margin-top:14px; overflow:hidden; }
+  .hold i{ display:block; height:100%; width:0; background:var(--good); transition:width .08s linear; }
+  .holdtxt{ font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; color:var(--text-faint);
+    text-align:center; margin-top:7px; min-height:13px; }
+  .field{ position:relative; flex:1; min-height:104px; margin-top:8px; }
+  .tile{ position:absolute; left:0; top:0; font-family:var(--mono); font-weight:700;
+    font-size:clamp(17px,5.4vw,21px); color:var(--text-faint); will-change:transform,opacity; }
+  .tile.lit{ color:var(--accent); text-shadow:0 0 10px var(--accent-dim); }
+  .tile.set{ transition:transform .45s cubic-bezier(.2,.85,.25,1),opacity .45s,color .3s; }
+  .word{ text-align:center; font-family:var(--mono); font-size:12px; letter-spacing:.28em;
+    color:var(--good); opacity:0; transition:opacity .45s; min-height:16px; margin-top:6px; }
+  .word.on{ opacity:1; }
+
+  .fbslot:empty{ display:none; }
+  .fb{ border-top:1px dashed var(--line); margin-top:12px; padding-top:11px; display:none; }
+  .fb.on{ display:block; }
+  .fb p{ font-family:var(--mono); font-size:10px; color:var(--text-faint); margin:0 0 9px; line-height:1.55; }
+  .fb label{ display:flex; align-items:center; gap:9px; font-family:var(--mono);
+    font-size:9.5px; color:var(--text-faint); letter-spacing:.08em; margin-bottom:8px; }
+  .fb input[type=range]{ flex:1; min-width:0; accent-color:var(--accent); }
+
+  .cipher{ background:var(--inset); border:1px solid var(--line); border-radius:11px; padding:13px;
+    font-family:var(--mono); font-size:12.5px; line-height:1.95; letter-spacing:.08em;
+    word-break:break-word; color:var(--text-faint); min-height:118px; transition:color .3s; }
+  .cipher.clear{ color:var(--good); }
+  .keyrow{ display:flex; gap:9px; margin-top:13px; }
+  .keyrow input{ flex:1; min-width:0; background:var(--inset); border:1px solid var(--line);
+    border-radius:11px; color:var(--text); font-family:var(--mono); font-size:15px;
+    letter-spacing:.16em; text-align:center; padding:12px; text-transform:uppercase; }
+  .keyrow input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .entry{ display:flex; gap:9px; margin-top:11px; }
+  .entry input{ flex:1; min-width:0; background:var(--inset); border:1px solid var(--line);
+    border-radius:11px; color:var(--text); font-family:var(--mono); font-size:15px;
+    letter-spacing:.16em; text-align:center; padding:12px; text-transform:uppercase; }
+  .entry input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .entry .btn{ width:auto; padding:12px 17px; }
+  .shake{ animation:sh .4s; border-color:var(--bad) !important; }
+  @keyframes sh{ 10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);}
+    30%,50%,70%{transform:translateX(-4px);} 40%,60%{transform:translateX(4px);} }
+
+  .seal{ text-align:center; font-family:var(--mono); font-size:11px; letter-spacing:.14em;
+    color:var(--good); border:1px dashed rgba(63,193,160,.4); border-radius:12px; padding:18px 12px; margin:14px 0 0; }
+  .seal b{ display:block; font-size:22px; letter-spacing:.12em; margin-top:9px; font-weight:600;
+    -webkit-user-select:all; user-select:all; }
+</style>
+</head>
+<body>
+<div class="unit">
+  <div class="bar">
+    <div class="tag">BLACK BOX <b>MK.7</b><i id="regChip"></i></div>
+    <div class="tag timer" id="hdrTimer" style="display:none">TIME <b id="timerVal">00:00.0</b></div>
+    <div class="steps"><span data-s="1">DIAG</span><span data-s="2">ALIGN</span><span data-s="3">DECIPHER</span></div>
+  </div>
+
+  <!-- 0: BOOT -->
+  <section class="scr" data-scr="0">
+    <h1>Power-On Self Test</h1>
+    <p class="lede">unit recovered from site · integrity unknown</p>
+    <div class="log" id="bootLog"></div>
+    <p class="brief" id="bootBrief" style="opacity:0; transition:opacity .5s;">
+      One sensor on this bus is <em>lying</em> by a fixed amount. The register
+      names which one — not by how much. That part you measure yourself.
+    </p>
+    <div class="grow"></div>
+    <button class="btn" id="toDiag" disabled>Open Diagnostics</button>
+  </section>
+
+  <!-- 1: DIAGNOSE -->
+  <section class="scr" data-scr="1">
+    <h1>Sensor Bus</h1>
+    <p class="lede">live telemetry · fault register latched</p>
+    <div class="telem">
+      <span class="k">PITCH</span><span class="meter"><i id="mP"></i></span><span class="v" id="vP">--.-</span>
+      <span class="k">ROLL</span><span class="meter"><i id="mR"></i></span><span class="v" id="vR">--.-</span>
+      <div class="st"><span class="er" id="busSt">BUS FAULT</span><span class="code" id="busCode">0x--</span></div>
+    </div>
+    <button class="link" id="manBtn">▸ service manual</button>
+    <div class="ref" id="manual">
+      <h4>SENSOR BUS — FIELD REFERENCE</h4>
+      <b>THE FAULT</b><br>
+      The faulty axis is stuck adding a constant to every reading:<br>
+      <span class="hl">shown = true angle + K</span>
+      <hr>
+      <b>HOW TO FIND K</b><br>
+      Lay the unit flat and hold it still. A level unit has a
+      <span class="hl">true</span> reading of 0.0 on both axes — so on the
+      faulty axis, whatever it <span class="hl">shows</span> you IS K.
+      <hr>
+      <b>WORKED EXAMPLE</b><br>
+      Register reads <span class="hl">0x2</span> (ROLL is faulty).<br>
+      Unit flat and still. ROLL shows <b>9.4</b>.<br>
+      0.0 + K = 9.4 &nbsp;&rarr;&nbsp; <span class="hl">K = 9.4</span>
+      <hr>
+      Pick the faulty axis below, enter what you measured, apply.
+    </div>
+    <div class="picks">
+      <label>AXIS<select id="selAxis"><option value="">--</option><option value="0">PITCH</option><option value="1">ROLL</option></select></label>
+      <label>K (measured)<input id="kIn" inputmode="decimal" autocomplete="off" placeholder="e.g. 9.4" /></label>
+    </div>
+    <button class="btn" id="repairBtn">Apply Correction</button>
+    <p class="note" id="diagNote"></p>
+    <div class="fbslot" id="slot1"></div>
+    <div class="grow"></div>
+    <button class="btn go" id="toAlign" style="display:none">Continue</button>
+  </section>
+
+  <!-- 2: ALIGN -->
+  <section class="scr" data-scr="2">
+    <h1>Attitude Recovery</h1>
+    <p class="lede" id="alignLede">bus corrected · bring the unit to rest</p>
+    <div class="gwrap">
+      <svg class="halo" viewBox="0 0 200 200" aria-hidden="true">
+        <circle class="tr" cx="100" cy="100" r="92"></circle>
+        <circle class="fl" id="halo" cx="100" cy="100" r="92" stroke-dasharray="578" stroke-dashoffset="578"></circle>
+      </svg>
+      <div class="gface"><div class="strip" id="strip"></div></div>
+      <div class="crosshair"></div>
+    </div>
+    <div class="hold"><i id="holdBar"></i></div>
+    <div class="holdtxt" id="holdTxt"></div>
+    <div class="field" id="field"></div>
+    <div class="word" id="wordOut"></div>
+    <div class="fbslot" id="slot2"></div>
+    <div class="grow"></div>
+    <button class="btn go" id="toCipher" style="display:none">Continue</button>
+  </section>
+
+  <!-- 3: DECIPHER -->
+  <section class="scr" data-scr="3">
+    <h1>Intercept</h1>
+    <p class="lede">polyalphabetic · keyword unknown</p>
+    <div class="cipher" id="cipherOut"></div>
+    <div class="keyrow">
+      <input id="keyIn" maxlength="14" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="KEYWORD" />
+    </div>
+    <p class="note" id="cipherNote">The keyword is not on this screen. The unit already gave it to you.</p>
+    <div class="entry">
+      <input id="ansIn" maxlength="14" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="RESPONSE" />
+      <button class="btn" id="ansBtn">Send</button>
+    </div>
+    <p class="note er" id="ansNote"></p>
+    <div class="grow"></div>
+    <button class="link" id="hintBtn">▸ request hint</button>
+  </section>
+
+  <!-- 4: DONE -->
+  <section class="scr" data-scr="4">
+    <h1>Log Closed</h1>
+    <p class="lede">recovery verified · unit released</p>
+    <p class="brief">Every reading on this unit was wrong until you worked out
+      by how much. That was the whole test.</p>
+    <div class="seal">TOTAL TIME<b id="claim">00:00.0</b></div>
+    <p class="note" id="claimNote"></p>
+    <div class="grow"></div>
+    <button class="link" id="againBtn">run a fresh unit</button>
+  </section>
+</div>
+
+<!-- manual attitude control, relocated into whichever screen needs it -->
+<div class="fb" id="fallback">
+  <p id="fbMsg">No motion sensor detected — manual attitude control engaged.</p>
+  <label>PITCH <input type="range" id="sP" min="-90" max="90" value="55"></label>
+  <label>ROLL <input type="range" id="sR" min="-90" max="90" value="-22"></label>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- obfuscated payloads: no plaintext answer exists in this file ---------- */
+var K3=[77,75,55];
+function dx(a){var o="";for(var i=0;i<a.length;i++){o+=String.fromCharCode(a[i]^K3[i%3]);}return o;}
+var WORD = dx([5,4,101,4,17,120,3]);   // recovered word == cipher keyword
+var STEM = dx([29,7,98,0,9]);          // stem of the final response
+var CT   = "AFRVRAVA HYM VCEK DCCLP SVZCWVSQ IM PWTF ELUZASSE HLZA CWTPH";
+
+/* ---------- per-session randomisation ---------- */
+var AXIS=[["PITCH",1],["ROLL",2]];
+var fAxis=Math.floor(Math.random()*2);
+/* K is never written to the register — it can only be measured, which is what
+   stops the whole diagnosis from being guessable off one dropdown */
+var KSET=[9.4,13.7,18.2,24.6,31.3,37.8];
+var kVal=KSET[Math.floor(Math.random()*KSET.length)];
+var KTOL=2.1; // expanded tolerance (±2.1°) to account for physical phone tilt & camera bump
+
+
+var WAYPOINTS=[
+  {b:25,g:-20,label:"WAYPOINT 1/3: PITCH +25° | ROLL -20°"},
+  {b:-20,g:25,label:"WAYPOINT 2/3: PITCH -20° | ROLL +25°"},
+  {b:0,g:0,label:"FINAL ALIGN 3/3: HOLD LEVEL 0° | 0°"}
+];
+
+var S={scr:0,repaired:false,locked:false,wrong:0,lockUntil:0,sensor:false,manual:false,
+       hold:0,last:0,levelSince:0,tiles:[],raw:{b:0,g:0},stage:0};
+
+var $=function(i){return document.getElementById(i);};
+var scrs=document.querySelectorAll(".scr"), steps=document.querySelectorAll(".steps span");
+
+function show(n){
+  S.scr=n;
+  for(var i=0;i<scrs.length;i++) scrs[i].classList.toggle("on", +scrs[i].dataset.scr===n);
+  for(var j=0;j<steps.length;j++){
+    var sn=+steps[j].dataset.s;
+    steps[j].classList.toggle("on", sn===n);
+    steps[j].classList.toggle("ok", sn<n);
+  }
+  if(S.manual && (n===1||n===2)) $(n===1?"slot1":"slot2").appendChild($("fallback"));
+}
+function clamp(v,a,b){return v<a?a:v>b?b:v;}
+function ss(t){return t*t*(3-2*t);}
+function lerp(a,b,t){return a+(b-a)*t;}
+function buzz(p){ if(navigator.vibrate) try{navigator.vibrate(p);}catch(e){} }
+
+/* ---------- boot ---------- */
+var BOOT=[["dim","MK7-BB  bootstrap 0.9.4"],["dim","mount /dev/recorder ......"],
+  ["ok","power rail        NOMINAL"],["ok","clock             NOMINAL"],
+  ["ok","storage           NOMINAL"],["dim","probing sensor bus ......."],
+  ["er","sensor bus        FAULT"],["er","  attitude solver HALTED"],
+  ["dim","fault register latched."],["dim","operator action required."]];
+function boot(){
+  var box=$("bootLog"), i=0;
+  (function step(){
+    if(i>=BOOT.length){ $("bootBrief").style.opacity="1"; $("toDiag").disabled=false; buzz(28); return; }
+    var d=document.createElement("div"); d.className=BOOT[i][0]; d.textContent=BOOT[i][1];
+    box.appendChild(d);
+    while(box.scrollHeight>box.clientHeight && box.firstChild) box.removeChild(box.firstChild);
+    i++; setTimeout(step, i<3?150:(BOOT[i-1][0]==="er"?400:230));
+  })();
+}
+
+/* ---------- sensor + fault model ---------- */
+function faulted(b,g){
+  var o={b:b,g:g};
+  if(S.repaired) return o;
+  var k=fAxis===0?"b":"g";
+  o[k]=o[k]+kVal;
+  return o;
+}
+function onTilt(b,g){
+  S.raw.b=clamp(b,-90,90); S.raw.g=clamp(g,-90,90);
+  if(S.scr===1) paintTelem();
+}
+function paintTelem(){
+  var f=faulted(S.raw.b,S.raw.g);
+  $("vP").textContent=f.b.toFixed(1); $("vR").textContent=f.g.toFixed(1);
+  $("mP").style.transform="translateX(-1px) translateX("+clamp(f.b,-90,90)*.9+"px)";
+  $("mR").style.transform="translateX(-1px) translateX("+clamp(f.g,-90,90)*.9+"px)";
+}
+function manualMode(msg){
+  if(S.manual) return;
+  S.manual=true; $("fbMsg").textContent=msg; $("fallback").classList.add("on");
+  $(S.scr===2?"slot2":"slot1").appendChild($("fallback"));
+  var sp=$("sP"), sr=$("sR");
+  function f(){ onTilt(+sp.value,+sr.value); }
+  sp.oninput=f; sr.oninput=f; f();
+}
+function attach(){
+  var abs=false;
+  function h(e){ if(e.beta==null) return; S.sensor=true; onTilt(e.beta, e.gamma||0); }
+  window.addEventListener("deviceorientationabsolute", function(e){ abs=true; h(e); });
+  window.addEventListener("deviceorientation", function(e){ if(!abs) h(e); });
+  setTimeout(function(){ if(!S.sensor) manualMode("No motion sensor detected — manual attitude control engaged."); }, 2400);
+}
+function startSensors(){
+  var D=window.DeviceOrientationEvent;
+  if(D && typeof D.requestPermission==="function"){
+    D.requestPermission().then(function(r){
+      if(r==="granted") attach(); else manualMode("Motion access denied — manual attitude control engaged.");
+    }).catch(function(){ manualMode("Sensor unavailable — manual attitude control engaged."); });
+  } else if(D) attach();
+  else manualMode("This device reports no motion sensor — manual control engaged.");
+}
+
+/* ---------- repair ---------- */
+function repair(){
+  var now=Date.now();
+  if(now<S.lockUntil){
+    $("diagNote").className="note er";
+    $("diagNote").textContent="BUS LOCKED — "+Math.ceil((S.lockUntil-now)/1000)+"s remaining.";
+    return;
+  }
+  var a=$("selAxis").value, kRaw=$("kIn").value.trim();
+  if(a===""||kRaw===""){
+    $("diagNote").className="note er"; $("diagNote").textContent="Axis and measured K are both required.";
+    return;
+  }
+  var k=parseFloat(kRaw);
+  if(isNaN(k)){ $("diagNote").className="note er"; $("diagNote").textContent="K must be a number."; return; }
+
+  var closest=KSET.reduce(function(prev,curr){ return Math.abs(curr-k)<Math.abs(prev-k)?curr:prev; }, KSET[0]);
+  if(+a===fAxis && (Math.abs(k-kVal)<=KTOL || closest===kVal)){
+    S.repaired=true;
+    $("busSt").className="ok"; $("busSt").textContent="BUS NOMINAL"; $("busCode").textContent="0x00";
+    $("diagNote").className="note ok";
+    $("diagNote").textContent="Correction applied. "+AXIS[fAxis][0]+" restored.";
+    $("repairBtn").disabled=true; $("selAxis").disabled=true; $("kIn").disabled=true;
+    $("toAlign").style.display="block"; paintTelem(); buzz([30,40,60]);
+    return;
+  }
+
+  S.wrong++;
+  $("diagNote").className="note er";
+  /* one free miss, then an escalating lockout so sweeping K costs far more
+     than measuring it */
+  if(S.wrong>=2){
+    var secs=10*Math.pow(2,S.wrong-2);
+    S.lockUntil=Date.now()+secs*1000;
+    $("diagNote").textContent="Rejected. Bus locked "+secs+"s — measure, don't sweep.";
+  } else {
+    $("diagNote").textContent="Rejected. Telemetry still disagrees with the nominal table.";
+  }
+  buzz(90);
+}
+
+/* ---------- align ---------- */
+function tiles(){
+  var f=$("field"); f.innerHTML=""; S.tiles=[];
+  var w=f.clientWidth||300, h=f.clientHeight||110;
+  var set=[]; for(var i=0;i<WORD.length;i++) set.push({c:WORD.charAt(i),r:true,i:i});
+  var dec="XQZKWJV".split(""); for(var d=0;d<6;d++) set.push({c:dec[d],r:false});
+  set.sort(function(){return Math.random()-.5;});
+  var gap=Math.min(30,(w-16)/WORD.length), x0=(w-gap*(WORD.length-1))/2, y0=h*.34;
+  set.forEach(function(o){
+    var e=document.createElement("span"); e.className="tile"; e.textContent=o.c; f.appendChild(e);
+    var st={x:Math.random()*(w-22), y:Math.random()*(h*.78), r:Math.random()*70-35};
+    e.style.transform="translate("+st.x+"px,"+st.y+"px) rotate("+st.r+"deg)";
+    e.style.opacity=".38";
+    S.tiles.push({e:e,real:o.r,st:st,tg:o.r?{x:x0+gap*o.i,y:y0}:null});
+  });
+}
+function paintGauge(){
+  if(S.locked) return;
+  var target=WAYPOINTS[S.stage]||WAYPOINTS[0];
+  var b=S.raw.b, g=S.raw.g;
+  var db=b-target.b, dg=g-target.g;
+  $("strip").style.transform="translate(-50%, calc(-50% + "+(db*1.25)+"px)) rotate("+(-dg)+"deg)";
+  var dist=Math.sqrt(db*db+dg*dg);
+  var sc=clamp(1-dist/35,0,1);
+  $("halo").style.strokeDashoffset=String(578*(1-sc));
+  $("halo").style.stroke = sc>=.88?"var(--good)":"var(--accent)";
+  
+  var overallP=clamp((S.stage+sc)/WAYPOINTS.length,0,1);
+  var e=ss(overallP);
+  S.tiles.forEach(function(t){
+    if(t.real){
+      t.e.style.transform="translate("+lerp(t.st.x,t.tg.x,e)+"px,"+lerp(t.st.y,t.tg.y,e)+"px) rotate("+lerp(t.st.r,0,e)+"deg)";
+      t.e.style.opacity=String(.38+.62*e);
+      t.e.classList.toggle("lit", e>.6);
+    } else {
+      t.e.style.opacity=String(Math.max(0,.4*(1-e)));
+      t.e.style.transform="translate("+t.st.x+"px,"+t.st.y+"px) rotate("+t.st.r+"deg) scale("+(1-e*.7)+")";
+    }
+  });
+  holding(sc);
+}
+/* hold runs off the wall clock, so frame rate can never change how long it takes */
+function holding(sc){
+  var now=performance.now();
+  if(sc>=.88){
+    if(!S.levelSince) S.levelSince=now-S.hold;
+    S.hold=now-S.levelSince;
+  } else {
+    S.levelSince=0;
+    S.hold=Math.max(0, S.hold-(S.last?(now-S.last)*1.7:0));
+  }
+  S.last=now;
+  var p=clamp(S.hold/1500,0,1);
+  $("holdBar").style.width=(p*100)+"%";
+  $("holdTxt").textContent = sc>=.88 ? ("WP "+(S.stage+1)+"/3 HOLDING...") : (S.hold>0?"DRIFTING":"ALIGN TO TARGET");
+  if(S.hold>=1500){
+    S.stage++;
+    buzz([40,60,40]);
+    if(S.stage<WAYPOINTS.length){
+      S.hold=0; S.levelSince=0;
+      $("alignLede").textContent=WAYPOINTS[S.stage].label;
+    } else {
+      lock();
+    }
+  }
+}
+function lock(){
+  if(S.locked) return;
+  S.locked=true;
+  S.tiles.forEach(function(t){
+    t.e.classList.add("set");
+    if(t.real){ t.e.style.transform="translate("+t.tg.x+"px,"+t.tg.y+"px)"; t.e.style.opacity="1"; t.e.classList.add("lit"); }
+    else t.e.style.opacity="0";
+  });
+  $("holdTxt").textContent="LOCKED";
+  $("alignLede").textContent="attitude solved · payload recovered";
+  $("wordOut").textContent=WORD.split("").join(" ");
+  $("wordOut").classList.add("on");
+  $("toCipher").style.display="block";
+  buzz([40,30,70]);
+}
+function loop(){ if(S.scr===2 && !S.locked) paintGauge(); requestAnimationFrame(loop); }
+
+/* ---------- cipher: keyword-driven, so there is no small space to sweep ---------- */
+function vig(t,key){
+  if(!key) return t;
+  var j=0;
+  return t.replace(/[A-Z]/g,function(c){
+    var s=key.charCodeAt(j%key.length)-65; j++;
+    return String.fromCharCode((c.charCodeAt(0)-65-s+26)%26+65);
+  });
+}
+function paintCipher(){
+  var key=$("keyIn").value.toUpperCase().replace(/[^A-Z]/g,"");
+  var out=vig(CT,key);
+  $("cipherOut").textContent=out;
+  $("cipherOut").classList.toggle("clear", key===WORD);
+}
+
+/* ---------- global stopwatch timer ---------- */
+var timerStart=0, timerEnd=0, timerId=null;
+function fmtTime(ms){
+  var sec=ms/1000;
+  var m=Math.floor(sec/60);
+  var s=(sec%60).toFixed(1);
+  return (m<10?"0"+m:m)+":"+(s<10?"0"+s:s);
+}
+function startGlobalTimer(){
+  if(timerStart) return;
+  timerStart=performance.now();
+  $("hdrTimer").style.display="block";
+  timerId=setInterval(function(){
+    if(!timerEnd && $("timerVal")){
+      $("timerVal").textContent=fmtTime(performance.now()-timerStart);
+    }
+  }, 100);
+}
+function stopGlobalTimer(){
+  if(!timerStart || timerEnd) return;
+  timerEnd=performance.now();
+  if(timerId) clearInterval(timerId);
+  var finalStr=fmtTime(timerEnd-timerStart);
+  if($("timerVal")) $("timerVal").textContent=finalStr;
+  return finalStr;
+}
+
+/* ---------- finish ---------- */
+function submit(){
+  var v=$("ansIn").value.trim().toUpperCase().replace(/\s+/g,"");
+  if(v===STEM+AXIS[fAxis][1]){
+    var finalTime=stopGlobalTimer();
+    $("claim").textContent=finalTime;
+    $("claimNote").textContent="Challenge solved in "+finalTime+" ("+(S.manual?"manual control":"live sensors")+").";
+    show(4); buzz([40,40,40,40,120]);
+  } else {
+    $("ansIn").classList.remove("shake"); void $("ansIn").offsetWidth; $("ansIn").classList.add("shake");
+    $("ansNote").textContent="Rejected by the log.";
+    buzz(90);
+  }
+}
+
+/* ---------- wiring ---------- */
+$("toDiag").onclick=function(){
+  startGlobalTimer();
+  show(1);
+  var reg="0x"+AXIS[fAxis][1];
+  $("busCode").textContent=reg;
+  $("regChip").textContent="REG "+reg; $("regChip").classList.add("on");
+  startSensors(); paintTelem();
+};
+$("manBtn").onclick=function(){
+  var o=$("manual").classList.toggle("open");
+  this.textContent=(o?"▾":"▸")+" service manual";
+};
+$("repairBtn").onclick=repair;
+$("kIn").onkeydown=function(e){ if(e.key==="Enter") repair(); };
+$("toAlign").onclick=function(){ show(2); tiles(); S.stage=0; S.last=0; S.levelSince=0; S.hold=0; $("alignLede").textContent=WAYPOINTS[0].label; paintGauge(); };
+$("toCipher").onclick=function(){ show(3); paintCipher(); };
+$("keyIn").oninput=paintCipher;
+$("ansBtn").onclick=submit;
+$("ansIn").onkeydown=function(e){ if(e.key==="Enter") submit(); };
+$("hintBtn").onclick=function(){
+  $("cipherNote").className="note";
+  $("cipherNote").textContent="Keyword = what the gauge spelled out when it locked. Then do exactly what the message tells you.";
+  this.style.display="none";
+};
+$("againBtn").onclick=function(){ location.reload(); };
+
+show(0); boot(); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

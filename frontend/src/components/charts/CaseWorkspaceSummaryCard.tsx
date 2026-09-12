@@ -32,7 +32,7 @@ function CaseWorkspaceSummaryCard({ workspace }: { workspace: CaseWorkspaceSumma
           {workspace.case.disposition ? <Badge variant="neutral">{workspace.case.disposition}</Badge> : null}
         </div>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Reported {workspace.case.date_reported ?? "date unknown"} · District {workspace.case.district_id ?? "—"} · {peopleCount}{" "}
+          Reported {workspace.case.date_reported ?? "date unknown"} · District {workspace.case.district_id ?? "-"} · {peopleCount}{" "}
           {peopleCount === 1 ? "person" : "people"} · {workspace.documents.length} documents
         </p>
         {workspace.case.brief_facts ? (

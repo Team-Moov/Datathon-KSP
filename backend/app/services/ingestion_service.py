@@ -23,6 +23,7 @@ from app.services.extraction.extractors import get_extractor
 from app.services.entity_resolution import EntityResolutionService
 from app.services.embedding_service import EmbeddingService
 from app.services.graph_sync_service import GraphSyncService
+from app.models.case import CaseMaster
 from app.repositories.case_repository import CaseRepository
 from app.repositories.person_repository import PersonRepository
 
@@ -121,6 +122,15 @@ class IngestionService:
             )
 
         # ── Step 4c: sync relationships to graph store ────────────────────────
+        # Extraction never yields unit_id (it is a registration fact, not
+        # something in the document text), so read it off the case. The graph
+        # needs it: the multi-jurisdiction query, and the repeat-offender
+        # early-warning detector built on it, group incidents by unit_id.
+        case_id = extracted.get("case_id")
+        if case_id and not extracted.get("unit_id"):
+            case_row = await self.db.get(CaseMaster, uuid.UUID(str(case_id)))
+            if case_row is not None:
+                extracted["unit_id"] = case_row.unit_id
         await self.graph_sync.sync_document(extracted, doc)
 
         log.info("Ingestion complete", document_id=str(doc.id))

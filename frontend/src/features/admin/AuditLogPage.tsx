@@ -67,9 +67,9 @@ function AuditLogPage() {
                       {entry.resource_type}
                       {entry.resource_id ? `:${entry.resource_id.slice(0, 8)}` : ""}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{entry.user_id ? entry.user_id.slice(0, 8) : "—"}</TableCell>
-                    <TableCell className="text-xs">{entry.ip_address ?? "—"}</TableCell>
-                    <TableCell className="text-xs text-zinc-500">{entry.reason ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{entry.user_id ? entry.user_id.slice(0, 8) : "-"}</TableCell>
+                    <TableCell className="text-xs">{entry.ip_address ?? "-"}</TableCell>
+                    <TableCell className="text-xs text-zinc-500">{entry.reason ?? "-"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

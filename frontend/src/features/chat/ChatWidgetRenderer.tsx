@@ -2,6 +2,7 @@ import * as React from "react"
 import { useTranslation } from "react-i18next"
 
 import { LoadingSkeleton } from "@/components/data-states/LoadingSkeleton"
+import { PoliceStaffingCard, type PoliceStaffingData } from "@/components/charts/PoliceStaffingCard"
 import type { PredictedLink } from "@/components/charts/PredictedLinksList"
 import type { MultiJurisdictionOffender } from "@/components/charts/MultiJurisdictionOffendersList"
 import type { GwrRun } from "@/components/charts/GwrCoefficientsList"
@@ -208,7 +209,7 @@ function ChatWidgetRenderer({
           height={280}
           actionLabel="Ask AI Assistant"
           onNodeSelect={
-            onFollowUpQuery ? (node) => onFollowUpQuery(`Tell me more about ${node.label} — their network position, risk, and linked cases.`) : undefined
+            onFollowUpQuery ? (node) => onFollowUpQuery(`Tell me more about ${node.label}, their network position, risk, and linked cases.`) : undefined
           }
         />
       </WidgetFrame>
@@ -460,67 +461,10 @@ function ChatWidgetRenderer({
     widget.data !== null &&
     "recommendation" in widget.data
   ) {
-    const d = widget.data as {
-      district_name: string
-      calculated_at: string
-      metrics: { unemployment_rate: string; urbanization_pct: string; composite_stress_index: string; recorded_incident_count: number }
-      recommendation: {
-        total_recommended_officers: number
-        base_force_scale: number
-        stress_multiplier: number
-        allocations: Record<string, number>
-        recommended_patrol_vehicles: number
-        deployment_strategy: string
-      }
-    }
-    const rec = d.recommendation
+    const d = widget.data as unknown as PoliceStaffingData
     return (
-      <WidgetFrame label={`Staffing Estimate — ${d.district_name}`}>
-        <div className="space-y-3 p-1">
-          {/* KPI strip */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-md bg-indigo-50 dark:bg-indigo-950/30 p-2.5 text-center">
-              <p className="text-lg font-bold text-indigo-700 dark:text-indigo-300">{rec.total_recommended_officers.toLocaleString()}</p>
-              <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70 mt-0.5">Recommended Officers</p>
-            </div>
-            <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 p-2.5 text-center">
-              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{rec.recommended_patrol_vehicles}</p>
-              <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">Patrol Vehicles</p>
-            </div>
-            <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 p-2.5 text-center">
-              <p className="text-lg font-bold text-amber-700 dark:text-amber-300">×{rec.stress_multiplier}</p>
-              <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70 mt-0.5">Stress Multiplier</p>
-            </div>
-          </div>
-          {/* Driving metrics */}
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400 flex flex-wrap gap-x-3 gap-y-1 px-1">
-            <span>Unemployment: <strong className="text-zinc-700 dark:text-zinc-300">{d.metrics.unemployment_rate}</strong></span>
-            <span>Urbanization: <strong className="text-zinc-700 dark:text-zinc-300">{d.metrics.urbanization_pct}</strong></span>
-            <span>Stress Index: <strong className="text-zinc-700 dark:text-zinc-300">{d.metrics.composite_stress_index}</strong></span>
-            <span>Incidents in DB: <strong className="text-zinc-700 dark:text-zinc-300">{d.metrics.recorded_incident_count}</strong></span>
-          </div>
-          {/* Allocation breakdown */}
-          <div className="space-y-1.5 px-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Allocation Breakdown</p>
-            {Object.entries(rec.allocations).map(([role, count]) => {
-              const pct = Math.round((count / rec.total_recommended_officers) * 100)
-              return (
-                <div key={role} className="space-y-0.5">
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-zinc-600 dark:text-zinc-300">{role}</span>
-                    <span className="font-mono text-zinc-800 dark:text-zinc-200">{count.toLocaleString()} ({pct}%)</span>
-                  </div>
-                  <div className="h-1 rounded-full bg-zinc-200 dark:bg-zinc-800">
-                    <div className="h-1 rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-          {/* Strategy note */}
-          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-relaxed italic px-1">{rec.deployment_strategy}</p>
-          <p className="text-[9px] text-zinc-400 dark:text-zinc-600 px-1">Calculated {d.calculated_at} · Model: stress-weighted base-force scale</p>
-        </div>
+      <WidgetFrame label={`Staffing Estimate: ${d.district_name}`}>
+        <PoliceStaffingCard data={d} />
       </WidgetFrame>
     )
   }

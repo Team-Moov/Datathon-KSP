@@ -21,24 +21,27 @@ const SELECTABLE_ROLES: PoliceRank[] = [
 ]
 
 /**
- * One-time role pick shown right after a Catalyst social-login signup —
+ * Role pick shown right after a Catalyst social-login signup —
  * RequireAuthenticatedSession redirects here whenever needs_role_selection is
- * true (see backend/app/api/v1/endpoints/auth.py). Self-service, no approval
- * step — a deliberate demo/onboarding tradeoff, not how production RBAC
- * grants should work.
+ * true (see backend/app/api/v1/endpoints/auth.py) — and reachable any time
+ * afterwards from the account menu, since the pick is no longer one-time.
+ * Self-service, no approval step: a deliberate demo affordance, not how
+ * production RBAC grants should work.
  */
 function RoleSelectionPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { isAuthenticated, isSessionLoading, currentUser, refreshCurrentUser } = useAuth()
-  const [selectedRole, setSelectedRole] = React.useState<PoliceRank | null>(null)
+  // Start on the current rank when revisiting, so the page reads as "change
+  // this" rather than an empty first-run pick.
+  const [selectedRole, setSelectedRole] = React.useState<PoliceRank | null>(
+    (currentUser?.role as PoliceRank | undefined) ?? null,
+  )
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   if (isSessionLoading) return <FullScreenSpinnerFallback />
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  // Role already picked (e.g. back button after confirming) — nothing left to do here.
-  if (currentUser && !currentUser.needs_role_selection) return <Navigate to="/" replace />
 
   async function onConfirm() {
     if (!selectedRole) return
@@ -88,6 +91,20 @@ function RoleSelectionPage() {
       <Button className="mt-8 w-full max-w-2xl" disabled={!selectedRole || isSubmitting} onClick={onConfirm}>
         {isSubmitting ? t("auth.roleSelectionSubmitting") : t("auth.roleSelectionConfirm")}
       </Button>
+
+      {/* Only an escape hatch for someone who came here from the account menu
+          to change ranks. A first-run signup has nowhere to go back to — the
+          guard would just send them straight here again. */}
+      {currentUser && !currentUser.needs_role_selection ? (
+        <Button
+          variant="ghost"
+          className="mt-2 w-full max-w-2xl"
+          disabled={isSubmitting}
+          onClick={() => navigate("/", { replace: true })}
+        >
+          {t("common.cancel")}
+        </Button>
+      ) : null}
     </div>
   )
 }

@@ -74,8 +74,8 @@ function CaseListPage() {
                         {caseSummary.crime_no}
                       </Link>
                     </TableCell>
-                    <TableCell>{caseSummary.date_reported ?? "—"}</TableCell>
-                    <TableCell>{caseSummary.district_id ?? "—"}</TableCell>
+                    <TableCell>{caseSummary.date_reported ?? "-"}</TableCell>
+                    <TableCell>{caseSummary.district_id ?? "-"}</TableCell>
                     <TableCell className="uppercase text-xs text-zinc-500">{caseSummary.source_type}</TableCell>
                   </TableRow>
                 ))}

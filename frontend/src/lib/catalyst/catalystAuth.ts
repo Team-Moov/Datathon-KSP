@@ -51,7 +51,7 @@ function getCatalyst(): CatalystGlobal {
   // Client Hosting", not window.catalyst's mere presence.
   if (!window.catalyst || window.__catalystInitFailed) {
     throw new Error(
-      "Catalyst Web SDK is unavailable — this page must be served through Catalyst Web Client Hosting for /__catalyst/sdk/init.js to resolve.",
+      "Catalyst Web SDK is unavailable. This page must be served through Catalyst Web Client Hosting for /__catalyst/sdk/init.js to resolve.",
     )
   }
   return window.catalyst
@@ -66,12 +66,22 @@ export function signOutOfCatalyst(redirectUrl: string): void {
   getCatalyst().auth.signOut(redirectUrl)
 }
 
-/** Returns null rather than throwing when there's no active Catalyst session. */
+/**
+ * Returns null rather than throwing when there's no active Catalyst session.
+ *
+ * The failure is logged rather than swallowed silently. A very common cause is
+ * signing in with a Zoho account that is not a *project user* of this Catalyst
+ * project: the account authenticates fine, so the iFrame completes and
+ * redirects, but getCurrentProjectUser() then fails and the app has no identity
+ * to exchange. That is indistinguishable from "not signed in" unless the
+ * underlying error is visible, so keep it in the console.
+ */
 export async function getCatalystProjectUser(): Promise<CatalystProjectUser | null> {
   try {
     const response = await getCatalyst().userManagement.getCurrentProjectUser()
     return response.content
-  } catch {
+  } catch (error) {
+    console.warn("Catalyst getCurrentProjectUser failed:", error)
     return null
   }
 }

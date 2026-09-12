@@ -13,7 +13,22 @@ import type { ApiErrorPayload, TokenPair } from "@/lib/types/api"
 // serves only static files with no server-side proxy. Local dev leaves it
 // unset and falls back to the relative path, which vite.config.ts's dev-only
 // proxy forwards to the local backend.
-const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL ?? ""}/api/v1`
+export const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL ?? ""}/api/v1`
+
+/**
+ * Absolute origin of the API, for the call sites that cannot go through
+ * `httpClient` (streaming fetch, WebSocket, a link handed to the user) and so
+ * would otherwise resolve a relative path against the page's own origin. In
+ * production that origin is Catalyst, which serves static files only, so those
+ * requests 404 with INVALID_URL_PATTERN instead of reaching the backend.
+ * Falls back to the page origin in dev, where vite.config.ts proxies /api.
+ */
+export const API_ORIGIN = import.meta.env.VITE_API_BASE_URL || window.location.origin
+
+/** ws:// or wss:// equivalent of API_ORIGIN, for the voice session socket. */
+export function apiWebSocketUrl(path: string): string {
+  return `${API_ORIGIN.replace(/^http/, "ws")}/api/v1${path}`
+}
 
 export const httpClient = axios.create({
   baseURL: API_BASE_URL,

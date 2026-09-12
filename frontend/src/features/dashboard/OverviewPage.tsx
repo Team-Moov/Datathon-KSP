@@ -105,7 +105,7 @@ function OverviewPage() {
       to: "/trends",
       icon: TrendingUp,
       requiredPermission: "view_aggregate_analytics" as const,
-      desc: "Day-of-week, monthly, and hourly crime patterns — identify when and where crime peaks",
+      desc: "Day-of-week, monthly, and hourly crime patterns. Identify when and where crime peaks",
     },
   ]
 
@@ -127,7 +127,7 @@ function OverviewPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-150 dark:border-zinc-800 pb-4">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">
-            Karnataka Crime Platform — Command Center
+            Karnataka Crime Platform: Command Center
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
             Logged in as{" "}
@@ -170,7 +170,7 @@ function OverviewPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {totalCases !== null ? totalCases.toLocaleString() : "—"}
+                  {totalCases !== null ? totalCases.toLocaleString() : "-"}
                 </div>
                 <p className="text-[10px] text-zinc-450 dark:text-zinc-500 mt-1">
                   {recentCases7d !== null
@@ -236,7 +236,7 @@ function OverviewPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {suspectCount !== null ? suspectCount.toLocaleString() : "—"}
+                  {suspectCount !== null ? suspectCount.toLocaleString() : "-"}
                 </div>
                 <p className="text-[10px] text-zinc-450 dark:text-zinc-500 mt-1">
                   Unique resolved identities · cross-case
@@ -260,7 +260,7 @@ function OverviewPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {summaryQuery.data?.active_total ?? "—"}
+                  {summaryQuery.data?.active_total ?? "-"}
                 </div>
                 <p className="text-[10px] text-zinc-450 dark:text-zinc-500 mt-1">
                   Co-offending, structuring &amp; hotspot signals
@@ -323,7 +323,7 @@ function OverviewPage() {
                         </p>
                       </div>
                       <span className="text-[11px] text-zinc-450 dark:text-zinc-500 font-medium">
-                        {caseSummary.date_reported ?? "—"}
+                        {caseSummary.date_reported ?? "-"}
                       </span>
                     </Link>
                   </li>
@@ -356,7 +356,7 @@ function OverviewPage() {
               <p className="p-4 text-xs text-rose-500">Failed to load active threat stream.</p>
             ) : recentAlerts.length === 0 ? (
               <div className="p-8 text-center">
-                <p className="text-xs text-zinc-400 font-medium">No new alerts raised — all clear.</p>
+                <p className="text-xs text-zinc-400 font-medium">No new alerts raised. All clear.</p>
                 <p className="text-[10px] text-zinc-400 mt-1">
                   The analytics engine scans continuously. New anomalies will appear here.
                 </p>
@@ -405,7 +405,7 @@ function OverviewPage() {
           <CardHeader className="pb-1">
             <CardTitle className="text-sm font-semibold">Incident Category Mix</CardTitle>
             <CardDescription className="text-[11px]">
-              Distribution of registered cases by crime head — sourced live from the database.
+              Distribution of registered cases by crime head, sourced live from the database.
               Hover a slice to see the exact count.
             </CardDescription>
           </CardHeader>

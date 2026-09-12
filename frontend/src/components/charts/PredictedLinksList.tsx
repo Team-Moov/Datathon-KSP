@@ -19,7 +19,7 @@ function PredictedLinksList({ links }: { links: PredictedLink[] }) {
         <li key={link.predicted_person_id} className="flex items-center justify-between px-3 py-2 text-xs">
           <div>
             <p className="font-medium text-zinc-800 dark:text-zinc-100">{link.name || link.predicted_person_id}</p>
-            <p className="text-[10px] text-zinc-400">{link.source_tool} · PREDICTED — unverified</p>
+            <p className="text-[10px] text-zinc-400">{link.source_tool} · PREDICTED (unverified)</p>
           </div>
           <span className="shrink-0 rounded-full bg-caution-500/10 px-2 py-0.5 text-[10px] font-medium text-caution-600 dark:text-caution-400">
             {Math.round(link.confidence * 100)}%

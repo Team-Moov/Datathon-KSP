@@ -1,7 +1,8 @@
 {
   "name": "karnataka-crime-intelligence-platform",
-  "version": "1.0.0",
+  "version": "1.1.5",
   "description": "Karnataka Crime Intelligence Platform — React client",
   "homepage": "index.html",
-  "login_redirect": "index.html"
+  "login_redirect": "index.html",
+  "404": "404.html"
 }

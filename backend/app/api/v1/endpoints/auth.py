@@ -271,14 +271,26 @@ async def select_role(
     current_user: User = Depends(get_current_user),
 ):
     """
-    One-time role pick for Catalyst social-login signups — see the note on
-    exchange_catalyst_identity for why this exists and its tradeoffs. Only
-    callable while needs_role_selection is True; once set, only an admin can
-    change it further, via the existing PATCH /admin/users/{id}/role.
-    """
-    if not current_user.needs_role_selection:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role has already been selected")
+    Self-service role pick for Catalyst social-login signups — see the note on
+    exchange_catalyst_identity for why this exists and its tradeoffs.
 
+    ⚠️ Deliberately re-callable: any authenticated user can change their OWN
+    role at any time, to any rank including DGP, with no approval step. This
+    was originally a one-time pick that locked once needs_role_selection
+    flipped false, which left demo users stranded on whichever rank they first
+    chose — the only way out was an admin PATCH /admin/users/{id}/role, and
+    since sign-in is Catalyst-only there was no way to reach an admin account
+    through the UI. The lock was removed to make demoing different ranks
+    practical.
+
+    This is a demo affordance and nothing else: it means privilege escalation
+    is self-service and the RBAC below it is advisory, not enforced, for any
+    user who can reach this endpoint. Restoring the lock is the one-line
+    inverse — re-add the needs_role_selection guard — and should happen before
+    this ever handles real police data. needs_role_selection is still tracked
+    and still flips false on first pick, so the post-signup redirect keeps
+    working; it just no longer gates the endpoint.
+    """
     previous_role = current_user.role.value
     current_user.role = payload.role
     current_user.needs_role_selection = False

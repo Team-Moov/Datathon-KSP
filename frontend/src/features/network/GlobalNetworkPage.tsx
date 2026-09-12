@@ -246,7 +246,7 @@ function GlobalNetworkPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("globalNetwork.graph")}{nlResult ? ` — ${t("globalNetwork.nlResult")}` : ""}</CardTitle>
+          <CardTitle>{t("globalNetwork.graph")}{nlResult ? `: ${t("globalNetwork.nlResult")}` : ""}</CardTitle>
         </CardHeader>
         <CardContent>
           {nlResult ? (

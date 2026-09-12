@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { getAccessToken } from "@/lib/api/authTokenStore"
+import { apiWebSocketUrl } from "@/lib/api/httpClient"
 import type { ChatLanguage } from "./chatApi"
 import type { ConversationTurn, WidgetEntry } from "./useChatSession"
 
@@ -215,10 +216,12 @@ export function useVoiceLiveSession(
       // Creating it early with a hardcoded rate risks static if the model changes.
       playbackCursorRef.current = 0
 
-      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+      // Derived from the API origin, not window.location: the page is served
+      // from Catalyst in production while the backend is elsewhere, so a
+      // socket opened against the page host never reaches the voice endpoint.
       const token = encodeURIComponent(getAccessToken() ?? "")
       const ws = new WebSocket(
-        `${wsProtocol}//${window.location.host}/api/v1/chat/voice/live?token=${token}&language=${language}`,
+        apiWebSocketUrl(`/chat/voice/live?token=${token}&language=${language}`),
       )
       ws.binaryType = "arraybuffer"
       wsRef.current = ws

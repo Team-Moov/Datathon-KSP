@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     chat,
     documents,
     financial,
+    internal_tasks,
     models,
     network,
     persons,
@@ -37,3 +38,4 @@ api_router.include_router(chat.router, prefix="/chat", tags=["Conversational AI"
 api_router.include_router(reports.router, prefix="/reports", tags=["Secure Report Sharing"])
 api_router.include_router(workspace.router, prefix="/workspace", tags=["Investigator Workspace"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Administration"])
+api_router.include_router(internal_tasks.router, prefix="/internal/tasks", tags=["Internal Task Triggers"])

@@ -22,6 +22,7 @@ import {
   fetchDistricts,
   fetchGwrMap,
   fetchGwrOutputs,
+  fetchPoliceStaffing,
   fetchPolicyRecommendations,
   fetchSocioCorrelations,
   fetchSocioIndicators,
@@ -29,6 +30,7 @@ import {
   fetchVictimDemographics,
 } from "./socioApi"
 
+import { PoliceStaffingCard } from "@/components/charts/PoliceStaffingCard"
 import { PolicyRecommendationsCard } from "@/components/charts/PolicyRecommendationsCard"
 import { SocioCorrelationMatrix } from "@/components/charts/SocioCorrelationMatrix"
 import { UrbanizationImpactChart } from "@/components/charts/UrbanizationImpactChart"
@@ -103,6 +105,12 @@ function SocioInsightsPage() {
   const policyQuery = useQuery({
     queryKey: ["policy-recommendations", districtId],
     queryFn: () => fetchPolicyRecommendations(Number(districtId)),
+    enabled: districtId.trim().length > 0,
+  })
+
+  const staffingQuery = useQuery({
+    queryKey: ["police-staffing", districtId],
+    queryFn: () => fetchPoliceStaffing(Number(districtId)),
     enabled: districtId.trim().length > 0,
   })
 
@@ -384,6 +392,22 @@ function SocioInsightsPage() {
             ) : policyQuery.data ? (
               <PolicyRecommendationsCard data={policyQuery.data} />
             ) : null}
+
+            {/* Deployment recommendation shares the policy tab: both answer
+                "what should this district do", off the same district picker. */}
+            <div className="mt-4">
+              <p className="section-label mb-2">{t("socio.policeDeployment")}</p>
+              {staffingQuery.isLoading ? (
+                <LoadingSkeleton variant="card" rows={2} />
+              ) : staffingQuery.isError ? (
+                <ErrorState
+                  message={extractApiErrorMessage(staffingQuery.error)}
+                  onRetry={() => void staffingQuery.refetch()}
+                />
+              ) : staffingQuery.data ? (
+                <PoliceStaffingCard data={staffingQuery.data} />
+              ) : null}
+            </div>
           </div>
         )}
       </div>

@@ -70,8 +70,8 @@ function AiBriefPanel({ caseId }: { caseId: string }) {
                 <ul className="space-y-1">
                   {brief.leads.map((lead, index) => (
                     <li key={index} className="text-xs text-zinc-600 dark:text-zinc-300">
-                      {lead.name ?? lead.person_id} — {lead.type} (source: {lead.source_tool}, confidence{" "}
-                      {typeof lead.confidence === "number" ? Math.round(lead.confidence * 100) : "—"}%)
+                      {lead.name ?? lead.person_id}, {lead.type} (source: {lead.source_tool}, confidence{" "}
+                      {typeof lead.confidence === "number" ? Math.round(lead.confidence * 100) : "-"}%)
                     </li>
                   ))}
                 </ul>
@@ -84,7 +84,7 @@ function AiBriefPanel({ caseId }: { caseId: string }) {
                 <ul className="space-y-1">
                   {brief.similar_cases.map((similar) => (
                     <li key={similar.case_id} className="font-mono text-xs text-zinc-600 dark:text-zinc-300">
-                      {similar.crime_no} — {similar.disposition ?? t("aiBrief.statusUnknown")}
+                      {similar.crime_no}, {similar.disposition ?? t("aiBrief.statusUnknown")}
                     </li>
                   ))}
                 </ul>

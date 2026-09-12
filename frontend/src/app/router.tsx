@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Route, Routes } from "react-router-dom"
+import { Navigate, Route, Routes } from "react-router-dom"
 
 import { DashboardLayout } from "@/layouts/DashboardLayout"
 import { FullScreenSpinnerFallback, RequireAuthenticatedSession, RequirePermission } from "./RouteGuards"
@@ -10,6 +10,9 @@ const CatalystCallbackPage = React.lazy(() =>
 )
 const RoleSelectionPage = React.lazy(() =>
   import("@/features/auth/RoleSelectionPage").then((m) => ({ default: m.RoleSelectionPage })),
+)
+const AccessScopePage = React.lazy(() =>
+  import("@/features/auth/AccessScopePage").then((m) => ({ default: m.AccessScopePage })),
 )
 const OverviewPage = React.lazy(() =>
   import("@/features/dashboard/OverviewPage").then((m) => ({ default: m.OverviewPage })),
@@ -65,8 +68,15 @@ function AppRouter() {
   return (
     <React.Suspense fallback={<FullScreenSpinnerFallback />}>
       <Routes>
+        {/* Catalyst's homepage/login_redirect resolve to the real file
+            index.html, which arrives here as /index.html once BrowserRouter
+            strips the /app/ basename — no route would otherwise match it. */}
+        <Route path="/index.html" element={<Navigate to="/" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/catalyst-callback" element={<CatalystCallbackPage />} />
+        {/* Public on purpose: it is linked from the sign-in screen, so someone
+            without a session has to be able to read it. */}
+        <Route path="/access-scope" element={<AccessScopePage />} />
         {/* Not wrapped in RequireAuthenticatedSession — that guard redirects
             needs_role_selection users to this exact route, which would loop.
             RoleSelectionPage does its own "must be logged in" check instead. */}

@@ -167,9 +167,18 @@ class GraphSyncService:
     async def get_person_network(
         self, person_id: str, depth: int = 2
     ) -> Dict[str, Any]:
+        # OPTIONAL MATCH, with the person matched first: the previous form
+        # (`MATCH path = (p)-[*1..N]-(n)`) required at least one relationship,
+        # so a person with no synced edges returned zero rows and the explorer
+        # rendered an empty canvas, indistinguishable from a failed query. The
+        # global graph uses OPTIONAL MATCH already, which is why it kept
+        # showing nodes while every ego/centered subgraph came back blank.
+        # Returning the lone person makes "no connections" visible as itself.
         query = """
-        MATCH path = (p:Person {id: $person_id})-[*1..{depth}]-(n)
-        RETURN nodes(path) as nodes, relationships(path) as rels
+        MATCH (p:Person {id: $person_id})
+        OPTIONAL MATCH path = (p)-[*1..{depth}]-(n)
+        RETURN CASE WHEN path IS NULL THEN [p] ELSE nodes(path) END AS nodes,
+               CASE WHEN path IS NULL THEN [] ELSE relationships(path) END AS rels
         """.replace("{depth}", str(depth))
 
         results = await graph_db.execute_query(query, {"person_id": person_id})
@@ -197,16 +206,27 @@ class GraphSyncService:
 
     async def _upsert_incident_node(self, case_id: str, data: Dict[str, Any]) -> None:
         await graph_db.execute_query(
+            # unit_id is written here because get_multi_jurisdiction_offenders
+            # groups on `i.unit_id` to find people whose cases span more than one
+            # jurisdiction. It was never set, so that property was always null;
+            # Neo4j's collect() drops nulls, so `size(units) > 1` was never true
+            # and the query returned nothing no matter how the data looked. That
+            # silently disabled the repeat-offender early-warning detector, which
+            # reads from it. COALESCE so a caller that does not know the unit
+            # (the ingestion path, where it is not always extractable) leaves an
+            # existing value alone rather than nulling it on every re-sync.
             """
             MERGE (i:Incident {id: $case_id})
             SET i.crime_no = $crime_no,
                 i.date_reported = $date_reported,
+                i.unit_id = COALESCE($unit_id, i.unit_id),
                 i.updated_at = datetime()
             """,
             {
                 "case_id": case_id,
                 "crime_no": data.get("crime_no", ""),
                 "date_reported": str(data.get("date_reported", "")),
+                "unit_id": data.get("unit_id"),
             },
         )
 
